@@ -1,0 +1,12 @@
+{
+  "name": "Club Atletas de Fuenlabrada",
+  "short_name": "Atletas Fuenla",
+  "description": "Gestión deportiva, cuotas, carreras y comunicaciones del club.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f4f6fa",
+  "theme_color": "#0b1930",
+  "lang": "es",
+  "icons": [{"src":"/favicon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]
+}
