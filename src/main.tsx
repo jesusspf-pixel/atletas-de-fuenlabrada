@@ -6,6 +6,7 @@ import { supabase } from "./lib/supabase";
 import "./styles.css";
 import "./access.css";
 import "./components/family-registration.css";
+import "./components/sports-center.css";
 
 function Root() {
   const [signedIn, setSignedIn] = useState(false);
