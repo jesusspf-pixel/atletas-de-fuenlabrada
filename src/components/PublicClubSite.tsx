@@ -27,6 +27,10 @@ type ClubIdentity = {
 const time = (value?: string | null) => value ? value.slice(0, 5) : "";
 const mapsUrl = "https://www.google.com/maps/search/?api=1&query=Estadio%20Ra%C3%BAl%20Gonz%C3%A1lez%20Blanco%20URJC%20Fuenlabrada";
 
+function MapPin() {
+  return <svg className="public-map-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a7 7 0 0 0-7 7c0 5.2 7 13 7 13s7-7.8 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6a2.5 2.5 0 0 1 0 5.5Z" /></svg>;
+}
+
 export default function PublicClubSite({ onLogin, onSignup }: { onLogin: () => void; onSignup: () => void }) {
   const [identity, setIdentity] = useState<ClubIdentity | null>(null);
   const [groups, setGroups] = useState<PublicGroup[]>([]);
@@ -49,8 +53,7 @@ export default function PublicClubSite({ onLogin, onSignup }: { onLogin: () => v
 
   return <main className="public-club-site">
     <header className="public-nav">
-      <button className="public-brand" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} aria-label="Volver al inicio">
-        {identity?.logo_url ? <img src={identity.logo_url} alt="Escudo del club" /> : <b>AF</b>}
+      <button className="public-brand public-brand-wordmark" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} aria-label="Volver al inicio">
         <span>CLUB ATLETAS<small>DE FUENLABRADA</small></span>
       </button>
       <nav>
@@ -95,8 +98,8 @@ export default function PublicClubSite({ onLogin, onSignup }: { onLogin: () => v
     </section>
 
     <section className="public-running" id="running">
-      <div className="public-running-copy"><small>RUNNING · MÁSTER</small><h2>Cuatro días para entrenar mejor. Todo el año para seguir mejorando.</h2><p>Una de las propuestas de running más completas de Fuenlabrada y la zona sur: entrenamiento presencial, grupo, seguimiento y continuidad dentro del club.</p><div className="public-running-points"><span>4 entrenamientos presenciales por semana</span><span>70 € por trimestre</span><span>23,33 € al mes</span></div></div>
-      <div className="public-running-price"><small>RUNNING / MÁSTER</small><b>23,33 €</b><span>al mes</span><p>4 días de entrenamiento presencial por semana.</p><button className="public-primary" onClick={onSignup}>Quiero entrenar con el club</button></div>
+      <div className="public-running-copy"><small>RUNNING · MÁSTER</small><h2>Cuatro días para entrenar mejor. Todo el año para seguir mejorando.</h2><p>Una de las propuestas de running más completas de Fuenlabrada y la zona sur: entrenamiento presencial, grupo, seguimiento y continuidad dentro del club.</p><div className="public-running-points"><span>4 entrenamientos presenciales por semana</span><span>70 € por trimestre</span><span>23,33 € al mes*</span></div></div>
+      <div className="public-running-price"><small>RUNNING / MÁSTER</small><b>23,33 €*</b><span>al mes</span><p>4 días de entrenamiento presencial por semana.</p><small className="public-price-note">* Cuota de 70 € por trimestre. Equivalente a 23,33 €/mes.</small><button className="public-primary" onClick={onSignup}>Quiero entrenar con el club</button></div>
     </section>
 
     <section className="public-groups" id="grupos">
@@ -123,12 +126,12 @@ export default function PublicClubSite({ onLogin, onSignup }: { onLogin: () => v
     </section>
 
     <section className="public-contact" id="contacto">
-      <div><small>DÓNDE ENTRENAMOS</small><h2>Estadio Raúl González Blanco</h2><p>Universidad Rey Juan Carlos · Campus de Fuenlabrada</p><a className="public-map-link" href={mapsUrl} target="_blank" rel="noreferrer">Cómo llegar en Google Maps ↗</a></div>
+      <div><small>DÓNDE ENTRENAMOS</small><h2>Estadio Raúl González Blanco</h2><p>Universidad Rey Juan Carlos · Campus de Fuenlabrada</p><a className="public-map-link" href={mapsUrl} target="_blank" rel="noreferrer"><MapPin /><span><b>Cómo llegar</b><small>Abrir en Google Maps</small></span></a></div>
       <div className="public-contact-data"><a href={`mailto:${email}`}>{email}</a>{identity?.contact_phone && <a href={`tel:${identity.contact_phone.replace(/\s/g, "")}`}>{identity.contact_phone}</a>}<button onClick={onLogin}>Ya soy del club → Acceder</button></div>
     </section>
 
     <section className="public-collaborators"><small>COLABORADORES</small><div><article><b>URJC</b><span>Universidad Rey Juan Carlos · Fuenlabrada</span></article><article><b>PMD</b><span>Patronato Municipal de Deportes de Fuenlabrada</span></article></div></section>
 
-    <footer className="public-footer"><div className="public-brand">{identity?.logo_url ? <img src={identity.logo_url} alt="" /> : <b>AF</b>}<span>{name.toUpperCase()}</span></div><p>Club Atletas de Fuenlabrada · Plataforma oficial del club.</p><button onClick={onLogin}>Acceso familias, atletas y equipo</button></footer>
+    <footer className="public-footer"><div className="public-brand public-brand-wordmark public-brand-footer"><span>CLUB ATLETAS<small>DE FUENLABRADA</small></span></div><p>Club Atletas de Fuenlabrada · Plataforma oficial del club.</p><button onClick={onLogin}>Acceso familias, atletas y equipo</button></footer>
   </main>;
 }
