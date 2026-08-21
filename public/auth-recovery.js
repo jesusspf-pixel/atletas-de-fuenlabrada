@@ -1,10 +1,10 @@
 (() => {
   const FRIENDLY = [
-    [/email rate limit exceeded/i, "No hemos podido enviarte el correo de confirmación. Si ya creaste tu cuenta, solicita uno nuevo con el botón de abajo."],
-    [/error sending confirmation email/i, "No hemos podido enviarte el correo de confirmación. Si la cuenta ya se creó, puedes solicitar un nuevo correo ahora."],
-    [/user already registered|already been registered|already registered/i, "Este correo ya tiene una cuenta. Entra con tu contraseña o solicita un nuevo correo de confirmación si todavía no la activaste."],
-    [/email not confirmed|email_not_confirmed/i, "Tu cuenta existe, pero falta confirmar el correo electrónico. Solicita un nuevo correo de confirmación."],
-    [/invalid login credentials/i, "El correo o la contraseña no son correctos. Si acabas de registrarte y no confirmaste el correo, solicita uno nuevo."],
+    [/email rate limit exceeded/i, ["No hemos podido enviarte el correo. Espera un minuto y vuelve a intentarlo.", true]],
+    [/error sending confirmation email/i, ["No hemos podido enviarte el correo de confirmación. Puedes solicitar uno nuevo.", true]],
+    [/user already registered|already been registered|already registered/i, ["Este correo ya tiene una cuenta. Entra con tu contraseña.", false]],
+    [/email not confirmed|email_not_confirmed/i, ["Tu cuenta existe, pero falta confirmar el correo electrónico.", true]],
+    [/invalid login credentials/i, ["El correo o la contraseña no son correctos.", false]],
   ];
 
   function emailInput() {
@@ -14,74 +14,120 @@
   function normalizeErrors() {
     document.querySelectorAll('.access-box .error-note').forEach((node) => {
       const text = (node.textContent || '').trim();
-      for (const [pattern, replacement] of FRIENDLY) {
-        if (pattern.test(text)) {
-          node.textContent = replacement;
-          node.dataset.friendlyAuth = 'true';
-          break;
-        }
+      for (const [pattern, value] of FRIENDLY) {
+        if (!pattern.test(text)) continue;
+        node.textContent = value[0];
+        node.dataset.needsConfirmation = value[1] ? 'true' : 'false';
+        break;
       }
     });
   }
 
-  function ensureRecoveryButton() {
+  function setStatus(node, message, ok) {
+    node.textContent = message;
+    node.style.margin = '8px 0 0';
+    node.style.fontSize = '0.95rem';
+    node.style.lineHeight = '1.4';
+    node.style.color = ok ? '#166534' : '#b42318';
+  }
+
+  function ensureActions() {
     const box = document.querySelector('.access-box');
     const input = emailInput();
-    if (!box || !input || box.querySelector('[data-resend-confirmation]')) return;
+    if (!box || !input) return;
 
-    const toggleButtons = [...box.querySelectorAll('button.plain')];
-    const toggle = toggleButtons.find((button) => /cuenta|entrar|inscripci/i.test(button.textContent || ''));
+    box.querySelectorAll('[data-resend-confirmation]').forEach((node) => node.remove());
+
+    const title = box.querySelector('h1');
+    if (!title || !/entra en tu cuenta/i.test(title.textContent || '')) {
+      box.querySelectorAll('[data-auth-help]').forEach((node) => node.remove());
+      return;
+    }
+
+    const toggle = [...box.querySelectorAll('button.plain')].find((button) => /aún no tienes cuenta|inicia tu inscripción/i.test(button.textContent || ''));
     if (!toggle) return;
 
-    const wrap = document.createElement('div');
-    wrap.dataset.resendConfirmation = 'true';
+    const needsConfirmation = Boolean(box.querySelector('.error-note[data-needs-confirmation="true"]'));
+    let wrap = box.querySelector('[data-auth-help]');
+    if (wrap && wrap.dataset.confirmation === String(needsConfirmation)) return;
+    if (wrap) wrap.remove();
+
+    wrap = document.createElement('div');
+    wrap.dataset.authHelp = 'true';
+    wrap.dataset.confirmation = String(needsConfirmation);
     wrap.style.marginTop = '10px';
 
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'plain';
-    button.textContent = '¿No recibiste el correo? Reenviar confirmación';
-
     const status = document.createElement('p');
-    status.style.margin = '8px 0 0';
-    status.style.fontSize = '0.95rem';
-    status.style.lineHeight = '1.4';
 
-    button.addEventListener('click', async () => {
+    const forgot = document.createElement('button');
+    forgot.type = 'button';
+    forgot.className = 'plain';
+    forgot.textContent = '¿Olvidaste tu contraseña?';
+    forgot.addEventListener('click', async () => {
       const email = String(emailInput()?.value || '').trim();
       if (!email || !email.includes('@')) {
-        status.textContent = 'Escribe primero el correo con el que creaste la cuenta.';
-        status.style.color = '#b42318';
+        setStatus(status, 'Escribe primero tu correo electrónico.', false);
+        emailInput()?.focus();
         return;
       }
-      button.disabled = true;
-      button.textContent = 'Enviando…';
-      status.textContent = '';
+      forgot.disabled = true;
+      forgot.textContent = 'Enviando…';
       try {
-        const response = await fetch('/api/resend-confirmation', {
+        const response = await fetch('/api/request-password-reset', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ email }),
         });
         const data = await response.json().catch(() => ({}));
-        status.textContent = data.message || data.error || (response.ok ? 'Correo enviado.' : 'No se pudo reenviar el correo.');
-        status.style.color = response.ok ? '#166534' : '#b42318';
+        setStatus(status, data.message || data.error || 'No se pudo enviar el correo de recuperación.', response.ok);
       } catch {
-        status.textContent = 'No se pudo contactar con el servicio de correo. Inténtalo de nuevo en unos minutos.';
-        status.style.color = '#b42318';
+        setStatus(status, 'No se pudo contactar con el servicio de recuperación. Inténtalo de nuevo en unos minutos.', false);
       } finally {
-        button.disabled = false;
-        button.textContent = '¿No recibiste el correo? Reenviar confirmación';
+        forgot.disabled = false;
+        forgot.textContent = '¿Olvidaste tu contraseña?';
       }
     });
+    wrap.appendChild(forgot);
 
-    wrap.append(button, status);
+    if (needsConfirmation) {
+      const resend = document.createElement('button');
+      resend.type = 'button';
+      resend.className = 'plain';
+      resend.style.display = 'block';
+      resend.textContent = 'Reenviar correo de confirmación';
+      resend.addEventListener('click', async () => {
+        const email = String(emailInput()?.value || '').trim();
+        if (!email || !email.includes('@')) {
+          setStatus(status, 'Escribe primero el correo con el que creaste la cuenta.', false);
+          return;
+        }
+        resend.disabled = true;
+        resend.textContent = 'Enviando…';
+        try {
+          const response = await fetch('/api/resend-confirmation', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ email }),
+          });
+          const data = await response.json().catch(() => ({}));
+          setStatus(status, data.message || data.error || 'No se pudo reenviar el correo.', response.ok);
+        } catch {
+          setStatus(status, 'No se pudo contactar con el servicio de correo. Inténtalo de nuevo en unos minutos.', false);
+        } finally {
+          resend.disabled = false;
+          resend.textContent = 'Reenviar correo de confirmación';
+        }
+      });
+      wrap.appendChild(resend);
+    }
+
+    wrap.appendChild(status);
     toggle.parentNode?.insertBefore(wrap, toggle);
   }
 
   function refresh() {
     normalizeErrors();
-    ensureRecoveryButton();
+    ensureActions();
   }
 
   let queued = false;
