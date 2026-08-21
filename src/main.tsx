@@ -4,6 +4,7 @@ import App from "./App";
 import SportsCenter from "./components/SportsCenter";
 import SelfAthleteRegistration from "./components/SelfAthleteRegistration";
 import MemberExperience from "./components/MemberExperience";
+import PublicClubSite from "./components/PublicClubSite";
 import { supabase } from "./lib/supabase";
 import "./styles.css";
 import "./access.css";
@@ -13,7 +14,11 @@ import "./components/sports-center.css";
 type Role = "owner" | "admin" | "coach" | "parent" | "adult_athlete" | "minor_athlete";
 
 function Root() {
+  const params = new URLSearchParams(window.location.search);
+  const forcedAccess = params.has("access") || params.has("signup") || params.has("invitation") || params.has("code") || window.location.hash.includes("type=recovery");
   const [signedIn, setSignedIn] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [showAccess, setShowAccess] = useState(forcedAccess);
   const [role, setRole] = useState<Role | null>(null);
   const [profileId, setProfileId] = useState("");
   const sports = window.location.pathname === "/deportivo";
@@ -25,13 +30,27 @@ function Root() {
       window.location.replace(target);
       return;
     }
-    const client = supabase; if (!client) return;
+    const client = supabase; if (!client) { setAuthChecked(true); return; }
     const loadRole = async (userId: string) => { const { data } = await client.from("profiles").select("role").eq("id", userId).maybeSingle(); setRole((data?.role as Role | undefined) ?? null); setProfileId(userId); };
-    const loadSession = async () => { const { data } = await client.auth.getSession(); const session = data.session; setSignedIn(Boolean(session)); if (!session) { setRole(null); setProfileId(""); return; } await loadRole(session.user.id); };
+    const loadSession = async () => { const { data } = await client.auth.getSession(); const session = data.session; setSignedIn(Boolean(session)); if (!session) { setRole(null); setProfileId(""); setAuthChecked(true); return; } await loadRole(session.user.id); setAuthChecked(true); };
     void loadSession();
-    const { data: { subscription } } = client.auth.onAuthStateChange((_event, session) => { setSignedIn(Boolean(session)); if (!session) { setRole(null); setProfileId(""); } else void loadRole(session.user.id); });
+    const { data: { subscription } } = client.auth.onAuthStateChange((_event, session) => { setSignedIn(Boolean(session)); if (!session) { setRole(null); setProfileId(""); } else void loadRole(session.user.id); setAuthChecked(true); });
     return () => subscription.unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (!showAccess || signedIn || !new URLSearchParams(window.location.search).has("signup")) return;
+    let done = false;
+    const openSignup = () => {
+      if (done) return;
+      const button = [...document.querySelectorAll<HTMLButtonElement>("button.plain")].find(item => item.textContent?.includes("Aún no tienes cuenta"));
+      if (button) { done = true; button.click(); }
+    };
+    openSignup();
+    const observer = new MutationObserver(openSignup); observer.observe(document.body, { childList: true, subtree: true });
+    const timer = window.setTimeout(() => observer.disconnect(), 3000);
+    return () => { observer.disconnect(); window.clearTimeout(timer); };
+  }, [showAccess, signedIn]);
 
   useEffect(() => {
     if (!sports || !signedIn) return;
@@ -129,11 +148,14 @@ function Root() {
     return () => { document.removeEventListener("click", click, true); observer.disconnect(); };
   }, [signedIn, role, profileId, sports, selfAthlete]);
 
+  if (!authChecked && !sports && !selfAthlete) return <main className="public-club-site public-loading"><div>Club Atletas de Fuenlabrada</div></main>;
   if (selfAthlete) {
     if (!signedIn) return <App />;
     return <SelfAthleteRegistration onDone={() => window.location.assign("/deportivo")} />;
   }
   if (sports) return <SportsCenter />;
+  if (!signedIn && !showAccess) return <PublicClubSite onLogin={() => { window.history.replaceState({}, "", "/?access=1"); setShowAccess(true); }} onSignup={() => { window.history.replaceState({}, "", "/?signup=1"); setShowAccess(true); }} />;
+  if (!signedIn && showAccess) return <><button className="public-back-access" onClick={() => { window.history.replaceState({}, "", "/"); setShowAccess(false); }}>← Volver a la web del club</button><App /></>;
   return <App />;
 }
 
