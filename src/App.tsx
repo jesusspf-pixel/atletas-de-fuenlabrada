@@ -21,6 +21,11 @@ export default function App() {
   if (!session) return <Access />;
   if (register === "family") return <FamilyRegistration email={session.user.email ?? ""} onBack={() => { setRegister(null); void supabase?.auth.signOut(); }} />;
   if (register === "adult") return <AdultRegistration email={session.user.email ?? ""} onBack={() => { setRegister(null); void supabase?.auth.signOut(); }} />;
+  // The initial owner must never be trapped on the activation screen because
+  // their row can briefly be unavailable through the browser session.
+  if (!profile && session.user.email?.toLowerCase() === "jesusspf@gmail.com") {
+    return <Portal profile={{ id: session.user.id, email: session.user.email, full_name: "Jesús Pérez", role: "owner" }} signOut={() => void supabase?.auth.signOut()} />;
+  }
   if (!profile) return <ChooseRegistration email={session.user.email ?? ""} invitation={invitation} owner={session.user.email?.toLowerCase() === "jesusspf@gmail.com"} family={() => setRegister("family")} adult={() => setRegister("adult")} ownerAction={async () => { if (!supabase) return; const { error } = await supabase.rpc("bootstrap_owner"); if (error) throw error; const { data, error: profileError } = await supabase.from("profiles").select("*").eq("id", session.user.id).single(); if (profileError) throw profileError; setProfile(data as Profile); }} invitationAction={async () => { if (!supabase || !invitation) return; const { error } = await supabase.rpc("accept_staff_invitation", { invitation_token: invitation }); if (error) throw error; const { data } = await supabase.from("profiles").select("*").eq("id", session.user.id).single(); window.history.replaceState({}, "", window.location.pathname); setProfile(data as Profile); }} />;
   return <Portal profile={profile} signOut={() => void supabase?.auth.signOut()} />;
 }
