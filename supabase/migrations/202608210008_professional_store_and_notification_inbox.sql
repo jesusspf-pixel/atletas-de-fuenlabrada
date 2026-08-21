@@ -42,12 +42,30 @@ create or replace function public.notify_admins_new_athlete()
 returns trigger language plpgsql security definer set search_path = public as $$
 declare notice_id uuid;
 declare recipient_id uuid;
+declare source_profile_id uuid;
 begin
+  select coalesce(new.user_profile_id, f.primary_profile_id)
+    into source_profile_id
+  from public.families f
+  where f.id = new.family_id;
+
+  -- Una inscripción de menor puede no tener un perfil de atleta. En ese caso
+  -- usamos el perfil familiar que la presentó; si tampoco existe, no bloqueamos
+  -- el alta únicamente por no poder crear el aviso interno.
+  if source_profile_id is null then
+    select id into source_profile_id
+    from public.profiles
+    where role in ('owner', 'admin')
+    order by created_at
+    limit 1;
+  end if;
+  if source_profile_id is null then return new; end if;
+
   insert into public.announcements(title, body, audience, delivery_channels, published_at, created_by)
   values (
     'Nueva inscripción',
     new.first_name || ' ' || new.last_name || ' se ha registrado y requiere revisión.',
-    'individual', array['app']::text[], now(), new.user_profile_id
+    'individual', array['app']::text[], now(), source_profile_id
   ) returning id into notice_id;
   for recipient_id in select id from public.profiles where role in ('owner','admin') loop
     insert into public.announcement_deliveries(announcement_id, recipient_profile_id, channel, delivery_status)
