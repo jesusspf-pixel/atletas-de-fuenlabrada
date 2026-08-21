@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 import "./public-club-site.css";
+import "./public-club-identity.css";
 
 type PublicGroup = {
   id: string;
