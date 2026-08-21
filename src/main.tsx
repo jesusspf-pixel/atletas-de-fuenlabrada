@@ -2,6 +2,8 @@ import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import SportsCenter from "./components/SportsCenter";
+import SelfAthleteRegistration from "./components/SelfAthleteRegistration";
+import MemberExperience from "./components/MemberExperience";
 import { supabase } from "./lib/supabase";
 import "./styles.css";
 import "./access.css";
@@ -13,32 +15,77 @@ type Role = "owner" | "admin" | "coach" | "parent" | "adult_athlete" | "minor_at
 function Root() {
   const [signedIn, setSignedIn] = useState(false);
   const [role, setRole] = useState<Role | null>(null);
+  const [profileId, setProfileId] = useState("");
   const sports = window.location.pathname === "/deportivo";
+  const selfAthlete = window.location.pathname === "/alta-atleta";
 
   useEffect(() => {
+    if (window.location.hostname.endsWith("pages.dev")) {
+      const target = `https://atletasdefuenlabrada.com${window.location.pathname}${window.location.search}${window.location.hash}`;
+      window.location.replace(target);
+      return;
+    }
     const client = supabase; if (!client) return;
-    const loadRole = async (userId: string) => { const { data } = await client.from("profiles").select("role").eq("id", userId).maybeSingle(); setRole((data?.role as Role | undefined) ?? null); };
-    const loadSession = async () => { const { data } = await client.auth.getSession(); const session = data.session; setSignedIn(Boolean(session)); if (!session) { setRole(null); return; } await loadRole(session.user.id); };
+    const loadRole = async (userId: string) => { const { data } = await client.from("profiles").select("role").eq("id", userId).maybeSingle(); setRole((data?.role as Role | undefined) ?? null); setProfileId(userId); };
+    const loadSession = async () => { const { data } = await client.auth.getSession(); const session = data.session; setSignedIn(Boolean(session)); if (!session) { setRole(null); setProfileId(""); return; } await loadRole(session.user.id); };
     void loadSession();
-    const { data: { subscription } } = client.auth.onAuthStateChange((_event, session) => { setSignedIn(Boolean(session)); if (!session) setRole(null); else void loadRole(session.user.id); });
+    const { data: { subscription } } = client.auth.onAuthStateChange((_event, session) => { setSignedIn(Boolean(session)); if (!session) { setRole(null); setProfileId(""); } else void loadRole(session.user.id); });
     return () => subscription.unsubscribe();
   }, []);
 
   useEffect(() => {
-    const client = supabase; if (!client || !signedIn || sports) return;
+    if (!sports || !signedIn) return;
+    const enhanceSportsNav = () => {
+      const nav = document.querySelector(".sports-center-shell .club-side nav");
+      if (!nav || nav.querySelector("[data-main-nav='true']")) return;
+      const divider = document.createElement("small"); divider.textContent = "APLICACIÓN"; divider.dataset.mainNav = "true"; divider.className = "sports-nav-divider"; nav.prepend(divider);
+      const labels = role === "coach" ? ["Inicio", "Mi grupo", "Carreras", "Avisos", "Tienda"] : role === "owner" || role === "admin" ? ["Inicio", "Atletas", "Grupos", "Cuotas", "Carreras", "Avisos", "Tienda"] : ["Inicio", role === "parent" ? "Mis atletas" : "Mi perfil", "Carreras", "Cuotas", "Avisos", "Tienda"];
+      labels.reverse().forEach(label => {
+        const button = document.createElement("button"); button.type = "button"; button.dataset.mainNav = "true"; button.textContent = label; button.addEventListener("click", () => window.location.assign(`/?section=${encodeURIComponent(label)}`)); nav.prepend(button);
+      });
+      const title = document.createElement("small"); title.textContent = "ÁREA DEPORTIVA"; title.dataset.mainNav = "true"; title.className = "sports-nav-divider"; nav.appendChild(title);
+    };
+    enhanceSportsNav(); const observer = new MutationObserver(enhanceSportsNav); observer.observe(document.body, { childList: true, subtree: true }); return () => observer.disconnect();
+  }, [sports, signedIn, role]);
+
+  useEffect(() => {
+    const client = supabase; if (!client || !signedIn || sports || selfAthlete) return;
     const sportsUrl = (name: string) => `/deportivo?athleteName=${encodeURIComponent(name.trim())}`;
+    let memberRootMounted = false;
     const markInboxRead = async () => {
-      const { data: sessionData } = await client.auth.getSession(); const profileId = sessionData.session?.user.id; if (!profileId) return;
-      const { data: deliveries } = await client.from("announcement_deliveries").select("announcement_id").eq("recipient_profile_id", profileId).eq("channel", "app");
+      const { data: sessionData } = await client.auth.getSession(); const currentProfileId = sessionData.session?.user.id; if (!currentProfileId) return;
+      const { data: deliveries } = await client.from("announcement_deliveries").select("announcement_id").eq("recipient_profile_id", currentProfileId).eq("channel", "app");
       const unique = [...new Set((deliveries ?? []).map(row => row.announcement_id))];
-      if (unique.length) await client.from("announcement_reads").upsert(unique.map(announcement_id => ({ announcement_id, profile_id: profileId, read_at: new Date().toISOString() })), { onConflict: "announcement_id,profile_id" });
+      if (unique.length) await client.from("announcement_reads").upsert(unique.map(announcement_id => ({ announcement_id, profile_id: currentProfileId, read_at: new Date().toISOString() })), { onConflict: "announcement_id,profile_id" });
       document.querySelectorAll(".notice-count").forEach(node => node.remove());
+    };
+
+    const openRequestedSection = () => {
+      const requested = new URLSearchParams(window.location.search).get("section");
+      if (!requested) return;
+      const button = [...document.querySelectorAll<HTMLButtonElement>(".club-side nav button")].find(item => item.textContent?.replace(/\d+/g, "").trim() === requested);
+      if (button) { button.click(); window.history.replaceState({}, "", "/"); }
+    };
+
+    const mountMemberExperience = () => {
+      if (role !== "adult_athlete" || !profileId) return;
+      const content = document.querySelector<HTMLElement>(".club-content"); if (!content) return;
+      let mount = document.getElementById("member-experience-root");
+      if (!mount) { mount = document.createElement("div"); mount.id = "member-experience-root"; const topbar = content.querySelector(".topbar"); topbar?.insertAdjacentElement("afterend", mount); }
+      if (!memberRootMounted) { createRoot(mount).render(<MemberExperience profileId={profileId} />); memberRootMounted = true; }
+      const selected = document.querySelector<HTMLButtonElement>(".club-side nav button.selected")?.textContent?.replace(/\d+/g, "").trim() || "";
+      const custom = selected.startsWith("Inicio") || selected.startsWith("Mi perfil");
+      [...content.children].forEach(child => { const element = child as HTMLElement; if (element.classList.contains("topbar") || element.id === "member-experience-root") return; element.style.display = custom ? "none" : ""; });
+      mount.style.display = custom ? "block" : "none";
     };
 
     const enhance = () => {
       const nav = document.querySelector(".club-side nav");
       if (nav && !nav.querySelector("[data-sports-nav='true']")) {
         const button = document.createElement("button"); button.type = "button"; button.dataset.sportsNav = "true"; button.textContent = role === "parent" ? "Marcas" : "Marcas y rankings"; button.addEventListener("click", () => window.location.assign("/deportivo")); nav.appendChild(button);
+      }
+      if (role === "parent" && nav && !nav.querySelector("[data-self-athlete='true']")) {
+        const button = document.createElement("button"); button.type = "button"; button.dataset.selfAthlete = "true"; button.textContent = "También soy atleta"; button.addEventListener("click", () => window.location.assign("/alta-atleta")); nav.appendChild(button);
       }
 
       if (role === "coach") {
@@ -72,13 +119,18 @@ function Root() {
           row.addEventListener("click", open); row.addEventListener("keydown", event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); open(); } });
         });
       }
+      openRequestedSection(); mountMemberExperience();
     };
 
-    const click = (event: Event) => { const target = event.target as HTMLElement | null; const button = target?.closest("button"); const label = button?.textContent?.replace(/\d+/g, "").trim() ?? ""; if (label.startsWith("Avisos")) void markInboxRead(); };
-    document.addEventListener("click", click, true); enhance(); const observer = new MutationObserver(enhance); observer.observe(document.body, { childList: true, subtree: true });
+    const click = (event: Event) => { const target = event.target as HTMLElement | null; const button = target?.closest("button"); const label = button?.textContent?.replace(/\d+/g, "").trim() ?? ""; if (label.startsWith("Avisos")) void markInboxRead(); window.setTimeout(enhance, 0); };
+    document.addEventListener("click", click, true); enhance(); const observer = new MutationObserver(enhance); observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["class"] });
     return () => { document.removeEventListener("click", click, true); observer.disconnect(); };
-  }, [signedIn, role, sports]);
+  }, [signedIn, role, profileId, sports, selfAthlete]);
 
+  if (selfAthlete) {
+    if (!signedIn) return <App />;
+    return <SelfAthleteRegistration onDone={() => window.location.assign("/deportivo")} />;
+  }
   if (sports) return <SportsCenter />;
   return <App />;
 }
