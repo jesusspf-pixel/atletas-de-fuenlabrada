@@ -51,7 +51,6 @@ function Root() {
   useEffect(() => {
     const client = supabase; if (!client || !signedIn || sports || selfAthlete) return;
     const sportsUrl = (name: string) => `/deportivo?athleteName=${encodeURIComponent(name.trim())}`;
-    let memberRootMounted = false;
     const markInboxRead = async () => {
       const { data: sessionData } = await client.auth.getSession(); const currentProfileId = sessionData.session?.user.id; if (!currentProfileId) return;
       const { data: deliveries } = await client.from("announcement_deliveries").select("announcement_id").eq("recipient_profile_id", currentProfileId).eq("channel", "app");
@@ -72,7 +71,10 @@ function Root() {
       const content = document.querySelector<HTMLElement>(".club-content"); if (!content) return;
       let mount = document.getElementById("member-experience-root");
       if (!mount) { mount = document.createElement("div"); mount.id = "member-experience-root"; const topbar = content.querySelector(".topbar"); topbar?.insertAdjacentElement("afterend", mount); }
-      if (!memberRootMounted) { createRoot(mount).render(<MemberExperience profileId={profileId} />); memberRootMounted = true; }
+      if (mount.dataset.reactMounted !== "true") {
+        createRoot(mount).render(<MemberExperience profileId={profileId} />);
+        mount.dataset.reactMounted = "true";
+      }
       const selected = document.querySelector<HTMLButtonElement>(".club-side nav button.selected")?.textContent?.replace(/\d+/g, "").trim() || "";
       const custom = selected.startsWith("Inicio") || selected.startsWith("Mi perfil");
       [...content.children].forEach(child => { const element = child as HTMLElement; if (element.classList.contains("topbar") || element.id === "member-experience-root") return; element.style.display = custom ? "none" : ""; });
