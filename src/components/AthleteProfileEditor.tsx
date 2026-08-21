@@ -39,8 +39,10 @@ export default function AthleteProfileEditor({ athleteId, canEdit }: { athleteId
     const { error } = await client.storage.from("athlete-profiles").upload(path, file, { upsert: true, contentType: file.type });
     if (error) { setBusy(false); return setNotice(error.message); }
     const { data } = client.storage.from("athlete-profiles").getPublicUrl(path);
-    await save(kind === "avatar" ? { avatar_url: data.publicUrl } : { cover_url: data.publicUrl });
+    const next = kind === "avatar" ? { avatar_url: data.publicUrl } : { cover_url: data.publicUrl };
+    setSettings(current => ({ ...current, ...next }));
     setBusy(false);
+    setNotice("Imagen preparada. Pulsa Guardar cambios para confirmar tu ficha.");
   };
 
   return <article className="panel athlete-profile-card">
@@ -48,7 +50,7 @@ export default function AthleteProfileEditor({ athleteId, canEdit }: { athleteId
       {settings.avatar_url ? <img className="athlete-avatar" src={settings.avatar_url} alt="Foto de perfil del atleta" /> : <div className="athlete-avatar athlete-avatar-placeholder">AF</div>}
     </div>
     {settings.bio && <p className="athlete-bio">{settings.bio}</p>}
-    {canEdit && <div className="stacked-form"><h2>Personaliza tu ficha</h2><label>Foto de perfil<input type="file" accept="image/*" disabled={busy} onChange={event => void upload(event, "avatar")} /></label><label>Imagen de portada<input type="file" accept="image/*" disabled={busy} onChange={event => void upload(event, "cover")} /></label><label>Presentación<textarea maxLength={280} value={settings.bio || ""} onChange={event => setSettings(current => ({ ...current, bio: event.target.value }))} onBlur={() => void save({ bio: settings.bio })} placeholder="Cuéntanos algo sobre ti como atleta…" /></label><label className="check-line"><input type="checkbox" checked={settings.challenge_opt_in} onChange={event => void save({ challenge_opt_in: event.target.checked, show_activity_to_club: event.target.checked ? settings.show_activity_to_club : false })} />Participar en Club Challenge</label><label className="check-line"><input type="checkbox" disabled={!settings.challenge_opt_in} checked={settings.show_activity_to_club} onChange={event => void save({ show_activity_to_club: event.target.checked })} />Compartir mis estadísticas de actividad con el club</label><small>La participación es voluntaria. Puedes salir del reto cuando quieras.</small></div>}
+    {canEdit && <div className="stacked-form"><h2>Personaliza tu ficha</h2><label>Foto de perfil<input type="file" accept="image/*" disabled={busy} onChange={event => void upload(event, "avatar")} /></label><label>Imagen de portada<input type="file" accept="image/*" disabled={busy} onChange={event => void upload(event, "cover")} /></label><label>Presentación<textarea maxLength={280} value={settings.bio || ""} onChange={event => setSettings(current => ({ ...current, bio: event.target.value }))} placeholder="Cuéntanos algo sobre ti como atleta…" /></label><label className="check-line"><input type="checkbox" checked={settings.challenge_opt_in} onChange={event => setSettings(current => ({ ...current, challenge_opt_in: event.target.checked, show_activity_to_club: event.target.checked ? current.show_activity_to_club : false }))} />Participar en Club Challenge</label><label className="check-line"><input type="checkbox" disabled={!settings.challenge_opt_in} checked={settings.show_activity_to_club} onChange={event => setSettings(current => ({ ...current, show_activity_to_club: event.target.checked }))} />Compartir mis estadísticas de actividad con el club</label><small>La participación es voluntaria. Puedes salir del reto cuando quieras.</small><button type="button" disabled={busy} onClick={() => void save(settings)}>{busy ? "Guardando…" : "Guardar cambios"}</button></div>}
     {notice && <p className={notice === "Perfil actualizado." ? "success-note" : "error-note"}>{notice}</p>}
   </article>;
 }
