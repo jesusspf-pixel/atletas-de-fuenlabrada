@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
-import AthleteProfileEditor from "./AthleteProfileEditor";
 import ExternalSports from "./ExternalSports";
 import { AthleteResults } from "./AthleteResults";
 
@@ -70,7 +69,7 @@ export default function MemberExperience({ profileId }: { profileId: string }) {
   if (!athlete) return <section className="member-experience"><div className="page-head"><div><h1>Mi perfil</h1><p>Tu inscripción deportiva todavía no está vinculada a esta cuenta.</p></div></div></section>;
 
   if (mode === "home") return <section className="member-experience">
-    <div className="page-head"><div><small>MI TEMPORADA</small><h1>{athlete.first_name} {athlete.last_name}</h1><p>Resumen de tu situación en el club.</p></div><button onClick={() => document.querySelector<HTMLButtonElement>(".club-side nav button:nth-child(2)")?.click()}>Abrir mi perfil →</button></div>
+    <div className="page-head"><div><small>MI TEMPORADA</small><h1>{athlete.first_name} {athlete.last_name}</h1><p>Resumen de tu situación en el club.</p></div><button onClick={() => [...document.querySelectorAll<HTMLButtonElement>(".club-side nav button")].find(item => item.textContent?.trim().startsWith("Mi perfil"))?.click()}>Abrir mi perfil →</button></div>
     <section className="metric-grid member-home-grid">
       <article className="metric"><small>Estado</small><b>{athlete.club_status === "active" ? "Activo" : "En revisión"}</b><small>Alta en el club</small></article>
       <article className="metric"><small>Licencia</small><b>{licenseText(athlete)}</b><small>{athlete.license_status === "active" ? "Licencia activa" : "Pendiente de tramitar"}</small></article>
@@ -84,10 +83,7 @@ export default function MemberExperience({ profileId }: { profileId: string }) {
 
   return <section className="member-experience member-profile-page">
     <div className="page-head"><div><small>PERFIL DEPORTIVO</small><h1>{athlete.first_name} {athlete.last_name}</h1><p>{athlete.training_groups?.name || "Grupo pendiente"} · Licencia {licenseText(athlete)}</p></div></div>
-    <AthleteProfileEditor athleteId={athlete.id} canEdit />
-    <section className="profile-shortcuts">
-      <button onClick={() => window.location.assign(`/deportivo?athleteId=${encodeURIComponent(athlete.id)}`)}>Resultados y mejores marcas →</button>
-    </section>
+    <section className="profile-shortcuts"><button onClick={() => window.location.assign(`/deportivo?athleteId=${encodeURIComponent(athlete.id)}`)}>Abrir resultados y rankings completos →</button></section>
     <AthleteResults athleteId={athlete.id} canAddTraining={false} />
     <ExternalSports athleteId={athlete.id} />
   </section>;
