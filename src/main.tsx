@@ -16,34 +16,53 @@ function Root() {
   const sports = window.location.pathname === "/deportivo";
 
   useEffect(() => {
-    if (!supabase) return;
-    const loadSession = async () => {
-      const { data } = await supabase.auth.getSession();
-      setSignedIn(Boolean(data.session));
-      if (!data.session) { setRole(null); return; }
-      const { data: profile } = await supabase.from("profiles").select("role").eq("id", data.session.user.id).maybeSingle();
-      setRole((profile?.role as Role | undefined) ?? null);
+    const client = supabase;
+    if (!client) return;
+
+    const loadRole = async (userId: string) => {
+      const { data } = await client.from("profiles").select("role").eq("id", userId).maybeSingle();
+      setRole((data?.role as Role | undefined) ?? null);
     };
-    void loadSession();
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+
+    const loadSession = async () => {
+      const { data } = await client.auth.getSession();
+      const session = data.session;
       setSignedIn(Boolean(session));
-      if (!session) setRole(null); else void supabase?.from("profiles").select("role").eq("id", session.user.id).maybeSingle().then(({ data }) => setRole((data?.role as Role | undefined) ?? null));
+      if (!session) {
+        setRole(null);
+        return;
+      }
+      await loadRole(session.user.id);
+    };
+
+    void loadSession();
+    const { data: { subscription } } = client.auth.onAuthStateChange((_event, session) => {
+      setSignedIn(Boolean(session));
+      if (!session) setRole(null);
+      else void loadRole(session.user.id);
     });
     return () => subscription.unsubscribe();
   }, []);
 
   useEffect(() => {
-    if (!signedIn || sports) return;
+    const client = supabase;
+    if (!client || !signedIn || sports) return;
 
     const markInboxRead = async () => {
-      if (!supabase) return;
-      const { data: sessionData } = await supabase.auth.getSession();
+      const { data: sessionData } = await client.auth.getSession();
       const profileId = sessionData.session?.user.id;
       if (!profileId) return;
-      const { data: deliveries } = await supabase.from("announcement_deliveries").select("announcement_id").eq("recipient_profile_id", profileId).eq("channel", "app");
+      const { data: deliveries } = await client
+        .from("announcement_deliveries")
+        .select("announcement_id")
+        .eq("recipient_profile_id", profileId)
+        .eq("channel", "app");
       const unique = [...new Set((deliveries ?? []).map(row => row.announcement_id))];
       if (unique.length) {
-        await supabase.from("announcement_reads").upsert(unique.map(announcement_id => ({ announcement_id, profile_id: profileId, read_at: new Date().toISOString() })), { onConflict: "announcement_id,profile_id" });
+        await client.from("announcement_reads").upsert(
+          unique.map(announcement_id => ({ announcement_id, profile_id: profileId, read_at: new Date().toISOString() })),
+          { onConflict: "announcement_id,profile_id" },
+        );
       }
       document.querySelectorAll(".notice-count").forEach(node => node.remove());
     };
@@ -71,7 +90,12 @@ function Root() {
             window.location.assign(`/deportivo${groupName ? `?groupName=${encodeURIComponent(groupName)}` : ""}`);
           };
           card.addEventListener("click", open);
-          card.addEventListener("keydown", event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); open(); } });
+          card.addEventListener("keydown", event => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              open();
+            }
+          });
         });
       }
     };
@@ -79,13 +103,18 @@ function Root() {
     const click = (event: Event) => {
       const target = event.target as HTMLElement | null;
       const button = target?.closest("button");
-      if (button?.textContent?.replace(/\d+/g, "").trim().startsWith("Avisos")) void markInboxRead();
+      const label = button?.textContent?.replace(/\d+/g, "").trim() ?? "";
+      if (label.startsWith("Avisos")) void markInboxRead();
     };
+
     document.addEventListener("click", click, true);
     enhance();
     const observer = new MutationObserver(enhance);
     observer.observe(document.body, { childList: true, subtree: true });
-    return () => { document.removeEventListener("click", click, true); observer.disconnect(); };
+    return () => {
+      document.removeEventListener("click", click, true);
+      observer.disconnect();
+    };
   }, [signedIn, role, sports]);
 
   if (sports) return <SportsCenter />;
