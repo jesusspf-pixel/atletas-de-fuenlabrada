@@ -2,6 +2,7 @@ import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import SportsCenter from "./components/SportsCenter";
+import SelfAthleteRegistration from "./components/SelfAthleteRegistration";
 import { supabase } from "./lib/supabase";
 import "./styles.css";
 import "./access.css";
@@ -14,8 +15,14 @@ function Root() {
   const [signedIn, setSignedIn] = useState(false);
   const [role, setRole] = useState<Role | null>(null);
   const sports = window.location.pathname === "/deportivo";
+  const selfAthlete = window.location.pathname === "/alta-atleta";
 
   useEffect(() => {
+    if (window.location.hostname.endsWith("pages.dev")) {
+      const target = `https://atletasdefuenlabrada.com${window.location.pathname}${window.location.search}${window.location.hash}`;
+      window.location.replace(target);
+      return;
+    }
     const client = supabase; if (!client) return;
     const loadRole = async (userId: string) => { const { data } = await client.from("profiles").select("role").eq("id", userId).maybeSingle(); setRole((data?.role as Role | undefined) ?? null); };
     const loadSession = async () => { const { data } = await client.auth.getSession(); const session = data.session; setSignedIn(Boolean(session)); if (!session) { setRole(null); return; } await loadRole(session.user.id); };
@@ -25,7 +32,7 @@ function Root() {
   }, []);
 
   useEffect(() => {
-    const client = supabase; if (!client || !signedIn || sports) return;
+    const client = supabase; if (!client || !signedIn || sports || selfAthlete) return;
     const sportsUrl = (name: string) => `/deportivo?athleteName=${encodeURIComponent(name.trim())}`;
     const markInboxRead = async () => {
       const { data: sessionData } = await client.auth.getSession(); const profileId = sessionData.session?.user.id; if (!profileId) return;
@@ -39,6 +46,9 @@ function Root() {
       const nav = document.querySelector(".club-side nav");
       if (nav && !nav.querySelector("[data-sports-nav='true']")) {
         const button = document.createElement("button"); button.type = "button"; button.dataset.sportsNav = "true"; button.textContent = role === "parent" ? "Marcas" : "Marcas y rankings"; button.addEventListener("click", () => window.location.assign("/deportivo")); nav.appendChild(button);
+      }
+      if (role === "parent" && nav && !nav.querySelector("[data-self-athlete='true']")) {
+        const button = document.createElement("button"); button.type = "button"; button.dataset.selfAthlete = "true"; button.textContent = "También soy atleta"; button.addEventListener("click", () => window.location.assign("/alta-atleta")); nav.appendChild(button);
       }
 
       if (role === "coach") {
@@ -77,8 +87,12 @@ function Root() {
     const click = (event: Event) => { const target = event.target as HTMLElement | null; const button = target?.closest("button"); const label = button?.textContent?.replace(/\d+/g, "").trim() ?? ""; if (label.startsWith("Avisos")) void markInboxRead(); };
     document.addEventListener("click", click, true); enhance(); const observer = new MutationObserver(enhance); observer.observe(document.body, { childList: true, subtree: true });
     return () => { document.removeEventListener("click", click, true); observer.disconnect(); };
-  }, [signedIn, role, sports]);
+  }, [signedIn, role, sports, selfAthlete]);
 
+  if (selfAthlete) {
+    if (!signedIn) return <App />;
+    return <SelfAthleteRegistration onDone={() => window.location.assign("/deportivo")} />;
+  }
   if (sports) return <SportsCenter />;
   return <App />;
 }
