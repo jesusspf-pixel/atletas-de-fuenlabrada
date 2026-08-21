@@ -17,6 +17,7 @@ type Ledger = { id: string; description: string; amount_cents: number; status: s
 type Entry = { athlete_id: string; status: string; competition_events?: { title: string; starts_at: string; venue: string | null }[] | null };
 type TrainingPlan = { id: string; title: string; body: string; week_starts_on: string; training_group_id: string; published_at: string | null };
 type TrainingDocument = { id: string; title: string; storage_path: string; training_group_id: string | null; created_at: string };
+type ProfileSettings = { athlete_id: string; avatar_url: string | null; cover_url: string | null; bio: string | null; challenge_opt_in: boolean; show_activity_to_club: boolean };
 
 const euro = (cents: number) => new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(cents / 100);
 const licenseText = (athlete: Athlete) => athlete.federation_license || athlete.license_number || (athlete.license_status === "active" ? "Activa" : "Pendiente");
@@ -35,6 +36,7 @@ export default function MemberExperience({ profileId }: { profileId: string }) {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [plans, setPlans] = useState<TrainingPlan[]>([]);
   const [documents, setDocuments] = useState<TrainingDocument[]>([]);
+  const [profileSettings, setProfileSettings] = useState<ProfileSettings | null>(null);
   const [planNotice, setPlanNotice] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -58,25 +60,93 @@ export default function MemberExperience({ profileId }: { profileId: string }) {
       const { data: athleteData } = await supabase.from("athletes").select("id,first_name,last_name,club_status,license_status,license_number,federation_license,training_group_id,training_groups(name,category_label)").eq("user_profile_id", profileId).order("created_at");
       const mine = (athleteData ?? []) as unknown as Athlete[];
       setAthletes(mine);
-      if (!mine.length) { setLedger([]); setEntries([]); setPlans([]); setDocuments([]); setLoading(false); return; }
+      if (!mine.length) { setLedger([]); setEntries([]); setPlans([]); setDocuments([]); setProfileSettings(null); setLoading(false); return; }
       const ids = mine.map(a => a.id);
       const groupIds = [...new Set(mine.map(a => a.training_group_id).filter((id): id is string => Boolean(id)))];
-      const [{ data: ledgerData }, { data: entryData }, planResult, documentResult] = await Promise.all([
+      const [{ data: ledgerData }, { data: entryData }, planResult, documentResult, settingsResult] = await Promise.all([
         supabase.from("payment_ledger").select("id,description,amount_cents,status,scheduled_for").in("athlete_id", ids).order("scheduled_for", { ascending: true }),
         supabase.from("competition_entries").select("athlete_id,status,competition_events(title,starts_at,venue)").in("athlete_id", ids).order("created_at", { ascending: false }),
         groupIds.length ? supabase.from("training_plans").select("id,title,body,week_starts_on,training_group_id,published_at").in("training_group_id", groupIds).eq("week_starts_on", mondayKey()).order("published_at", { ascending: false }) : Promise.resolve({ data: [] }),
         groupIds.length ? supabase.from("club_documents").select("id,title,storage_path,training_group_id,created_at").eq("document_type", "training_plan").in("training_group_id", groupIds).order("created_at", { ascending: false }) : Promise.resolve({ data: [] }),
+        supabase.from("athlete_profile_settings").select("athlete_id,avatar_url,cover_url,bio,challenge_opt_in,show_activity_to_club").eq("athlete_id", mine[0].id).maybeSingle(),
       ]);
       setLedger((ledgerData ?? []) as Ledger[]);
       setEntries((entryData ?? []) as Entry[]);
       setPlans((planResult.data ?? []) as TrainingPlan[]);
       setDocuments((documentResult.data ?? []) as TrainingDocument[]);
+      setProfileSettings((settingsResult.data as ProfileSettings | null) ?? null);
       setLoading(false);
     };
     void load();
   }, [profileId]);
 
   const athlete = athletes[0] || null;
+
+  useEffect(() => {
+    const onUpdated = (event: Event) => {
+      const detail = (event as CustomEvent<ProfileSettings>).detail;
+      if (detail && athlete && detail.athlete_id === athlete.id) setProfileSettings(detail);
+    };
+    window.addEventListener("athlete-profile-updated", onUpdated);
+    return () => window.removeEventListener("athlete-profile-updated", onUpdated);
+  }, [athlete?.id]);
+
+  useEffect(() => {
+    if (!athlete) return;
+    const content = document.querySelector<HTMLElement>(".club-content");
+    const topbar = content?.querySelector<HTMLElement>(".topbar");
+    if (!content || !topbar) return;
+
+    let style = document.getElementById("athlete-global-header-styles") as HTMLStyleElement | null;
+    if (!style) {
+      style = document.createElement("style");
+      style.id = "athlete-global-header-styles";
+      style.textContent = `
+        .athlete-global-header{position:relative!important;display:block!important;min-height:170px;margin:18px 24px 8px;padding:0;border-radius:22px;overflow:hidden;background:linear-gradient(135deg,#173f7c,#2464c8);background-size:cover;background-position:center;box-shadow:0 10px 30px rgba(15,35,70,.12)}
+        .athlete-global-header::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(5,20,45,.62),rgba(5,20,45,.08) 70%);pointer-events:none}
+        .athlete-global-avatar{position:absolute;left:24px;bottom:20px;width:78px;height:78px;border-radius:50%;object-fit:cover;border:4px solid #fff;background:#fff;z-index:1;box-shadow:0 5px 16px rgba(0,0,0,.18)}
+        .athlete-global-avatar-placeholder{display:grid;place-items:center;color:#2563eb;font-weight:900;font-size:22px}
+        .athlete-global-copy{position:absolute;left:120px;right:24px;bottom:24px;color:#fff;z-index:1;text-shadow:0 1px 3px rgba(0,0,0,.28)}
+        .athlete-global-copy h2{margin:0 0 4px;font-size:28px;color:#fff}.athlete-global-copy p{margin:0;color:#fff;font-weight:700}
+        @media(max-width:700px){.athlete-global-header{min-height:145px;margin:12px 14px 6px;border-radius:18px}.athlete-global-avatar{width:64px;height:64px;left:16px;bottom:16px}.athlete-global-copy{left:94px;bottom:19px}.athlete-global-copy h2{font-size:20px}}
+      `;
+      document.head.appendChild(style);
+    }
+
+    let header = document.getElementById("global-athlete-header") as HTMLElement | null;
+    if (!header) {
+      header = document.createElement("section");
+      header.id = "global-athlete-header";
+      header.className = "topbar athlete-global-header";
+      topbar.insertAdjacentElement("afterend", header);
+    }
+    header.style.backgroundImage = profileSettings?.cover_url
+      ? `linear-gradient(90deg,rgba(5,20,45,.48),rgba(5,20,45,.05)), url("${profileSettings.cover_url.replace(/"/g, "%22")}")`
+      : "linear-gradient(135deg,#173f7c,#2464c8)";
+    header.replaceChildren();
+
+    if (profileSettings?.avatar_url) {
+      const image = document.createElement("img");
+      image.className = "athlete-global-avatar";
+      image.src = profileSettings.avatar_url;
+      image.alt = `Foto de ${athlete.first_name} ${athlete.last_name}`;
+      header.appendChild(image);
+    } else {
+      const placeholder = document.createElement("div");
+      placeholder.className = "athlete-global-avatar athlete-global-avatar-placeholder";
+      placeholder.textContent = `${athlete.first_name.charAt(0)}${athlete.last_name.charAt(0)}`.toUpperCase();
+      header.appendChild(placeholder);
+    }
+
+    const copy = document.createElement("div");
+    copy.className = "athlete-global-copy";
+    const name = document.createElement("h2"); name.textContent = `${athlete.first_name} ${athlete.last_name}`;
+    const meta = document.createElement("p"); meta.textContent = `${athlete.training_groups?.name || "Grupo pendiente"} · Licencia ${licenseText(athlete)}`;
+    copy.append(name, meta); header.appendChild(copy);
+
+    return () => { header?.remove(); style?.remove(); };
+  }, [athlete?.id, athlete?.first_name, athlete?.last_name, athlete?.training_groups?.name, athlete?.license_status, athlete?.license_number, athlete?.federation_license, profileSettings?.avatar_url, profileSettings?.cover_url]);
+
   const upcomingFee = useMemo(() => ledger.find(item => item.status !== "paid" && (!item.scheduled_for || new Date(item.scheduled_for).getTime() >= Date.now() - 86400000)) || null, [ledger]);
   const upcomingCompetition = useMemo(() => entries.map(entry => ({ entry, event: entry.competition_events?.[0] })).filter(item => item.event && new Date(item.event.starts_at).getTime() >= Date.now()).sort((a, b) => new Date(a.event!.starts_at).getTime() - new Date(b.event!.starts_at).getTime())[0] || null, [entries]);
   const currentPlan = useMemo(() => athlete?.training_group_id ? plans.find(plan => plan.training_group_id === athlete.training_group_id) || null : null, [athlete, plans]);
