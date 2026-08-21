@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
 import { AthleteResults, ClubRankings } from "./AthleteResults";
@@ -8,7 +8,7 @@ type Profile = { id: string; email: string; full_name: string | null; role: Role
 type Group = { id: string; name: string; category_label: string; colour: string; schedule_days?: string | null; starts_at?: string | null; ends_at?: string | null };
 type Athlete = { id: string; first_name: string; last_name: string; license_number: string | null; federation_license?: string | null; license_status: string; training_group_id: string | null; user_profile_id?: string | null; training_groups?: Group | null };
 type Note = { id: string; athlete_id: string; body: string; coach_profile_id: string; created_at: string };
-type Message = { id: string; athlete_id: string | null; training_group_id: string | null; subject: string; body: string; created_at: string };
+type CoachMessage = { id: string; athlete_id: string | null; training_group_id: string | null; subject: string; body: string; created_at: string };
 
 const displayLicense = (athlete: Athlete) => athlete.federation_license || athlete.license_number || (athlete.license_status === "active" ? "Activa" : "Pendiente");
 
@@ -23,12 +23,13 @@ export default function SportsCenter() {
   const [mode, setMode] = useState<"athletes" | "ranking">("athletes");
 
   useEffect(() => {
-    if (!supabase) { setLoading(false); return; }
+    const client = supabase;
+    if (!client) { setLoading(false); return; }
     const boot = async () => {
-      const { data } = await supabase.auth.getSession();
+      const { data } = await client.auth.getSession();
       setSession(data.session);
       if (!data.session) { setLoading(false); return; }
-      const { data: profileData } = await supabase.from("profiles").select("id,email,full_name,role").eq("id", data.session.user.id).maybeSingle();
+      const { data: profileData } = await client.from("profiles").select("id,email,full_name,role").eq("id", data.session.user.id).maybeSingle();
       setProfile(profileData as Profile | null);
       setLoading(false);
     };
@@ -36,23 +37,25 @@ export default function SportsCenter() {
   }, []);
 
   useEffect(() => {
-    if (!profile || !supabase) return;
+    const client = supabase;
+    if (!profile || !client) return;
     const load = async () => {
-      const athleteQuery = supabase.from("athletes").select("id,first_name,last_name,license_number,federation_license,license_status,training_group_id,user_profile_id,training_groups(*)").order("last_name");
-      const { data: athleteData } = await athleteQuery;
-      setAthletes((athleteData ?? []) as Athlete[]);
+      const { data: athleteData } = await client.from("athletes").select("id,first_name,last_name,license_number,federation_license,license_status,training_group_id,user_profile_id,training_groups(*)").order("last_name");
+      setAthletes((athleteData ?? []) as unknown as Athlete[]);
       if (profile.role === "coach") {
-        const { data: linkData } = await supabase.from("training_group_coaches").select("training_groups(*)").eq("coach_profile_id", profile.id);
+        const { data: linkData } = await client.from("training_group_coaches").select("training_groups(*)").eq("coach_profile_id", profile.id);
         const ownGroups = (linkData ?? []).map((row: any) => row.training_groups).filter(Boolean) as Group[];
         setGroups(ownGroups);
-        if (!selectedGroupId && ownGroups[0]) setSelectedGroupId(ownGroups[0].id);
+        const requestedName = new URLSearchParams(window.location.search).get("groupName");
+        const requested = requestedName ? ownGroups.find(group => group.name === requestedName) : null;
+        setSelectedGroupId(current => current || requested?.id || ownGroups[0]?.id || "");
       } else if (["owner", "admin"].includes(profile.role)) {
-        const { data: groupData } = await supabase.from("training_groups").select("*").order("name");
+        const { data: groupData } = await client.from("training_groups").select("*").order("name");
         setGroups((groupData ?? []) as Group[]);
       }
     };
     void load();
-  }, [profile?.id]);
+  }, [profile]);
 
   if (loading) return <main className="secure-screen"><section className="access-box"><h1>Cargando área deportiva…</h1></section></main>;
   if (!session || !profile) return <main className="secure-screen"><section className="access-box"><h1>Área deportiva</h1><p>Inicia sesión primero en la aplicación del club.</p><a className="button-link" href="/">Volver al acceso</a></section></main>;
@@ -89,29 +92,57 @@ function CoachSports({ profile, groups, athletes, selectedGroupId, setSelectedGr
 }
 
 function CoachAthlete({ profile, athlete }: { profile: Profile; athlete: Athlete }) {
-  const [notes, setNotes] = useState<Note[]>([]); const [note, setNote] = useState(""); const [notice, setNotice] = useState("");
-  const loadNotes = async () => { if (!supabase) return; const { data } = await supabase.from("coach_athlete_notes").select("id,athlete_id,body,coach_profile_id,created_at").eq("athlete_id", athlete.id).order("created_at", { ascending: false }); setNotes((data ?? []) as Note[]); };
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [note, setNote] = useState("");
+  const [notice, setNotice] = useState("");
+  const loadNotes = async () => {
+    const client = supabase;
+    if (!client) return;
+    const { data } = await client.from("coach_athlete_notes").select("id,athlete_id,body,coach_profile_id,created_at").eq("athlete_id", athlete.id).order("created_at", { ascending: false });
+    setNotes((data ?? []) as Note[]);
+  };
   useEffect(() => { void loadNotes(); }, [athlete.id]);
-  const saveNote = async (e: FormEvent) => { e.preventDefault(); if (!supabase || !note.trim()) return; const { error } = await supabase.from("coach_athlete_notes").insert({ athlete_id: athlete.id, coach_profile_id: profile.id, body: note.trim(), private_to_staff: true }); if (error) return setNotice(error.message); setNote(""); setNotice("Nota privada guardada."); void loadNotes(); };
+  const saveNote = async (e: FormEvent) => {
+    e.preventDefault();
+    const client = supabase;
+    if (!client || !note.trim()) return;
+    const { error } = await client.from("coach_athlete_notes").insert({ athlete_id: athlete.id, coach_profile_id: profile.id, body: note.trim(), private_to_staff: true });
+    if (error) return setNotice(error.message);
+    setNote(""); setNotice("Nota privada guardada."); void loadNotes();
+  };
   return <section className="athlete-detail"><div className="page-head"><div><h1>{athlete.first_name} {athlete.last_name}</h1><p>{athlete.training_groups?.name || "Grupo"} · Licencia {displayLicense(athlete)}</p></div></div><div className="two-columns"><form className="panel stacked-form" onSubmit={saveNote}><h2>Nota privada</h2><p>Solo la ve el cuerpo técnico autorizado.</p><textarea required value={note} onChange={e => setNote(e.target.value)} placeholder="Ej. Hoy mejoró mucho la salida; 60 m en 9.18." /><button>Guardar nota</button>{notice && <p className={notice.startsWith("Nota") ? "success-note" : "error-note"}>{notice}</p>}<div className="coach-note-list">{notes.map(item => <article key={item.id}><p>{item.body}</p><small>{new Date(item.created_at).toLocaleString("es-ES")}</small></article>)}{!notes.length && <small>No hay notas todavía.</small>}</div></form><AthleteMessage profile={profile} athlete={athlete} /></div><AthleteResults athleteId={athlete.id} canAddTraining coachProfileId={profile.id} /></section>;
 }
 
 function AthleteMessage({ profile, athlete }: { profile: Profile; athlete: Athlete }) {
   const [subject, setSubject] = useState(""); const [body, setBody] = useState(""); const [notice, setNotice] = useState("");
-  const send = async (e: FormEvent) => { e.preventDefault(); if (!supabase) return; const { error } = await supabase.from("coach_athlete_messages").insert({ coach_profile_id: profile.id, athlete_id: athlete.id, training_group_id: athlete.training_group_id, subject, body }); if (error) return setNotice(error.message); setSubject(""); setBody(""); setNotice("Mensaje enviado a la familia del atleta."); };
+  const send = async (e: FormEvent) => {
+    e.preventDefault(); const client = supabase; if (!client) return;
+    const { error } = await client.from("coach_athlete_messages").insert({ coach_profile_id: profile.id, athlete_id: athlete.id, training_group_id: athlete.training_group_id, subject, body });
+    if (error) return setNotice(error.message);
+    setSubject(""); setBody(""); setNotice("Mensaje enviado a la familia del atleta.");
+  };
   return <form className="panel stacked-form" onSubmit={send}><h2>Mensaje sobre {athlete.first_name}</h2><label>Asunto<input required value={subject} onChange={e => setSubject(e.target.value)} /></label><label>Mensaje<textarea required value={body} onChange={e => setBody(e.target.value)} /></label><button>Enviar mensaje</button>{notice && <p className={notice.startsWith("Mensaje") ? "success-note" : "error-note"}>{notice}</p>}</form>;
 }
 
 function GroupMessage({ profile, group }: { profile: Profile; group: Group }) {
   const [open, setOpen] = useState(false); const [subject, setSubject] = useState(""); const [body, setBody] = useState(""); const [notice, setNotice] = useState("");
-  const send = async (e: FormEvent) => { e.preventDefault(); if (!supabase) return; const { error } = await supabase.from("coach_athlete_messages").insert({ coach_profile_id: profile.id, training_group_id: group.id, athlete_id: null, subject, body }); if (error) return setNotice(error.message); setSubject(""); setBody(""); setNotice("Mensaje enviado a las familias del grupo."); };
+  const send = async (e: FormEvent) => {
+    e.preventDefault(); const client = supabase; if (!client) return;
+    const { error } = await client.from("coach_athlete_messages").insert({ coach_profile_id: profile.id, training_group_id: group.id, athlete_id: null, subject, body });
+    if (error) return setNotice(error.message);
+    setSubject(""); setBody(""); setNotice("Mensaje enviado a las familias del grupo.");
+  };
   if (!open) return <button onClick={() => setOpen(true)}>Mensaje al grupo</button>;
   return <form className="panel inline-form group-message-form" onSubmit={send}><label>Asunto<input required value={subject} onChange={e => setSubject(e.target.value)} /></label><label>Mensaje<input required value={body} onChange={e => setBody(e.target.value)} /></label><button>Enviar</button><button type="button" className="outline" onClick={() => setOpen(false)}>Cerrar</button>{notice && <small>{notice}</small>}</form>;
 }
 
 function MemberSports({ profile, athletes, selected, selectAthlete }: { profile: Profile; athletes: Athlete[]; selected: Athlete | null; selectAthlete: (id: string) => void }) {
-  const [messages, setMessages] = useState<Message[]>([]);
-  useEffect(() => { if (!supabase) return; void supabase.from("coach_athlete_messages").select("id,athlete_id,training_group_id,subject,body,created_at").order("created_at", { ascending: false }).then(({ data }) => setMessages((data ?? []) as Message[])); }, [profile.id]);
+  const [messages, setMessages] = useState<CoachMessage[]>([]);
+  useEffect(() => {
+    const client = supabase;
+    if (!client) return;
+    void client.from("coach_athlete_messages").select("id,athlete_id,training_group_id,subject,body,created_at").order("created_at", { ascending: false }).then(({ data }) => setMessages((data ?? []) as CoachMessage[]));
+  }, [profile.id]);
   const selectedMessages = selected ? messages.filter(message => message.athlete_id === selected.id || (!message.athlete_id && message.training_group_id === selected.training_group_id)) : [];
   return <><div className="page-head"><div><h1>{profile.role === "parent" ? "Marcas de mis atletas" : "Mis marcas"}</h1><p>Resultados oficiales, mejores marcas y evolución deportiva.</p></div></div><section className="cards">{athletes.map(a => <button key={a.id} className={`panel athlete-summary ${selected?.id === a.id ? "selected-row" : ""}`} onClick={() => selectAthlete(a.id)}><h2>{a.first_name} {a.last_name}</h2><p>{a.training_groups?.name || "Grupo pendiente"}</p><small>Licencia: {displayLicense(a)} · Ver marcas →</small></button>)}</section>{selected && <section className="athlete-detail"><div className="page-head"><div><h1>{selected.first_name} {selected.last_name}</h1><p>{selected.training_groups?.name || "Sin grupo"} · Licencia {displayLicense(selected)}</p></div></div>{selectedMessages.length > 0 && <article className="panel"><h2>Mensajes del entrenador</h2>{selectedMessages.map(message => <article className="summary-line" key={message.id}><span><b>{message.subject}</b><small>{message.body}</small></span><small>{new Date(message.created_at).toLocaleString("es-ES")}</small></article>)}</article>}<AthleteResults athleteId={selected.id} /></section>}</>;
 }
