@@ -20,7 +20,7 @@ export default function AthleteProfileEditor({ athleteId, canEdit }: { athleteId
   const save = async (patch: Partial<Settings>) => {
     const client = supabase; if (!client || !canEdit) return;
     setBusy(true); setNotice("");
-    const next = { ...settings, ...patch, athlete_id: athleteId };
+    const next: Settings = { ...settings, ...patch, athlete_id: athleteId };
     const { error } = await client.from("athlete_profile_settings").upsert(next, { onConflict: "athlete_id" });
     setBusy(false);
     if (error) return setNotice(error.message);
@@ -39,8 +39,9 @@ export default function AthleteProfileEditor({ athleteId, canEdit }: { athleteId
     const { error: uploadError } = await client.storage.from("athlete-profiles").upload(path, file, { upsert: true, contentType: file.type });
     if (uploadError) { setBusy(false); return setNotice(uploadError.message); }
     const { data } = client.storage.from("athlete-profiles").getPublicUrl(path);
-    const imagePatch = kind === "avatar" ? { avatar_url: data.publicUrl } : { cover_url: data.publicUrl };
-    const nextSettings = { ...settings, ...imagePatch, athlete_id: athleteId };
+    const nextSettings: Settings = kind === "avatar"
+      ? { ...settings, athlete_id: athleteId, avatar_url: data.publicUrl }
+      : { ...settings, athlete_id: athleteId, cover_url: data.publicUrl };
     const { error: saveError } = await client.from("athlete_profile_settings").upsert(nextSettings, { onConflict: "athlete_id" });
     setBusy(false);
     if (saveError) return setNotice(saveError.message);
