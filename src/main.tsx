@@ -7,7 +7,6 @@ import MemberExperience from "./components/MemberExperience";
 import PublicClubSite from "./components/PublicClubSite";
 import PublicGroupsPage from "./components/PublicGroupsPage";
 import { supabase } from "./lib/supabase";
-import "./assets/hero-loader";
 import "./styles.css";
 import "./access.css";
 import "./components/family-registration.css";
