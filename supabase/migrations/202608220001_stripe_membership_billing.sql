@@ -20,6 +20,10 @@ create unique index if not exists memberships_stripe_subscription_unique
   on public.memberships(stripe_subscription_id)
   where stripe_subscription_id is not null;
 
+create unique index if not exists payment_ledger_provider_reference_unique
+  on public.payment_ledger(provider_reference)
+  where provider_reference is not null;
+
 alter table public.stripe_customers enable row level security;
 
 drop policy if exists "stripe customer own or admin" on public.stripe_customers;
