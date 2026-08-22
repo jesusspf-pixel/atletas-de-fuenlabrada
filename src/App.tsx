@@ -18,8 +18,7 @@ type AthleteRecord = Athlete & { families?: Family | null; health_declarations?:
 const famCalendar = "https://www.atletismomadrid.com/calendario";
 const roleName: Record<Role, string> = { owner: "Propietario", admin: "Administrador", coach: "Entrenador", parent: "Familia", adult_athlete: "Atleta", minor_athlete: "Atleta menor" };
 
-export default function App() {
-  const [session, setSession] = useState<Session | null>(null); const [checking, setChecking] = useState(true); const [profile, setProfile] = useState<Profile | null>(null); const [register, setRegister] = useState<"family" | "adult" | null>(null); const invitation = new URLSearchParams(window.location.search).get("invitation");
+
   export default function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [checking, setChecking] = useState(true);
