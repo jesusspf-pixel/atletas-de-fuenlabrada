@@ -139,9 +139,48 @@
     toggle.parentNode?.insertBefore(wrap, toggle);
   }
 
+  function ensureBillingStatus() {
+    const headers = [...document.querySelectorAll('.club-content h1')];
+    const title = headers.find((node) => /cuotas y cobros/i.test(node.textContent || ''));
+    if (!title) return;
+
+    const content = title.closest('.club-content') || document.querySelector('.club-content');
+    if (!content || content.querySelector('[data-stripe-test-status="true"]')) return;
+
+    const twoColumns = content.querySelector('.two-columns');
+    if (!twoColumns) return;
+
+    const card = document.createElement('article');
+    card.className = 'panel';
+    card.dataset.stripeTestStatus = 'true';
+    card.style.border = '1px solid rgba(37, 99, 235, .22)';
+    card.style.background = 'linear-gradient(180deg, rgba(37,99,235,.07), rgba(255,255,255,.98))';
+
+    const label = document.createElement('small');
+    label.textContent = 'STRIPE · ENTORNO DE PRUEBA';
+    label.style.fontWeight = '800';
+    label.style.letterSpacing = '.08em';
+
+    const heading = document.createElement('h2');
+    heading.textContent = 'Stripe preparado';
+
+    const text = document.createElement('p');
+    text.textContent = 'La cuenta de prueba y el webhook ya están configurados. El cobro sigue desactivado temporalmente mientras validamos el flujo sin afectar al resto de la app.';
+
+    const prices = document.createElement('p');
+    prices.innerHTML = '<b>Cuota mensual:</b> 35 € · <b>Cuota trimestral:</b> 70 €';
+
+    const security = document.createElement('p');
+    security.textContent = 'La tarjeta y el CVV se gestionarán únicamente en Stripe; la aplicación no almacenará esos datos.';
+
+    card.append(label, heading, text, prices, security);
+    twoColumns.prepend(card);
+  }
+
   function refresh() {
     normalizeErrors();
     ensureActions();
+    ensureBillingStatus();
   }
 
   let queued = false;
