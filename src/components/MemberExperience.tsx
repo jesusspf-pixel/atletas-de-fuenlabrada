@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
-import { AthleteResults } from "./AthleteResults";
+import AthleteProfileEditor from "./AthleteProfileEditor";
 
 type Athlete = {
   id: string;
@@ -189,7 +189,14 @@ export default function MemberExperience({ profileId }: { profileId: string }) {
 
   return <section className="member-experience member-profile-page">
     <div className="page-head"><div><small>PERFIL DEPORTIVO</small><h1>{athlete.first_name} {athlete.last_name}</h1><p>{athlete.training_groups?.name || "Grupo pendiente"} · Licencia {licenseText(athlete)}</p></div></div>
-    <section className="profile-shortcuts"><button onClick={() => window.location.assign(`/deportivo?athleteId=${encodeURIComponent(athlete.id)}`)}>Abrir resultados y rankings completos →</button></section>
-    <AthleteResults athleteId={athlete.id} canAddTraining={false} />
+    <section className="profile-private-editor">
+      <AthleteProfileEditor athleteId={athlete.id} canEdit />
+    </section>
+    <section className="panel profile-sports-summary">
+      <small>FICHA DEPORTIVA PÚBLICA</small>
+      <h2>Resultados, marcas y ranking</h2>
+      <p>Consulta tus competiciones, resultados oficiales, mejores marcas, histórico y Club Challenge en la ficha deportiva. Esta pantalla no permite editar tu perfil.</p>
+      <button onClick={() => window.location.assign(`/deportivo?athleteId=${encodeURIComponent(athlete.id)}`)}>Abrir ficha deportiva y rankings →</button>
+    </section>
   </section>;
 }
