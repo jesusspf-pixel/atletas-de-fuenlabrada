@@ -2,7 +2,7 @@
   "name": "Club Atletas de Fuenlabrada",
   "short_name": "Atletas Fuenla",
   "description": "Gestión deportiva, cuotas, carreras y comunicaciones del club.",
-  "start_url": "/",
+  "start_url": "/?access=1&source=pwa",
   "scope": "/",
   "display": "standalone",
   "background_color": "#f4f6fa",
