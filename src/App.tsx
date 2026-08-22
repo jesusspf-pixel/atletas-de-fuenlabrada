@@ -20,11 +20,77 @@ const roleName: Record<Role, string> = { owner: "Propietario", admin: "Administr
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null); const [checking, setChecking] = useState(true); const [profile, setProfile] = useState<Profile | null>(null); const [register, setRegister] = useState<"family" | "adult" | null>(null); const invitation = new URLSearchParams(window.location.search).get("invitation");
-  useEffect(() => { const client = supabase; if (!client) { setChecking(false); return; } const load = async (next: Session | null) => { setSession(next); if (next) { let { data } = await client.from("profiles").select("*").eq("id", next.user.id).maybeSingle(); if (!data && next.user.email?.toLowerCase() === "jesusspf@gmail.com") { const { error } = await client.rpc("bootstrap_owner"); if (!error) ({ data } = await client.from("profiles").select("*").eq("id", next.user.id).maybeSingle()); }
-      // El personal entra por la misma pantalla que cualquier familia. Si su correo
-      // tiene una invitación pendiente, se le asigna el rol automáticamente.
-      if (!data) { const { error } = await client.rpc("activate_pending_staff_access"); if (!error) ({ data } = await client.from("profiles").select("*").eq("id", next.user.id).maybeSingle()); }
-      setProfile(data as Profile | null); } else setProfile(null); setChecking(false); }; client.auth.getSession().then(({ data }) => void load(data.session)); const { data: { subscription } } = client.auth.onAuthStateChange((_event, next) => void load(next)); return () => subscription.unsubscribe(); }, []);
+  export default function App() {
+  const [session, setSession] = useState<Session | null>(null);
+  const [checking, setChecking] = useState(true);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [register, setRegister] = useState<"family" | "adult" | null>(null);
+  const invitation = new URLSearchParams(window.location.search).get("invitation");
+
+  useEffect(() => {
+    const client = supabase;
+    if (!client) {
+      setChecking(false);
+      return;
+    }
+
+    const fallback = window.setTimeout(() => setChecking(false), 6000);
+
+    const load = async (next: Session | null) => {
+      setSession(next);
+      try {
+        if (next) {
+          let { data } = await client.from("profiles").select("*").eq("id", next.user.id).maybeSingle();
+
+          if (!data && next.user.email?.toLowerCase() === "jesusspf@gmail.com") {
+            const { error } = await client.rpc("bootstrap_owner");
+            if (!error) ({ data } = await client.from("profiles").select("*").eq("id", next.user.id).maybeSingle());
+          }
+
+          if (!data) {
+            const { error } = await client.rpc("activate_pending_staff_access");
+            if (!error) ({ data } = await client.from("profiles").select("*").eq("id", next.user.id).maybeSingle());
+          }
+
+          setProfile(data as Profile | null);
+        } else {
+          setProfile(null);
+        }
+      } finally {
+        window.clearTimeout(fallback);
+        setChecking(false);
+      }
+    };
+
+    client.auth.getSession()
+      .then(({ data }) => void load(data.session))
+      .catch(() => {
+        window.clearTimeout(fallback);
+        setChecking(false);
+      });
+
+    const { data: { subscription } } = client.auth.onAuthStateChange((_event, next) => void load(next));
+
+    return () => {
+      window.clearTimeout(fallback);
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  if (!isSupabaseConfigured) return <LaunchBlocked />;
+  if (checking) return <main className="secure-screen"><div className="access-box">Comprobando el acceso seguro…</div></main>;
+  if (!session) return <Access />;
+  if (register === "family") return <FamilyRegistration email={session.user.email ?? ""} onBack={() => { setRegister(null); void supabase?.auth.signOut(); }} />;
+  if (register === "adult") return <AdultRegistration email={session.user.email ?? ""} onBack={() => { setRegister(null); void supabase?.auth.signOut(); }} />;
+
+  if (!profile && session.user.email?.toLowerCase() === "jesusspf@gmail.com") {
+    return <Portal profile={{ id: session.user.id, email: session.user.email, full_name: "Jesús Pérez", role: "owner" }} signOut={() => void supabase?.auth.signOut()} />;
+  }
+
+  if (!profile) return <ChooseRegistration email={session.user.email ?? ""} invitation={invitation} owner={session.user.email?.toLowerCase() === "jesusspf@gmail.com"} family={() => setRegister("family")} adult={() => setRegister("adult")} ownerAction={async () => { if (!supabase) return; const { error } = await supabase.rpc("bootstrap_owner"); if (error) throw error; const { data, error: profileError } = await supabase.from("profiles").select("*").eq("id", session.user.id).single(); if (profileError) throw profileError; setProfile(data as Profile); }} invitationAction={async () => { if (!supabase || !invitation) return; const { error } = await supabase.rpc("accept_staff_invitation", { invitation_token: invitation }); if (error) throw error; const { data } = await supabase.from("profiles").select("*").eq("id", session.user.id).single(); window.history.replaceState({}, "", window.location.pathname); setProfile(data as Profile); }} staffAction={async () => { if (!supabase) return; const { error } = await supabase.rpc("activate_pending_staff_access"); if (error) throw error; const { data, error: profileError } = await supabase.from("profiles").select("*").eq("id", session.user.id).single(); if (profileError) throw profileError; setProfile(data as Profile); }} />;
+
+  return <Portal profile={profile} signOut={() => void supabase?.auth.signOut()} />;
+}
   if (!isSupabaseConfigured) return <LaunchBlocked />;
   if (checking) return <main className="secure-screen"><div className="access-box">Comprobando el acceso seguro…</div></main>;
   if (!session) return <Access />;
