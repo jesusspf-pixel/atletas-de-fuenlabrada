@@ -51,7 +51,7 @@ export async function onRequestPost(context: any) {
   const ownerProfileId = athlete?.user_profile_id || athlete?.families?.primary_profile_id;
   if (!athlete || ownerProfileId !== user.id) return json({ error: "No puedes activar el cobro de esta cuota." }, 403);
   if (membership.stripe_subscription_id && membership.billing_status === "active") return json({ error: "Esta cuota ya tiene una suscripción activa." }, 409);
-  if (!['monthly','term'].includes(membership.plan)) return json({ error: "El tipo de cuota no es válido para Stripe." }, 400);
+  if (!["monthly","term"].includes(membership.plan)) return json({ error: "El tipo de cuota no es válido para Stripe." }, 400);
 
   const priceResponse = await fetch(`${env.SUPABASE_URL}/rest/v1/club_billing_prices?id=eq.true&select=monthly_cents,term_cents,currency`, { headers: serviceHeaders });
   const [prices] = await priceResponse.json().catch(() => []) as any[];
@@ -90,8 +90,8 @@ export async function onRequestPost(context: any) {
   const params = new URLSearchParams();
   params.set("mode", "subscription");
   params.set("customer", customerId);
-  params.set("success_url", `${origin}/?section=Cuotas&billing=success&session_id={CHECKOUT_SESSION_ID}`);
-  params.set("cancel_url", `${origin}/?section=Cuotas&billing=cancelled`);
+  params.set("success_url", `${origin}/cuotas?billing=success&session_id={CHECKOUT_SESSION_ID}`);
+  params.set("cancel_url", `${origin}/cuotas?billing=cancelled`);
   params.set("payment_method_types[0]", "card");
   params.set("line_items[0][price_data][currency]", prices.currency || "eur");
   params.set("line_items[0][price_data][product_data][name]", membership.plan === "monthly" ? "Cuota mensual · Club Atletas de Fuenlabrada" : "Cuota trimestral · Club Atletas de Fuenlabrada");

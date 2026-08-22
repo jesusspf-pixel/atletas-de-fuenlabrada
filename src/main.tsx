@@ -6,6 +6,7 @@ import SelfAthleteRegistration from "./components/SelfAthleteRegistration";
 import MemberExperience from "./components/MemberExperience";
 import PublicClubSite from "./components/PublicClubSite";
 import PublicGroupsPage from "./components/PublicGroupsPage";
+import MembershipBillingPage from "./components/MembershipBillingPage";
 import { supabase } from "./lib/supabase";
 import "./styles.css";
 import "./access.css";
@@ -25,6 +26,7 @@ function Root() {
   const sports = window.location.pathname === "/deportivo";
   const selfAthlete = window.location.pathname === "/alta-atleta";
   const publicGroups = window.location.pathname === "/grupos-precios";
+  const billing = window.location.pathname === "/cuotas";
 
   useEffect(() => {
     if (window.location.hostname.endsWith("pages.dev")) {
@@ -91,7 +93,7 @@ function Root() {
         button.type = "button";
         button.dataset.mainNav = "true";
         button.textContent = label;
-        button.addEventListener("click", () => window.location.assign(`/?section=${encodeURIComponent(label)}`));
+        button.addEventListener("click", () => window.location.assign(label === "Cuotas" ? "/cuotas" : `/?section=${encodeURIComponent(label)}`));
         nav.prepend(button);
       });
       const title = document.createElement("small");
@@ -108,7 +110,7 @@ function Root() {
 
   useEffect(() => {
     const client = supabase;
-    if (!client || !signedIn || sports || selfAthlete) return;
+    if (!client || !signedIn || sports || selfAthlete || billing) return;
     const sportsUrl = (name: string) => `/deportivo?athleteName=${encodeURIComponent(name.trim())}`;
 
     const markInboxRead = async () => {
@@ -126,6 +128,7 @@ function Root() {
     const openRequestedSection = () => {
       const requested = new URLSearchParams(window.location.search).get("section");
       if (!requested) return;
+      if (requested === "Cuotas") { window.location.assign("/cuotas"); return; }
       const button = [...document.querySelectorAll<HTMLButtonElement>(".club-side nav button")].find(item => item.textContent?.replace(/\d+/g, "").trim() === requested);
       if (button) { button.click(); window.history.replaceState({}, "", "/"); }
     };
@@ -245,6 +248,12 @@ function Root() {
       const target = event.target as HTMLElement | null;
       const button = target?.closest("button");
       const label = button?.textContent?.replace(/\d+/g, "").trim() ?? "";
+      if (label === "Cuotas") {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        window.location.assign("/cuotas");
+        return;
+      }
       if (label.startsWith("Avisos")) void markInboxRead();
       window.setTimeout(enhance, 0);
     };
@@ -253,10 +262,14 @@ function Root() {
     const observer = new MutationObserver(enhance);
     observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["class"] });
     return () => { document.removeEventListener("click", click, true); observer.disconnect(); };
-  }, [signedIn, role, profileId, sports, selfAthlete]);
+  }, [signedIn, role, profileId, sports, selfAthlete, billing]);
 
   if (!authChecked && !sports && !selfAthlete && !publicGroups) {
     return <main className="public-club-site public-loading"><div>Club Atletas de Fuenlabrada</div></main>;
+  }
+  if (billing) {
+    if (!signedIn) return <App />;
+    return <MembershipBillingPage role={role} />;
   }
   if (selfAthlete) {
     if (!signedIn) return <App />;
