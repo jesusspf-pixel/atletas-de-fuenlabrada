@@ -1,4 +1,4 @@
-const CACHE="atletas-fuenla-v3";
+const CACHE="atletas-fuenla-v4";
 const APP_SHELL=["/manifest.webmanifest","/favicon.svg"];
 
 self.addEventListener("install",event=>{
