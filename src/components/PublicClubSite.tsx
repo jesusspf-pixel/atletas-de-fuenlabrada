@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 import "./public-club-site.css";
 import "./public-club-identity.css";
+import "./public-hero-athletics.css";
 type ClubIdentity={club_name:string;contact_email:string|null;contact_phone:string|null;season_label:string|null;registration_open:boolean|null;registration_message:string|null};
 const mapsUrl="https://www.google.com/maps/search/?api=1&query=Estadio%20Ra%C3%BAl%20Gonz%C3%A1lez%20Blanco%20URJC%20Fuenlabrada";
 const photo={hug:"/E6EF862A-8806-4F5B-A720-A7567B5E3C12.PNG",school:"/808601AC-3B03-4C64-AAF9-420E3B96B2F5.PNG",running:"/3A999C3C-FBAA-4641-B63D-DFB8A78805D2.png"};
