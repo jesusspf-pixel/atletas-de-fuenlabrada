@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && cp public/_worker.js dist/_worker.js && cp public/_routes.json dist/_routes.json",
     "preview": "vite preview"
   },
   "dependencies": {
