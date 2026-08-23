@@ -23,7 +23,6 @@ const roleName: Record<Role, string> = { owner: "Propietario", admin: "Administr
   export default function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [checking, setChecking] = useState(true);
-  const [configured, setConfigured] = useState(Boolean(supabase));
   const [profile, setProfile] = useState<Profile | null>(null);
   const [register, setRegister] = useState<"family" | "adult" | null>(null);
   const invitation = new URLSearchParams(window.location.search).get("invitation");
@@ -39,7 +38,6 @@ const roleName: Record<Role, string> = { owner: "Propietario", admin: "Administr
         setChecking(false);
         return;
       }
-      setConfigured(true);
 
       const load = async (next: Session | null) => {
         setSession(next);
@@ -75,6 +73,7 @@ const roleName: Record<Role, string> = { owner: "Propietario", admin: "Administr
 
   if (checking) return <main className="secure-screen"><div className="access-box">Comprobando el acceso seguro…</div></main>;
   // Nunca cerramos la web por una comprobación de configuración: el formulario de acceso sigue disponible.\n  if (!session) return <Access />;
+  if (!session) return <Access />;
   if (register === "family") return <FamilyRegistration email={session.user.email ?? ""} onBack={() => { setRegister(null); void supabase?.auth.signOut(); }} />;
   if (register === "adult") return <AdultRegistration email={session.user.email ?? ""} onBack={() => { setRegister(null); void supabase?.auth.signOut(); }} />;
   if (!profile && session.user.email?.toLowerCase() === "jesusspf@gmail.com") {
