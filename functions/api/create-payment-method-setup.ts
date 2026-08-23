@@ -74,7 +74,6 @@ export async function onRequestPost(context: any) {
       success_url: `${origin}/?access=1&section=Cuotas&payment_method=updated`,
       cancel_url: `${origin}/?access=1&section=Cuotas&payment_method=cancelled`,
       "metadata[profile_id]": user.id,
-      integration_identifier: `club_payment_method_${crypto.randomUUID().replace(/-/g, "").slice(0, 8)}`,
     });
     const checkout = await stripe(env.STRIPE_SECRET_KEY, "checkout/sessions", {
       method: "POST",
