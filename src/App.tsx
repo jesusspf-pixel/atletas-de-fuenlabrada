@@ -72,7 +72,7 @@ const roleName: Record<Role, string> = { owner: "Propietario", admin: "Administr
   }, []);
 
   if (checking) return <main className="secure-screen"><div className="access-box">Comprobando el acceso seguro…</div></main>;
-  // Nunca cerramos la web por una comprobación de configuración: el formulario de acceso sigue disponible.\n  if (!session) return <Access />;
+  // Nunca cerramos la web por una comprobación de configuración: el formulario de acceso sigue disponible.
   if (!session) return <Access />;
   if (register === "family") return <FamilyRegistration email={session.user.email ?? ""} onBack={() => { setRegister(null); void supabase?.auth.signOut(); }} />;
   if (register === "adult") return <AdultRegistration email={session.user.email ?? ""} onBack={() => { setRegister(null); void supabase?.auth.signOut(); }} />;
