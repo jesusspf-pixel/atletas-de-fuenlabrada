@@ -32,7 +32,10 @@ export async function onRequestPost(context: { request: Request; env: { STRIPE_S
   if (!env.STRIPE_SECRET_KEY) return json({ error: "El cobro con tarjeta no está disponible todavía." }, 503);
   if (!authorization.startsWith("Bearer ") || !publicKey || !draftId || !issuer) return json({ error: "Inicia sesión de nuevo antes de preparar el pago." }, 401);
 
-  const authResponse = await fetch(`${issuer}/auth/v1/user`, { headers: { authorization } });
+  // Supabase Auth valida el JWT junto con la clave pública del proyecto. Sin
+  // `apikey` responde 401 aunque el usuario siga autenticado en la aplicación.
+  // Esto era lo que mostraba erróneamente «La sesión ya no es válida».
+  const authResponse = await fetch(`${issuer}/auth/v1/user`, { headers: { authorization, apikey: publicKey } });
   const user = await authResponse.json().catch(() => null) as { id?: string } | null;
   if (!authResponse.ok || !user?.id) return json({ error: "La sesión ya no es válida." }, 401);
 
