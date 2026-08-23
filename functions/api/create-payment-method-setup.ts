@@ -79,6 +79,8 @@ export async function onRequestPost(context: any) {
     const origin = new URL(context.request.url).origin;
     const checkoutParams = new URLSearchParams({
       mode: "setup",
+      // Checkout requires a currency for a setup-only session. The club bills in EUR.
+      currency: "eur",
       customer: created.data.id,
       success_url: `${origin}/?access=1&section=Cuotas&payment_method=updated`,
       cancel_url: `${origin}/?access=1&section=Cuotas&payment_method=cancelled`,
