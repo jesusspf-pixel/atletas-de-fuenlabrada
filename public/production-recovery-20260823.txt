@@ -1,0 +1,2 @@
+Production recovery marker 2026-08-23T16:56:00+02:00
+This file forces Cloudflare Pages to create a fresh production artifact from the current main branch.
