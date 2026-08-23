@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { supabase } from "../lib/supabase";
+import { supabase, supabasePublishableKey } from "../lib/supabase";
 
 type RuleSet = {
   monthly_cents: number; term_autumn_cents: number; term_winter_cents: number; term_spring_cents: number;
@@ -92,7 +92,11 @@ export default function BillingControlCenter() {
     const { data: sessionData } = await client.auth.getSession();
     const response = await fetch("/api/create-approved-charge-checkout", {
       method: "POST",
-      headers: { "content-type": "application/json", authorization: `Bearer ${sessionData.session?.access_token || ""}` },
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${sessionData.session?.access_token || ""}`,
+        "x-supabase-key": supabasePublishableKey,
+      },
       body: JSON.stringify({ draftId: draft.id }),
     });
     const body = await response.json().catch(() => ({})) as { url?: string; error?: string };
