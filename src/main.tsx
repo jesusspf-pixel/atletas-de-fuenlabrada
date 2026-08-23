@@ -18,7 +18,6 @@ function Root() {
   const params = new URLSearchParams(window.location.search);
   const forcedAccess = params.has("access") || params.has("signup") || params.has("invitation") || params.has("code") || window.location.hash.includes("type=recovery");
   const [signedIn, setSignedIn] = useState(false);
-  const [authChecked, setAuthChecked] = useState(false);
   const [showAccess, setShowAccess] = useState(forcedAccess);
   const [role, setRole] = useState<Role | null>(null);
   const [profileId, setProfileId] = useState("");
@@ -27,12 +26,8 @@ function Root() {
   const publicGroups = window.location.pathname === "/grupos-precios";
 
   useEffect(() => {
-    if (window.location.hostname.endsWith("pages.dev")) {
-      window.location.replace(`https://atletasdefuenlabrada.com${window.location.pathname}${window.location.search}${window.location.hash}`);
-      return;
-    }
     const client = supabase;
-    if (!client) { setAuthChecked(true); return; }
+    if (!client) return;
     const loadRole = async (userId: string) => {
       const { data } = await client.from("profiles").select("role").eq("id", userId).maybeSingle();
       setRole((data?.role as Role | undefined) ?? null);
@@ -43,14 +38,12 @@ function Root() {
       setSignedIn(Boolean(data.session));
       if (data.session) await loadRole(data.session.user.id);
       else { setRole(null); setProfileId(""); }
-      setAuthChecked(true);
     };
     void load();
     const { data: { subscription } } = client.auth.onAuthStateChange((_event, session) => {
       setSignedIn(Boolean(session));
       if (session) void loadRole(session.user.id);
       else { setRole(null); setProfileId(""); }
-      setAuthChecked(true);
     });
     return () => subscription.unsubscribe();
   }, []);
@@ -255,9 +248,6 @@ function Root() {
     return () => { document.removeEventListener("click", click, true); observer.disconnect(); };
   }, [signedIn, role, profileId, sports, selfAthlete]);
 
-  if (!authChecked && !sports && !selfAthlete && !publicGroups) {
-    return <main className="public-club-site public-loading"><div>Club Atletas de Fuenlabrada</div></main>;
-  }
   if (selfAthlete) {
     if (!signedIn) return <App />;
     return <SelfAthleteRegistration onDone={() => window.location.assign("/deportivo")} />;
