@@ -12,25 +12,28 @@ const stripePost = async (secret: string, path: string, params: URLSearchParams)
 const integrationId = () => `club_billing_${Array.from(crypto.getRandomValues(new Uint8Array(8))).map(value => String.fromCharCode(97 + (value % 26))).join("")}`;
 
 export async function onRequestPost(context: any) {
-  const env = context.env as { STRIPE_SECRET_KEY?: string; SUPABASE_URL?: string; SUPABASE_SERVICE_ROLE_KEY?: string };
-  if (!env.STRIPE_SECRET_KEY || !env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) return json({ error: "Stripe todavía no está configurado." }, 503);
-
+  const env = context.env as { STRIPE_SECRET_KEY?: string; SUPABASE_URL?: string; VITE_SUPABASE_URL?: string; SUPABASE_SERVICE_ROLE_KEY?: string };
   const bearer = context.request.headers.get("authorization") || "";
+  // Use the same public Supabase URL fallback as the working card-setup route.
+  const supabaseUrl = env.SUPABASE_URL || env.VITE_SUPABASE_URL;
+  if (!env.STRIPE_SECRET_KEY) return json({ error: "Stripe no está configurado todavía." }, 503);
+  if (!supabaseUrl || !env.SUPABASE_SERVICE_ROLE_KEY) return json({ error: "La conexión interna de cobros no está configurada todavía." }, 503);
+
   const { draftId } = await context.request.json().catch(() => ({})) as { draftId?: string };
   if (!bearer || !draftId) return json({ error: "Inicia sesión y selecciona un cobro aprobado." }, 401);
 
   const serviceHeaders = { apikey: env.SUPABASE_SERVICE_ROLE_KEY, authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`, "content-type": "application/json" };
-  const authResponse = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, { headers: { apikey: env.SUPABASE_SERVICE_ROLE_KEY, authorization: bearer } });
+  const authResponse = await fetch(`${supabaseUrl}/auth/v1/user`, { headers: { apikey: env.SUPABASE_SERVICE_ROLE_KEY, authorization: bearer } });
   const user = await authResponse.json().catch(() => null) as { id?: string; email?: string } | null;
   if (!authResponse.ok || !user?.id) return json({ error: "La sesión ya no es válida." }, 401);
 
   const draftQuery = "id,membership_id,payer_profile_id,charge_kind,status,approved_amount_cents,calculated_amount_cents,athletes(first_name,last_name)";
-  const draftResponse = await fetch(`${env.SUPABASE_URL}/rest/v1/billing_charge_drafts?id=eq.${encodeURIComponent(draftId)}&select=${encodeURIComponent(draftQuery)}`, { headers: serviceHeaders });
+  const draftResponse = await fetch(`${supabaseUrl}/rest/v1/billing_charge_drafts?id=eq.${encodeURIComponent(draftId)}&select=${encodeURIComponent(draftQuery)}`, { headers: serviceHeaders });
   const [draft] = await draftResponse.json().catch(() => []) as any[];
   if (!draftResponse.ok || !draft) return json({ error: "No se encontró el cobro." }, 404);
   if (draft.status !== "approved") return json({ error: "Solo se puede preparar un pago cuando la cuota está aprobada." }, 409);
 
-  const roleResponse = await fetch(`${env.SUPABASE_URL}/rest/v1/profiles?id=eq.${encodeURIComponent(user.id)}&select=role`, { headers: serviceHeaders });
+  const roleResponse = await fetch(`${supabaseUrl}/rest/v1/profiles?id=eq.${encodeURIComponent(user.id)}&select=role`, { headers: serviceHeaders });
   const [profile] = await roleResponse.json().catch(() => []) as any[];
   const manager = ["owner", "admin"].includes(profile?.role);
   if (!manager && draft.payer_profile_id !== user.id) return json({ error: "No puedes abrir este pago." }, 403);
@@ -38,9 +41,9 @@ export async function onRequestPost(context: any) {
   const amount = Number(draft.approved_amount_cents ?? draft.calculated_amount_cents);
   if (!Number.isInteger(amount) || amount <= 0) return json({ error: "El importe aprobado no es válido." }, 409);
 
-  const payerResponse = await fetch(`${env.SUPABASE_URL}/rest/v1/profiles?id=eq.${encodeURIComponent(draft.payer_profile_id || user.id)}&select=id,email,full_name`, { headers: serviceHeaders });
+  const payerResponse = await fetch(`${supabaseUrl}/rest/v1/profiles?id=eq.${encodeURIComponent(draft.payer_profile_id || user.id)}&select=id,email,full_name`, { headers: serviceHeaders });
   const [payer] = await payerResponse.json().catch(() => []) as any[];
-  const customerResponse = await fetch(`${env.SUPABASE_URL}/rest/v1/stripe_customers?profile_id=eq.${encodeURIComponent(draft.payer_profile_id || user.id)}&select=stripe_customer_id`, { headers: serviceHeaders });
+  const customerResponse = await fetch(`${supabaseUrl}/rest/v1/stripe_customers?profile_id=eq.${encodeURIComponent(draft.payer_profile_id || user.id)}&select=stripe_customer_id`, { headers: serviceHeaders });
   const [savedCustomer] = await customerResponse.json().catch(() => []) as any[];
   let customerId = savedCustomer?.stripe_customer_id as string | undefined;
 
@@ -52,7 +55,7 @@ export async function onRequestPost(context: any) {
     const created = await stripePost(env.STRIPE_SECRET_KEY, "customers", customerParams);
     if (!created.response.ok || !created.data?.id) return json({ error: created.data?.error?.message || "Stripe no pudo crear el cliente." }, 502);
     customerId = created.data.id;
-    await fetch(`${env.SUPABASE_URL}/rest/v1/stripe_customers?on_conflict=profile_id`, { method: "POST", headers: { ...serviceHeaders, Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify({ profile_id: draft.payer_profile_id || user.id, stripe_customer_id: customerId, updated_at: new Date().toISOString() }) });
+    await fetch(`${supabaseUrl}/rest/v1/stripe_customers?on_conflict=profile_id`, { method: "POST", headers: { ...serviceHeaders, Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify({ profile_id: draft.payer_profile_id || user.id, stripe_customer_id: customerId, updated_at: new Date().toISOString() }) });
   }
 
   const athleteName = [draft.athletes?.first_name, draft.athletes?.last_name].filter(Boolean).join(" ") || "atleta";
@@ -74,6 +77,6 @@ export async function onRequestPost(context: any) {
 
   const checkout = await stripePost(env.STRIPE_SECRET_KEY, "checkout/sessions", params);
   if (!checkout.response.ok || !checkout.data?.url) return json({ error: checkout.data?.error?.message || "Stripe no pudo preparar el pago." }, 502);
-  await fetch(`${env.SUPABASE_URL}/rest/v1/billing_charge_drafts?id=eq.${encodeURIComponent(draft.id)}`, { method: "PATCH", headers: { ...serviceHeaders, Prefer: "return=minimal" }, body: JSON.stringify({ status: "checkout_pending", provider_reference: checkout.data.id, updated_at: new Date().toISOString() }) });
+  await fetch(`${supabaseUrl}/rest/v1/billing_charge_drafts?id=eq.${encodeURIComponent(draft.id)}`, { method: "PATCH", headers: { ...serviceHeaders, Prefer: "return=minimal" }, body: JSON.stringify({ status: "checkout_pending", provider_reference: checkout.data.id, updated_at: new Date().toISOString() }) });
   return json({ url: checkout.data.url });
 }
