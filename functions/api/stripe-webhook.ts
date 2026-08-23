@@ -12,10 +12,12 @@ export async function onRequestPost(context: any) {
   const env = context.env as { STRIPE_WEBHOOK_SECRET?: string; SUPABASE_URL?: string; SUPABASE_SERVICE_ROLE_KEY?: string };
   const payload = await context.request.text(); const signature = context.request.headers.get("stripe-signature") || "";
   if (!env.STRIPE_WEBHOOK_SECRET || !env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY || !(await validSignature(payload, signature, env.STRIPE_WEBHOOK_SECRET))) return new Response("Invalid webhook", { status: 400 });
-  const event = JSON.parse(payload) as { type?: string; data?: { object?: { id?: string; metadata?: { order_id?: string } } } };
+  const event = JSON.parse(payload) as { type?: string; data?: { object?: { id?: string; metadata?: { order_id?: string; billing_charge_draft_id?: string } } } };
   if (event.type === "checkout.session.completed") {
     const session = event.data?.object; const orderId = session?.metadata?.order_id;
+    const draftId = session?.metadata?.billing_charge_draft_id;
     if (orderId) await fetch(`${env.SUPABASE_URL}/rest/v1/club_orders?id=eq.${encodeURIComponent(orderId)}`, { method: "PATCH", headers: { apikey: env.SUPABASE_SERVICE_ROLE_KEY, authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`, "content-type": "application/json", Prefer: "return=minimal" }, body: JSON.stringify({ status: "paid", payment_status: "paid", stripe_checkout_session_id: session?.id, updated_at: new Date().toISOString() }) });
+    if (draftId) await fetch(`${env.SUPABASE_URL}/rest/v1/billing_charge_drafts?id=eq.${encodeURIComponent(draftId)}`, { method: "PATCH", headers: { apikey: env.SUPABASE_SERVICE_ROLE_KEY, authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`, "content-type": "application/json", Prefer: "return=minimal" }, body: JSON.stringify({ status: "paid", provider_reference: session?.id, updated_at: new Date().toISOString() }) });
   }
   return new Response("ok");
 }
