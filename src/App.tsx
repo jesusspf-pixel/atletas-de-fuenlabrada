@@ -7,7 +7,7 @@ import { AnnouncementManager, CompetitionManager, PlanningWorkspace } from "./co
 import { FamilyAthletes, FamilyHome, GroupManager } from "./components/ClubAdminAndFamily";
 import { Shop } from "./components/ProfessionalShop";
 import BillingControlCenter from "./components/BillingControlCenter";
-import { isSupabaseConfigured, supabase } from "./lib/supabase";
+import { ensureSupabase, supabase } from "./lib/supabase";
 import "./club-app.css";
 
 type Role = "owner" | "admin" | "coach" | "parent" | "adult_athlete" | "minor_athlete";
@@ -23,75 +23,68 @@ const roleName: Record<Role, string> = { owner: "Propietario", admin: "Administr
   export default function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [checking, setChecking] = useState(true);
+  const [configured, setConfigured] = useState(Boolean(supabase));
   const [profile, setProfile] = useState<Profile | null>(null);
   const [register, setRegister] = useState<"family" | "adult" | null>(null);
   const invitation = new URLSearchParams(window.location.search).get("invitation");
 
   useEffect(() => {
-    const client = supabase;
-    if (!client) {
-      setChecking(false);
-      return;
-    }
+    let subscription: { unsubscribe: () => void } | null = null;
+    let cancelled = false;
 
-    const fallback = window.setTimeout(() => setChecking(false), 6000);
+    const start = async () => {
+      const client = await ensureSupabase();
+      if (cancelled) return;
+      if (!client) {
+        setChecking(false);
+        return;
+      }
+      setConfigured(true);
 
-    const load = async (next: Session | null) => {
-      setSession(next);
-      try {
+      const load = async (next: Session | null) => {
+        setSession(next);
         if (next) {
           let { data } = await client.from("profiles").select("*").eq("id", next.user.id).maybeSingle();
-
           if (!data && next.user.email?.toLowerCase() === "jesusspf@gmail.com") {
             const { error } = await client.rpc("bootstrap_owner");
             if (!error) ({ data } = await client.from("profiles").select("*").eq("id", next.user.id).maybeSingle());
           }
-
           if (!data) {
             const { error } = await client.rpc("activate_pending_staff_access");
             if (!error) ({ data } = await client.from("profiles").select("*").eq("id", next.user.id).maybeSingle());
           }
-
-          setProfile(data as Profile | null);
-        } else {
+          if (!cancelled) setProfile(data as Profile | null);
+        } else if (!cancelled) {
           setProfile(null);
         }
-      } finally {
-        window.clearTimeout(fallback);
-        setChecking(false);
-      }
+        if (!cancelled) setChecking(false);
+      };
+
+      client.auth.getSession().then(({ data }) => void load(data.session)).catch(() => {
+        if (!cancelled) setChecking(false);
+      });
+      subscription = client.auth.onAuthStateChange((_event, next) => void load(next)).data.subscription;
     };
 
-    client.auth.getSession()
-      .then(({ data }) => void load(data.session))
-      .catch(() => {
-        window.clearTimeout(fallback);
-        setChecking(false);
-      });
-
-    const { data: { subscription } } = client.auth.onAuthStateChange((_event, next) => void load(next));
-
+    void start();
     return () => {
-      window.clearTimeout(fallback);
-      subscription.unsubscribe();
+      cancelled = true;
+      subscription?.unsubscribe();
     };
   }, []);
 
-  if (!isSupabaseConfigured) return <LaunchBlocked />;
   if (checking) return <main className="secure-screen"><div className="access-box">Comprobando el acceso seguro…</div></main>;
+  if (!configured) return <LaunchBlocked />;
   if (!session) return <Access />;
   if (register === "family") return <FamilyRegistration email={session.user.email ?? ""} onBack={() => { setRegister(null); void supabase?.auth.signOut(); }} />;
   if (register === "adult") return <AdultRegistration email={session.user.email ?? ""} onBack={() => { setRegister(null); void supabase?.auth.signOut(); }} />;
-
   if (!profile && session.user.email?.toLowerCase() === "jesusspf@gmail.com") {
     return <Portal profile={{ id: session.user.id, email: session.user.email, full_name: "Jesús Pérez", role: "owner" }} signOut={() => void supabase?.auth.signOut()} />;
   }
-
   if (!profile) return <ChooseRegistration email={session.user.email ?? ""} invitation={invitation} owner={session.user.email?.toLowerCase() === "jesusspf@gmail.com"} family={() => setRegister("family")} adult={() => setRegister("adult")} ownerAction={async () => { if (!supabase) return; const { error } = await supabase.rpc("bootstrap_owner"); if (error) throw error; const { data, error: profileError } = await supabase.from("profiles").select("*").eq("id", session.user.id).single(); if (profileError) throw profileError; setProfile(data as Profile); }} invitationAction={async () => { if (!supabase || !invitation) return; const { error } = await supabase.rpc("accept_staff_invitation", { invitation_token: invitation }); if (error) throw error; const { data } = await supabase.from("profiles").select("*").eq("id", session.user.id).single(); window.history.replaceState({}, "", window.location.pathname); setProfile(data as Profile); }} staffAction={async () => { if (!supabase) return; const { error } = await supabase.rpc("activate_pending_staff_access"); if (error) throw error; const { data, error: profileError } = await supabase.from("profiles").select("*").eq("id", session.user.id).single(); if (profileError) throw profileError; setProfile(data as Profile); }} />;
-
   return <Portal profile={profile} signOut={() => void supabase?.auth.signOut()} />;
 }
-  
+
 function Brand() { const [identity, setIdentity] = useState<{ club_name: string; logo_url: string | null } | null>(null); useEffect(() => { if (!supabase) return; void supabase.from("club_settings").select("club_name,logo_url").eq("id", true).maybeSingle().then(({ data }) => { if (data) setIdentity(data); }); }, []); const words = (identity?.club_name || "Club Atletas de Fuenlabrada").toUpperCase().split(" "); const first = words.slice(0, 2).join(" "); const second = words.slice(2).join(" "); return <div className="portal-brand">{identity?.logo_url ? <img src={identity.logo_url} alt="Escudo del club" /> : <b>AF</b>}<span>{first}<small>{second || "DE FUENLABRADA"}</small></span></div>; }
 function LaunchBlocked() { return <main className="secure-screen"><section className="access-box"><Brand /><h1>Acceso aún no abierto</h1><p>El club está terminando la conexión segura. No hay datos de demostración ni inscripción abierta en esta pantalla.</p></section></main>; }
 function Access() { const [kind, setKind] = useState<"login" | "signup">("login"); const [email, setEmail] = useState(""); const [password, setPassword] = useState(""); const [message, setMessage] = useState(""); const [busy, setBusy] = useState(false); const submit = async (e: FormEvent) => { e.preventDefault(); if (!supabase) return; setBusy(true); const result = kind === "login" ? await supabase.auth.signInWithPassword({ email, password }) : await supabase.auth.signUp({ email, password }); setBusy(false); setMessage(result.error?.message ?? (kind === "signup" ? "Revisa tu correo y confirma la cuenta." : "")); }; return <main className="secure-screen"><section className="access-box"><Brand /><small>ACCESO SEGURO</small><h1>{kind === "login" ? "Entra en tu cuenta" : "Crea tu cuenta"}</h1><p>{kind === "login" ? "Familias, atletas y equipo acceden con su correo y contraseña." : "El registro público es solo para familias y atletas mayores de edad."}</p><form onSubmit={submit}><label>Correo electrónico<input required type="email" value={email} onChange={e => setEmail(e.target.value)} /></label><label>Contraseña<input required minLength={8} type="password" value={password} onChange={e => setPassword(e.target.value)} /></label><button disabled={busy}>{busy ? "Un momento…" : kind === "login" ? "Entrar" : "Crear cuenta"}</button></form>{message && <p className="error-note">{message}</p>}<button className="plain" onClick={() => { setKind(kind === "login" ? "signup" : "login"); setMessage(""); }}>{kind === "login" ? "¿Aún no tienes cuenta? Inicia tu inscripción" : "¿Ya tienes una cuenta? Entrar"}</button><p className="muted">Administradores y entrenadores reciben una invitación personal del club.</p></section></main>; }
