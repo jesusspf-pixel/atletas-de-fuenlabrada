@@ -11,6 +11,15 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // Se desactiva temporalmente la caché offline para impedir que una PWA
+      // instalada conserve una versión antigua de la aplicación.
+      if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.getRegistrations()
+          .then((registrations) => Promise.all(registrations.map((registration) => registration.unregister())))
+          .catch(() => undefined);
+      }
+    </script>
     <script type="module" src="/src/main.tsx"></script>
     <script src="/auth-recovery.js" defer></script>
   </body>
