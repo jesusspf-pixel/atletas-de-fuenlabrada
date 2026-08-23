@@ -89,12 +89,19 @@ export default function BillingControlCenter() {
   const prepareStripeCheckout = async (draft: Draft) => {
     const client = supabase; if (!client) return;
     setBusy(true); setMessage(""); setCheckoutUrl("");
-    const { data: sessionData } = await client.auth.getSession();
+    let { data: { session } } = await client.auth.getSession();
+    // Si el token está a punto de caducar, se renueva antes de llamar a Pages.
+    // No se pide de nuevo ningún dato de pago ni se modifica la configuración.
+    if (!session || (session.expires_at ?? 0) * 1000 < Date.now() + 30_000) {
+      const refreshed = await client.auth.refreshSession();
+      session = refreshed.data.session;
+    }
+    if (!session) { setBusy(false); setMessage("La sesión ha caducado. Entra de nuevo para preparar el pago."); return; }
     const response = await fetch("/api/create-approved-charge-checkout", {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        authorization: `Bearer ${sessionData.session?.access_token || ""}`,
+        authorization: `Bearer ${session.access_token}`,
         "x-supabase-key": supabasePublishableKey,
       },
       body: JSON.stringify({ draftId: draft.id }),
