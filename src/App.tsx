@@ -153,8 +153,30 @@ function Invitations() { const groups = useRows<Group>("training_groups"); const
 function Fees({ profile }: { profile: Profile }) {
   const manager = ["owner", "admin"].includes(profile.role);
   const ledger = useRows<{ id: string; description: string; amount_cents: number; status: string; scheduled_for: string | null }>("payment_ledger");
+  const [cardBusy, setCardBusy] = useState(false);
+  const [cardMessage, setCardMessage] = useState("");
+  const addOrChangeCard = async () => {
+    if (!supabase) return setCardMessage("No se ha podido iniciar la conexión segura con Stripe.");
+    setCardBusy(true);
+    setCardMessage("");
+    try {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      if (!token) throw new Error("Tu sesión ha caducado. Vuelve a entrar antes de añadir la tarjeta.");
+      const response = await fetch("/api/create-payment-method-setup", {
+        method: "POST",
+        headers: { authorization: `Bearer ${token}` },
+      });
+      const result = await response.json().catch(() => ({})) as { url?: string; error?: string };
+      if (!response.ok || !result.url) throw new Error(result.error || "Stripe no pudo abrir el formulario de tarjeta.");
+      window.location.assign(result.url);
+    } catch (error) {
+      setCardMessage(error instanceof Error ? error.message : "No se pudo abrir Stripe. Inténtalo de nuevo.");
+      setCardBusy(false);
+    }
+  };
   if (manager) return <BillingControlCenter />;
-  return <><Header title="Cuotas y cobros" text="Consulta tus próximos cobros y su estado." /><section className="two-columns"><article className="panel"><h2>Pagos seguros</h2><p>El club revisa y aprueba cada cuota antes de preparar el pago.</p><p>La aplicación no almacena números de tarjeta ni CVV.</p></article></section><article className="panel table">{ledger.rows.map(item => <div className="row" key={item.id}><span><b>{item.description}</b><small>{item.scheduled_for || "Sin fecha"}</small></span><span>{(item.amount_cents / 100).toFixed(2)} €</span><span>{item.status}</span></div>)}{!ledger.rows.length && <Empty>No hay cobros creados aún.</Empty>}</article></>;
+  return <><Header title="Cuotas y cobros" text="Consulta tus próximos cobros y su estado." /><section className="two-columns"><article className="panel"><small>STRIPE · PAGO SEGURO</small><h2>Tarjeta para futuras cuotas</h2><p>La tarjeta se añade directamente en Stripe. El club nunca recibe ni guarda el número ni el CVV.</p><button disabled={cardBusy} onClick={() => void addOrChangeCard()}>{cardBusy ? "Abriendo Stripe…" : "Añadir o cambiar tarjeta"}</button>{cardMessage && <p className="error-note">{cardMessage}</p>}</article><article className="panel"><h2>Pagos seguros</h2><p>El club revisa y aprueba cada cuota antes de preparar el pago.</p><p>Una vez aprobada, la cuota queda vinculada a la persona pagadora y se muestra aquí.</p></article></section><article className="panel table">{ledger.rows.map(item => <div className="row" key={item.id}><span><b>{item.description}</b><small>{item.scheduled_for || "Sin fecha"}</small></span><span>{(item.amount_cents / 100).toFixed(2)} €</span><span>{item.status}</span></div>)}{!ledger.rows.length && <Empty>No hay cobros creados aún.</Empty>}</article></>;
 }
 function useCoachGroups() { return useRows<any>("training_group_coaches", "training_groups(*)"); }
 function Coach({ section, profile }: { section: string; profile: Profile }) { if (section === "Mi grupo") return <CoachGroups />; if (section === "Planificación") return <PlanningWorkspace profile={profile} />; if (section === "Asistencia") return <Attendance profile={profile} />; if (section === "Carreras") return <CompetitionManager profile={profile} />; if (section === "Avisos") return <AnnouncementManager profile={profile} />; const assigned = useCoachGroups(); const groups = assigned.rows.map(item => item.training_groups).filter(Boolean) as Group[]; return <><Header title={`Hola, ${profile.full_name?.split(" ")[0] || "entrenador"}`} text="Tus grupos, planificación y asistencia." /><div className="cards">{groups.map(g => <article className="panel group-card" key={g.id}><i style={{ background: g.colour }} /><h2>{g.name}</h2><p>{g.category_label}</p><small>Acceso limitado a este grupo</small></article>)}{!assigned.loading && !groups.length && <Empty>No tienes grupos asignados. Un administrador debe asignarte uno.</Empty>}</div></>; }
