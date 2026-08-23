@@ -27,6 +27,7 @@ export default function BillingControlCenter() {
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [checkoutUrl, setCheckoutUrl] = useState("");
+  const [selectedMembershipId, setSelectedMembershipId] = useState("");
 
   const load = async () => {
     const client = supabase; if (!client) return;
@@ -102,6 +103,8 @@ export default function BillingControlCenter() {
     void load();
   };
 
+  const selectedDrafts = drafts.filter(draft => draft.membership_id === selectedMembershipId);
+
   if (!rules) return <section className="panel"><h2>Cuotas y cobros</h2><p>{busy ? "Cargando centro de control…" : message || "No se pudo cargar la configuración de cobros."}</p></section>;
 
   return <section className="billing-control">
@@ -135,12 +138,12 @@ export default function BillingControlCenter() {
         <label>Concepto<select value={kind} onChange={e => setKind(e.target.value as "enrolment" | "recurring")}><option value="recurring">Cuota</option><option value="enrolment">Matrícula</option></select></label>
         <label>Fecha prevista<input type="date" value={scheduledFor} onChange={e => setScheduledFor(e.target.value)} /></label>
         <button disabled={busy || !membershipId}>{busy ? "Calculando…" : "Crear borrador calculado"}</button>
-        <small>Nunca genera un cobro automático: queda «Pendiente de revisión».</small>
+        <small>«Cuota» calcula mensualidad o trimestre. «Matrícula» solo tiene importe si esa alta tiene matrícula pendiente.</small>
       </form>
     </section>
 
     {message && <p className={message.includes("guardadas") || message.includes("Borrador") || message.includes("preparado") ? "success-note panel" : "error-note panel"}>{message}</p>}
     {checkoutUrl && <article className="panel"><h2>Enlace de pago preparado</h2><p className="link-box">{checkoutUrl}</p><button onClick={() => window.location.assign(checkoutUrl)}>Abrir Stripe Checkout</button> <button className="outline" onClick={() => void navigator.clipboard.writeText(checkoutUrl)}>Copiar enlace para la familia</button></article>}
-    <section className="panel table"><h2>Control financiero de cuotas</h2>{drafts.map(draft => <div className="row" key={draft.id}><span><b>{draft.athletes?.first_name} {draft.athletes?.last_name}</b><small>{draft.charge_kind === "enrolment" ? "Matrícula" : "Cuota"} · {draft.memberships?.plan === "monthly" ? "Mensual" : "Trimestral"} · prevista {new Date(draft.scheduled_for).toLocaleDateString("es-ES")}</small></span><span><small>Calculado</small><b>{euro(draft.calculated_amount_cents)}</b>{draft.discount_cents > 0 && <small>Descuento: {euro(draft.discount_cents)}</small>}</span><span><small>Final</small><b>{euro(draft.approved_amount_cents ?? draft.calculated_amount_cents)}</b><small>{draft.status}</small></span><span>{draft.status === "awaiting_admin" && <><button disabled={busy} onClick={() => void updateDraft(draft, "approved")}>Revisar y aprobar</button> <button className="outline" disabled={busy} onClick={() => void updateDraft(draft, "waived")}>Eximir</button></>}{draft.status === "approved" && <><button disabled={busy} onClick={() => void prepareStripeCheckout(draft)}>Preparar pago Stripe</button> <button className="outline" disabled={busy} onClick={() => void updateDraft(draft, "awaiting_admin")}>Volver a revisión</button></>}</span></div>)}{!drafts.length && <p>Aún no hay cuotas preparadas. Crea el primer borrador arriba.</p>}</section>
+    <section className="panel table"><h2>Control financiero de cuotas</h2>{drafts.map(draft => <div className="row" key={draft.id}><span><button className="plain" onClick={() => setSelectedMembershipId(draft.membership_id)}><b>{draft.athletes?.first_name} {draft.athletes?.last_name}</b><small>Ver sus cuotas →</small></button><small>{draft.charge_kind === "enrolment" ? "Matrícula" : "Cuota"} · {draft.memberships?.plan === "monthly" ? "Mensual" : "Trimestral"} · prevista {new Date(draft.scheduled_for).toLocaleDateString("es-ES")}</small></span><span><small>Calculado</small><b>{euro(draft.calculated_amount_cents)}</b>{draft.discount_cents > 0 && <small>Descuento: {euro(draft.discount_cents)}</small>}</span><span><small>Final</small><b>{euro(draft.approved_amount_cents ?? draft.calculated_amount_cents)}</b><small>{draft.status}</small></span><span>{draft.status === "awaiting_admin" && <><button disabled={busy} onClick={() => void updateDraft(draft, "approved")}>Revisar y aprobar</button> <button className="outline" disabled={busy} onClick={() => void updateDraft(draft, "waived")}>Eximir</button></>}{draft.status === "approved" && <><button disabled={busy} onClick={() => void prepareStripeCheckout(draft)}>Preparar pago Stripe</button> <button className="outline" disabled={busy} onClick={() => void updateDraft(draft, "awaiting_admin")}>Volver a revisión</button></>}</span></div>)}{!drafts.length && <p>Aún no hay cuotas preparadas. Crea el primer borrador arriba.</p>}</section>{selectedMembershipId && <section className="panel"><h2>Cuotas del atleta</h2><button className="outline" onClick={() => setSelectedMembershipId("")}>Cerrar</button>{selectedDrafts.map(draft => <div className="row" key={draft.id}><span><b>{draft.athletes?.first_name} {draft.athletes?.last_name}</b><small>{draft.charge_kind === "enrolment" ? "Matrícula" : "Cuota"} · {new Date(draft.scheduled_for).toLocaleDateString("es-ES")} · {draft.status}</small></span><span><b>{euro(draft.approved_amount_cents ?? draft.calculated_amount_cents)}</b><small>{draft.override_reason || "Sin ajuste"}</small></span><span>{draft.status === "awaiting_admin" && <><button disabled={busy} onClick={() => void updateDraft(draft, "approved")}>Aprobar</button> <button className="outline" disabled={busy} onClick={() => void updateDraft(draft, "cancelled")}>Cancelar</button></>}{draft.status === "approved" && <button disabled={busy} onClick={() => void prepareStripeCheckout(draft)}>Preparar Stripe</button>}</span></div>)}</section>}
   </section>;
 }
