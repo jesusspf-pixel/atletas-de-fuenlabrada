@@ -26,6 +26,7 @@ export default function BillingControlCenter() {
   const [scheduledFor, setScheduledFor] = useState(new Date().toISOString().slice(0, 10));
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [checkoutUrl, setCheckoutUrl] = useState("");
 
   const load = async () => {
     const client = supabase; if (!client) return;
@@ -84,6 +85,23 @@ export default function BillingControlCenter() {
     if (!error) await load(); else { setBusy(false); setMessage(error.message); }
   };
 
+  const prepareStripeCheckout = async (draft: Draft) => {
+    const client = supabase; if (!client) return;
+    setBusy(true); setMessage(""); setCheckoutUrl("");
+    const { data: sessionData } = await client.auth.getSession();
+    const response = await fetch("/api/create-approved-charge-checkout", {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${sessionData.session?.access_token || ""}` },
+      body: JSON.stringify({ draftId: draft.id }),
+    });
+    const body = await response.json().catch(() => ({})) as { url?: string; error?: string };
+    setBusy(false);
+    if (!response.ok || !body.url) return setMessage(body.error || "No se pudo preparar Stripe.");
+    setCheckoutUrl(body.url);
+    setMessage("Enlace de pago Stripe preparado. Puedes abrirlo o enviarlo a la familia.");
+    void load();
+  };
+
   if (!rules) return <section className="panel"><h2>Cuotas y cobros</h2><p>{busy ? "Cargando centro de control…" : message || "No se pudo cargar la configuración de cobros."}</p></section>;
 
   return <section className="billing-control">
@@ -121,7 +139,8 @@ export default function BillingControlCenter() {
       </form>
     </section>
 
-    {message && <p className={message.includes("guardadas") || message.includes("Borrador") ? "success-note panel" : "error-note panel"}>{message}</p>}
-    <section className="panel table"><h2>Control financiero de cuotas</h2>{drafts.map(draft => <div className="row" key={draft.id}><span><b>{draft.athletes?.first_name} {draft.athletes?.last_name}</b><small>{draft.charge_kind === "enrolment" ? "Matrícula" : "Cuota"} · {draft.memberships?.plan === "monthly" ? "Mensual" : "Trimestral"} · prevista {new Date(draft.scheduled_for).toLocaleDateString("es-ES")}</small></span><span><small>Calculado</small><b>{euro(draft.calculated_amount_cents)}</b>{draft.discount_cents > 0 && <small>Descuento: {euro(draft.discount_cents)}</small>}</span><span><small>Final</small><b>{euro(draft.approved_amount_cents ?? draft.calculated_amount_cents)}</b><small>{draft.status}</small></span><span>{draft.status === "awaiting_admin" && <><button disabled={busy} onClick={() => void updateDraft(draft, "approved")}>Revisar y aprobar</button> <button className="outline" disabled={busy} onClick={() => void updateDraft(draft, "waived")}>Eximir</button></>}{draft.status === "approved" && <button className="outline" disabled={busy} onClick={() => void updateDraft(draft, "awaiting_admin")}>Volver a revisión</button>}</span></div>)}{!drafts.length && <p>Aún no hay cuotas preparadas. Crea el primer borrador arriba.</p>}</section>
+    {message && <p className={message.includes("guardadas") || message.includes("Borrador") || message.includes("preparado") ? "success-note panel" : "error-note panel"}>{message}</p>}
+    {checkoutUrl && <article className="panel"><h2>Enlace de pago preparado</h2><p className="link-box">{checkoutUrl}</p><button onClick={() => window.location.assign(checkoutUrl)}>Abrir Stripe Checkout</button> <button className="outline" onClick={() => void navigator.clipboard.writeText(checkoutUrl)}>Copiar enlace para la familia</button></article>}
+    <section className="panel table"><h2>Control financiero de cuotas</h2>{drafts.map(draft => <div className="row" key={draft.id}><span><b>{draft.athletes?.first_name} {draft.athletes?.last_name}</b><small>{draft.charge_kind === "enrolment" ? "Matrícula" : "Cuota"} · {draft.memberships?.plan === "monthly" ? "Mensual" : "Trimestral"} · prevista {new Date(draft.scheduled_for).toLocaleDateString("es-ES")}</small></span><span><small>Calculado</small><b>{euro(draft.calculated_amount_cents)}</b>{draft.discount_cents > 0 && <small>Descuento: {euro(draft.discount_cents)}</small>}</span><span><small>Final</small><b>{euro(draft.approved_amount_cents ?? draft.calculated_amount_cents)}</b><small>{draft.status}</small></span><span>{draft.status === "awaiting_admin" && <><button disabled={busy} onClick={() => void updateDraft(draft, "approved")}>Revisar y aprobar</button> <button className="outline" disabled={busy} onClick={() => void updateDraft(draft, "waived")}>Eximir</button></>}{draft.status === "approved" && <><button disabled={busy} onClick={() => void prepareStripeCheckout(draft)}>Preparar pago Stripe</button> <button className="outline" disabled={busy} onClick={() => void updateDraft(draft, "awaiting_admin")}>Volver a revisión</button></>}</span></div>)}{!drafts.length && <p>Aún no hay cuotas preparadas. Crea el primer borrador arriba.</p>}</section>
   </section>;
 }
