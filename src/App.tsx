@@ -154,8 +154,39 @@ function Invitations() { const groups = useRows<Group>("training_groups"); const
 function Fees({ profile }: { profile: Profile }) {
   const manager = ["owner", "admin"].includes(profile.role);
   const ledger = useRows<{ id: string; description: string; amount_cents: number; status: string; scheduled_for: string | null }>("payment_ledger");
+  const [cardBusy, setCardBusy] = useState(false);
+  const [cardMessage, setCardMessage] = useState("");
+
+  const configureCard = async () => {
+    const client = supabase;
+    if (!client) {
+      setCardMessage("No se pudo iniciar el pago seguro. Inténtalo de nuevo.");
+      return;
+    }
+    setCardBusy(true);
+    setCardMessage("");
+    try {
+      const { data } = await client.auth.getSession();
+      const response = await fetch("/api/create-payment-method-setup", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${data.session?.access_token || ""}`,
+        },
+        body: "{}",
+      });
+      const body = await response.json().catch(() => ({})) as { url?: string; error?: string };
+      if (!response.ok || !body.url) throw new Error(body.error || "No se pudo abrir Stripe.");
+      window.location.assign(body.url);
+    } catch (error) {
+      setCardMessage(error instanceof Error ? error.message : "No se pudo abrir Stripe. Inténtalo de nuevo.");
+      setCardBusy(false);
+    }
+  };
+
   if (manager) return <BillingControlCenter />;
-  return <><Header title="Cuotas y cobros" text="Consulta tus próximos cobros y su estado." /><section className="two-columns"><article className="panel"><h2>Pagos seguros</h2><p>El club revisa y aprueba cada cuota antes de preparar el pago.</p><p>La aplicación no almacena números de tarjeta ni CVV.</p></article></section><article className="panel table">{ledger.rows.map(item => <div className="row" key={item.id}><span><b>{item.description}</b><small>{item.scheduled_for || "Sin fecha"}</small></span><span>{(item.amount_cents / 100).toFixed(2)} €</span><span>{item.status}</span></div>)}{!ledger.rows.length && <Empty>No hay cobros creados aún.</Empty>}</article></>;
+
+  return <><Header title="Cuotas y cobros" text="Consulta tus próximos cobros y su estado." /><section className="two-columns"><article className="panel"><small>STRIPE · PAGO SEGURO</small><h2>Tu método de pago</h2><p>La tarjeta se añade o actualiza directamente en Stripe. El club no almacena números de tarjeta ni CVV.</p><button disabled={cardBusy} onClick={() => void configureCard()}>{cardBusy ? "Abriendo Stripe…" : "Añadir o cambiar tarjeta"}</button>{cardMessage && <p className="error-note">{cardMessage}</p>}</article><article className="panel"><h2>Pagos seguros</h2><p>El club revisa y aprueba cada cuota antes de preparar el pago.</p><p>Una vez aprobado, el cobro se asocia a tu cuenta y aparece en esta lista.</p></article></section><article className="panel table">{ledger.rows.map(item => <div className="row" key={item.id}><span><b>{item.description}</b><small>{item.scheduled_for || "Sin fecha"}</small></span><span>{(item.amount_cents / 100).toFixed(2)} €</span><span>{item.status}</span></div>)}{!ledger.rows.length && <Empty>No hay cobros creados aún.</Empty>}</article></>;
 }
 
 function useCoachGroups() { return useRows<any>("training_group_coaches", "training_groups(*)"); }
