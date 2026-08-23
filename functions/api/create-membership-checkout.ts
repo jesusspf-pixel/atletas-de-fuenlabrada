@@ -92,6 +92,7 @@ export async function onRequestPost(context: any) {
   params.set("customer", customerId);
   params.set("success_url", `${origin}/?section=Cuotas&billing=success&session_id={CHECKOUT_SESSION_ID}`);
   params.set("cancel_url", `${origin}/?section=Cuotas&billing=cancelled`);
+  params.set("integration_identifier", `club_membership_${Array.from(crypto.getRandomValues(new Uint8Array(8)), value => String.fromCharCode(97 + (value % 26))).join("")}`);
   params.set("line_items[0][price_data][currency]", prices.currency || "eur");
   params.set("line_items[0][price_data][product_data][name]", membership.plan === "monthly" ? "Cuota mensual · Club Atletas de Fuenlabrada" : "Cuota trimestral · Club Atletas de Fuenlabrada");
   params.set("line_items[0][price_data][unit_amount]", String(recurringAmount));
