@@ -8,6 +8,9 @@ const url = import.meta.env.VITE_SUPABASE_URL || "https://refqwgxihcdaeshqdhlq.s
 const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY || "sb_publishable_CNlB4f3cvFzsOD7QFN7lkA_V2SvLrw_";
 
 export let supabase: SupabaseClient | null = createClient(url, key);
+// Se usa únicamente para que las Functions respeten las mismas políticas RLS
+// que ya aplica la aplicación al usuario que hace la petición.
+export const supabasePublishableKey = key;
 export const isSupabaseConfigured = true;
 
 export function ensureSupabase(): Promise<SupabaseClient | null> {
