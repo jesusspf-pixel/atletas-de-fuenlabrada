@@ -177,7 +177,7 @@ function AthletesAdmin() {
   useEffect(() => { if (selected) { const membership = selected.memberships?.[0]; setGroupId(selected.training_group_id || ""); setStatus(selected.club_status); setLicenseStatus(selected.license_status); setLicenseNumber(selected.license_number || ""); setSelectedPlan(membership?.plan || "term"); setEnrolmentFee(((membership?.enrolment_fee_cents || 0) / 100).toFixed(2)); setWaiveEnrolment(false); setMessage(""); } }, [selectedId]);
   const save = async () => { if (!selected || !supabase) return; setChanging(selected.id); setMessage("");
     const isInitialApproval = selected.club_status === "pending_review" && status === "active";
-    if (isInitialApproval {
+    if (isInitialApproval) {
       const membership = selected.memberships?.[0];
       if (!membership) { setChanging(""); return setMessage("No se encontró el plan económico de esta inscripción."); }
       const finalEnrolmentCents = waiveEnrolment ? 0 : Math.round(Number(enrolmentFee.replace(",", ".")) * 100);
