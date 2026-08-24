@@ -66,3 +66,16 @@ end $$;
 
 revoke all on function public.approve_registration_and_schedule(uuid,boolean) from public;
 grant execute on function public.approve_registration_and_schedule(uuid,boolean) to authenticated;
+
+create or replace function public.sync_billing_authorization()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if new.status = 'approved' and old.status is distinct from 'approved' and new.charge_kind = 'recurring' then
+    update public.memberships set billing_authorized = true, billing_authorized_at = now(), billing_authorized_by = auth.uid() where id = new.membership_id;
+    new.approved_by := coalesce(new.approved_by, auth.uid()); new.approved_at := coalesce(new.approved_at, now());
+  end if;
+  if new.status = 'paid' and old.status is distinct from 'paid' and new.charge_kind = 'enrolment' then
+    update public.memberships set enrolment_fee_status = 'paid' where id = new.membership_id;
+  end if;
+  new.updated_at := now(); return new;
+end $$;
