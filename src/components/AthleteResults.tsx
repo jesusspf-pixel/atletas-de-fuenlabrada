@@ -25,6 +25,32 @@ const unitLabels: Record<Unit, string> = {
 };
 const sourceLabel = (source: string) => source === "fam" ? "FAM" : source === "rfea" ? "RFEA" : source === "training" ? "Entrenamiento" : "Manual";
 
+function withoutDuplicateResults(rows: Result[]) {
+  const seen = new Set<string>();
+  return rows.filter(row => {
+    const mark = row.result_value !== null
+      ? `value:${row.result_value}`
+      : `text:${row.result_text.trim().toLocaleLowerCase("es-ES")}`;
+    const key = [row.athlete_id || "", row.athletics_event_id, row.competition_date, mark].join("|");
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function withoutDuplicateRankingRows(rows: any[]) {
+  const seen = new Set<string>();
+  return rows.filter(row => {
+    const mark = row.result_value !== null && row.result_value !== undefined
+      ? `value:${row.result_value}`
+      : `text:${String(row.result_text || "").trim().toLocaleLowerCase("es-ES")}`;
+    const key = [row.athlete_id || "", row.athletics_event_id || "", row.competition_date || "", mark].join("|");
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function parseResult(raw: string, unit: Unit) {
   const clean = raw.trim().replace(",", ".");
   if (unit === "minutes_seconds") {
@@ -54,7 +80,7 @@ export function AthleteResults({ athleteId, canAddTraining = false, coachProfile
       client.from("athlete_personal_bests").select("*").eq("athlete_id", athleteId),
     ]);
     setEvents((eventData ?? []) as EventDef[]);
-    setResults((resultData ?? []) as Result[]);
+    setResults(withoutDuplicateResults((resultData ?? []) as Result[]));
     setPbs((pbData ?? []) as PB[]);
   };
   useEffect(() => { void load(); }, [athleteId]);
@@ -120,7 +146,7 @@ export function AthleteResults({ athleteId, canAddTraining = false, coachProfile
 export function ClubRankings() {
   const [rows, setRows] = useState<any[]>([]); const [events, setEvents] = useState<EventDef[]>([]); const [eventId, setEventId] = useState(""); const [season, setSeason] = useState(""); const [category, setCategory] = useState("");
   const officialCategories = ["Sub 8", "Sub 10", "Sub 12", "Sub 14", "Sub 16", "Sub 18", "Sub 20", "Sub 23", "Absoluto", "Máster"];
-  useEffect(() => { const client = supabase; if (!client) return; void Promise.all([client.from("athletics_events").select("id,code,name,result_kind,sort_direction").order("name"), client.from("club_event_rankings").select("*")]).then(([eventResult, rankingResult]) => { setEvents((eventResult.data ?? []) as EventDef[]); setRows(rankingResult.data ?? []); }); }, []);
+  useEffect(() => { const client = supabase; if (!client) return; void Promise.all([client.from("athletics_events").select("id,code,name,result_kind,sort_direction").order("name"), client.from("club_event_rankings").select("*")]).then(([eventResult, rankingResult]) => { setEvents((eventResult.data ?? []) as EventDef[]); setRows(withoutDuplicateRankingRows((rankingResult.data ?? []) as any[])); }); }, []);
   const seasons = [...new Set(rows.map(row => row.season).filter(Boolean))].sort().reverse();
   const categories = [...new Set([...officialCategories, ...rows.map(row => row.category_label).filter(Boolean)])];
   const filtered = rows.filter(row => (!eventId || row.athletics_event_id === eventId) && (!season || row.season === season) && (!category || row.category_label === category) && Number(row.ranking_position) <= 20).sort((a,b) => Number(a.ranking_position) - Number(b.ranking_position));
