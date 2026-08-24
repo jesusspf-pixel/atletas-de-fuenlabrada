@@ -12,7 +12,7 @@ export async function onRequestPost(context: any) {
   const { orderId } = await context.request.json().catch(() => ({}));
   if (!orderId) return json({ error: "Falta el pedido." }, 400);
   const auth = await fetch(`${supabaseUrl}/auth/v1/user`, { headers: { apikey: supabasePublishableKey, authorization: token } });
-  const user = await auth.json().catch(() => null) as { id?: string } | null;
+  const user = await auth.json().catch(() => null) as { id?: string; email?: string } | null;
   if (!auth.ok || !user?.id) return json({ error: "No se pudo validar la sesión." }, 401);
   const headers = { apikey: supabasePublishableKey, authorization: token, "content-type": "application/json" };
   const orderResponse = await fetch(`${supabaseUrl}/rest/v1/club_orders?id=eq.${encodeURIComponent(orderId)}&select=id,created_by,total_cents,status,club_order_items(product_name,size,quantity,unit_price_cents)`, { headers });
@@ -23,6 +23,7 @@ export async function onRequestPost(context: any) {
   if (!line) return json({ error: "El pedido no tiene artículos." }, 400);
   const params = new URLSearchParams();
   params.set("mode", "payment");
+  if (user.email) params.set("customer_email", user.email);
   params.set("success_url", `${new URL(context.request.url).origin}/?checkout=success`);
   params.set("cancel_url", `${new URL(context.request.url).origin}/?checkout=cancelled`);
   params.set("line_items[0][price_data][currency]", "eur");
