@@ -13,7 +13,7 @@ type Athlete = {
   training_group_id: string | null;
   training_groups?: { name: string; category_label: string } | null;
 };
-type Ledger = { id: string; description: string; amount_cents: number; status: string; scheduled_for: string | null };
+type Ledger = { id: string; charge_kind: "enrolment" | "recurring" | "manual"; approved_amount_cents: number | null; calculated_amount_cents: number; status: string; scheduled_for: string | null };
 type Entry = { athlete_id: string; status: string; competition_events?: { title: string; starts_at: string; venue: string | null }[] | null };
 type TrainingPlan = { id: string; title: string; body: string; week_starts_on: string; training_group_id: string; published_at: string | null };
 type TrainingDocument = { id: string; title: string; storage_path: string; training_group_id: string | null; created_at: string };
@@ -64,7 +64,7 @@ export default function MemberExperience({ profileId }: { profileId: string }) {
       const ids = mine.map(a => a.id);
       const groupIds = [...new Set(mine.map(a => a.training_group_id).filter((id): id is string => Boolean(id)))];
       const [{ data: ledgerData }, { data: entryData }, planResult, documentResult, settingsResult] = await Promise.all([
-        supabase.from("payment_ledger").select("id,description,amount_cents,status,scheduled_for").in("athlete_id", ids).order("scheduled_for", { ascending: true }),
+        supabase.from("billing_charge_drafts").select("id,charge_kind,approved_amount_cents,calculated_amount_cents,status,scheduled_for").in("athlete_id", ids).order("scheduled_for", { ascending: true }),
         supabase.from("competition_entries").select("athlete_id,status,competition_events(title,starts_at,venue)").in("athlete_id", ids).order("created_at", { ascending: false }),
         groupIds.length ? supabase.from("training_plans").select("id,title,body,week_starts_on,training_group_id,published_at").in("training_group_id", groupIds).eq("week_starts_on", mondayKey()).order("published_at", { ascending: false }) : Promise.resolve({ data: [] }),
         groupIds.length ? supabase.from("club_documents").select("id,title,storage_path,training_group_id,created_at").eq("document_type", "training_plan").in("training_group_id", groupIds).order("created_at", { ascending: false }) : Promise.resolve({ data: [] }),
@@ -147,7 +147,7 @@ export default function MemberExperience({ profileId }: { profileId: string }) {
     return () => { header?.remove(); style?.remove(); };
   }, [athlete?.id, athlete?.first_name, athlete?.last_name, athlete?.training_groups?.name, athlete?.license_status, athlete?.license_number, athlete?.federation_license, profileSettings?.avatar_url, profileSettings?.cover_url]);
 
-  const upcomingFee = useMemo(() => ledger.find(item => item.status !== "paid" && (!item.scheduled_for || new Date(item.scheduled_for).getTime() >= Date.now() - 86400000)) || null, [ledger]);
+  const upcomingFee = useMemo(() => ledger.find(item => ["awaiting_admin", "approved", "checkout_pending"].includes(item.status) && (!item.scheduled_for || new Date(item.scheduled_for).getTime() >= Date.now() - 86400000)) || null, [ledger]);
   const upcomingCompetition = useMemo(() => entries.map(entry => ({ entry, event: entry.competition_events?.[0] })).filter(item => item.event && new Date(item.event.starts_at).getTime() >= Date.now()).sort((a, b) => new Date(a.event!.starts_at).getTime() - new Date(b.event!.starts_at).getTime())[0] || null, [entries]);
   const currentPlan = useMemo(() => athlete?.training_group_id ? plans.find(plan => plan.training_group_id === athlete.training_group_id) || null : null, [athlete, plans]);
   const currentPlanDocument = useMemo(() => {
@@ -182,7 +182,7 @@ export default function MemberExperience({ profileId }: { profileId: string }) {
       {planNotice && <p className="error-note">{planNotice}</p>}
     </article>
     <section className="two-columns member-next-grid">
-      <article className="panel"><small>PRÓXIMA CUOTA</small>{upcomingFee ? <><h2>{upcomingFee.description}</h2><p><b>{euro(upcomingFee.amount_cents)}</b></p><small>{upcomingFee.scheduled_for ? new Date(upcomingFee.scheduled_for).toLocaleDateString("es-ES") : "Fecha pendiente"} · {upcomingFee.status}</small></> : <><h2>Sin cobros pendientes</h2><p>Cuando administración valide las cuotas aparecerán aquí.</p></>}</article>
+      <article className="panel"><small>PRÓXIMA CUOTA</small>{upcomingFee ? <><h2>{upcomingFee.charge_kind === "enrolment" ? "Matrícula" : "Cuota del club"}</h2><p><b>{euro(upcomingFee.approved_amount_cents ?? upcomingFee.calculated_amount_cents)}</b></p><small>{upcomingFee.scheduled_for ? new Date(upcomingFee.scheduled_for).toLocaleDateString("es-ES") : "Fecha pendiente"} · {upcomingFee.status === "awaiting_admin" ? "Pendiente de revisión" : upcomingFee.status === "approved" ? "Aprobada" : "Pendiente de pago"}</small></> : <><h2>Sin cuotas programadas</h2><p>Las próximas cuotas aprobadas aparecerán aquí.</p></>}</article>
       <article className="panel"><small>PRÓXIMA COMPETICIÓN</small>{upcomingCompetition?.event ? <><h2>{upcomingCompetition.event.title}</h2><p>{upcomingCompetition.event.venue || "Ubicación pendiente"}</p><small>{new Date(upcomingCompetition.event.starts_at).toLocaleDateString("es-ES")} · {upcomingCompetition.entry.status}</small></> : <><h2>Sin próxima competición</h2><p>Las competiciones en las que estés inscrito aparecerán aquí.</p></>}</article>
     </section>
   </section>;
