@@ -1,27 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
+import { verifiedOfficialResults } from "../data/verifiedOfficialResults";
 
 type MetricType = "time" | "distance" | "weight";
 type Performance = {
-  id: string;
-  athlete_name: string;
-  discipline: string;
-  category: string | null;
-  season: string | null;
-  metric_type: MetricType;
-  performance_value: number | null;
-  performance_display: string;
-  result_date: string | null;
-  competition_name: string | null;
-  source?: "database" | "official-file";
+  id: string; athlete_name: string; discipline: string; category: string | null; season: string | null;
+  metric_type: MetricType; performance_value: number | null; performance_display: string;
+  result_date: string | null; competition_name: string | null;
 };
 
-const OFFICIAL_FILES = [
-  "https://raw.githubusercontent.com/jesusspf-pixel/atletas-de-fuenlabrada/main/data/official-results/fam-ranking-2025.json",
-  "https://raw.githubusercontent.com/jesusspf-pixel/atletas-de-fuenlabrada/main/data/official-results/fam-event-2025-02-16-jornada-menores-aluche.json",
-  "https://raw.githubusercontent.com/jesusspf-pixel/atletas-de-fuenlabrada/main/data/official-results/fam-event-2025-01-26-reunion-fam15-gallur.json",
-  "https://raw.githubusercontent.com/jesusspf-pixel/atletas-de-fuenlabrada/main/data/official-results/fam-event-2025-06-14-reunion-san-juan-leganes.json"
-];
+const categoryOrder = ["Sub 8", "Sub 10", "Sub 12", "Sub 14", "Sub 16", "Sub 18", "Sub 20", "Sub 23", "Absoluto", "Máster"];
 
 function categoryLabel(value: string | null | undefined) {
   const normalized = String(value || "").toUpperCase().replace(/\s/g, "");
@@ -42,29 +30,28 @@ function metricFromUnit(unit: string | null | undefined): MetricType {
 function isBetter(next: Performance, current: Performance) {
   if (next.performance_value === null) return false;
   if (current.performance_value === null) return true;
-  if (next.metric_type === "time") return next.performance_value < current.performance_value;
-  return next.performance_value > current.performance_value;
+  return next.metric_type === "time" ? next.performance_value < current.performance_value : next.performance_value > current.performance_value;
 }
 
-async function fetchOfficialFallback(): Promise<Performance[]> {
-  const files = await Promise.all(OFFICIAL_FILES.map(async (url) => {
-    const response = await fetch(url);
-    if (!response.ok) return { rows: [], source: { name: "Resultado FAM" } };
-    return response.json() as Promise<{ rows?: Array<Record<string, unknown>>; source?: { name?: string } }>;
+function fromBundledResults(): Performance[] {
+  return verifiedOfficialResults.map(row => ({
+    id: row.id,
+    athlete_name: row.athlete_name.replace(/^0\s+/, ""),
+    discipline: row.event_name,
+    category: categoryLabel(row.category_label),
+    season: row.competition_date?.slice(0, 4) || "2025",
+    metric_type: metricFromUnit(row.result_unit),
+    performance_value: row.result_value,
+    performance_display: row.result_text,
+    result_date: row.competition_date,
+    competition_name: row.competition_name
   }));
-  return files.flatMap((file, sourceIndex) => (file.rows || []).map((row, index) => ({
-    id: String(row.external_row_id || `fam-static-${sourceIndex}-${index}`),
-    athlete_name: String(row.athlete_name || "Atleta"),
-    discipline: String(row.event_name || row.event_code || "Prueba oficial"),
-    category: categoryLabel(row.category_label as string | null),
-    season: String(row.competition_date || "").slice(0, 4) || "2025",
-    metric_type: metricFromUnit(row.result_unit as string | null),
-    performance_value: typeof row.result_value === "number" ? row.result_value : null,
-    performance_display: String(row.result_text || "Resultado"),
-    result_date: String(row.competition_date || "") || null,
-    competition_name: String(file.source?.name || "Resultado oficial FAM"),
-    source: "official-file" as const
-  })));
+}
+
+function eventOrder(value: string) {
+  const number = Number((value.match(/\d+(?:[.,]\d+)?/) || ["9999"])[0].replace(",", "."));
+  const fieldBias = /(longitud|altura|peso|jabalina|disco|martillo|triple)/i.test(value) ? 10000 : 0;
+  return fieldBias + number;
 }
 
 export default function HistoricalRanking() {
@@ -76,37 +63,37 @@ export default function HistoricalRanking() {
   useEffect(() => {
     let alive = true;
     void (async () => {
-      const databaseRows: Performance[] = [];
+      const imported: Performance[] = [];
       if (supabase) {
         const { data } = await supabase
-          .from("official_performances")
-          .select("id,discipline,category,season,metric_type,performance_value,performance_display,result_date,competition_name,historical_athletes(canonical_name)")
-          .eq("review_status", "reviewed");
+          .from("club_event_rankings")
+          .select("athlete_id,athlete_name,event_name,event_code,season,category_label,result_value,result_text,result_unit,competition_name,competition_date,ranking_position")
+          .lte("ranking_position", 20);
         for (const row of (data || []) as Array<Record<string, unknown>>) {
-          const athlete = row.historical_athletes as { canonical_name?: string } | null;
-          databaseRows.push({
-            id: String(row.id),
-            athlete_name: athlete?.canonical_name || "Atleta",
-            discipline: String(row.discipline || "Prueba oficial"),
-            category: categoryLabel(row.category as string | null),
+          imported.push({
+            id: `rank-${String(row.athlete_id || row.athlete_name)}-${String(row.event_code || row.event_name)}-${String(row.season)}-${String(row.category_label)}`,
+            athlete_name: String(row.athlete_name || "Atleta"),
+            discipline: String(row.event_name || row.event_code || "Prueba oficial"),
+            category: categoryLabel(row.category_label as string | null),
             season: row.season ? String(row.season) : null,
-            metric_type: row.metric_type as MetricType,
-            performance_value: typeof row.performance_value === "number" ? row.performance_value : null,
-            performance_display: String(row.performance_display || "Resultado"),
-            result_date: row.result_date ? String(row.result_date) : null,
-            competition_name: row.competition_name ? String(row.competition_name) : null,
-            source: "database"
+            metric_type: metricFromUnit(row.result_unit as string | null),
+            performance_value: typeof row.result_value === "number" ? row.result_value : null,
+            performance_display: String(row.result_text || "Resultado"),
+            result_date: row.competition_date ? String(row.competition_date) : null,
+            competition_name: row.competition_name ? String(row.competition_name) : null
           });
         }
       }
-      const fallback = databaseRows.length ? [] : await fetchOfficialFallback();
-      if (alive) setRows(databaseRows.length ? databaseRows : fallback);
+      if (alive) setRows(imported.length ? imported : fromBundledResults());
     })();
     return () => { alive = false; };
   }, []);
 
-  const disciplines = useMemo(() => [...new Set(rows.map(row => row.discipline))].sort((a, b) => a.localeCompare(b, "es")), [rows]);
-  const categories = useMemo(() => [...new Set(rows.map(row => row.category).filter(Boolean) as string[])].sort((a, b) => a.localeCompare(b, "es")), [rows]);
+  const disciplines = useMemo(() => [...new Set(rows.map(row => row.discipline))].sort((a, b) => eventOrder(a) - eventOrder(b) || a.localeCompare(b, "es")), [rows]);
+  const categories = useMemo(() => [...new Set(rows.map(row => row.category).filter(Boolean) as string[])].sort((a, b) => {
+    const ai = categoryOrder.indexOf(a), bi = categoryOrder.indexOf(b);
+    return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi) || a.localeCompare(b, "es");
+  }), [rows]);
   const seasons = useMemo(() => [...new Set(rows.map(row => row.season).filter(Boolean) as string[])].sort().reverse(), [rows]);
 
   const ranked = useMemo(() => {
@@ -125,16 +112,16 @@ export default function HistoricalRanking() {
   }, [rows, discipline, category, season]);
 
   return <section>
-    <div className="page-head"><div><h1>Ranking histórico</h1><p>Top 20 del club por prueba, categoría y temporada. Se muestra la mejor marca de cada atleta.</p></div></div>
+    <div className="page-head"><div><h1>Ranking histórico del club</h1><p>Top 20 por prueba, categoría y temporada; cada atleta figura con su mejor marca oficial verificada.</p></div></div>
     <article className="panel inline-form">
-      <label>Prueba<select value={discipline} onChange={event => setDiscipline(event.target.value)}><option value="">Todas las pruebas</option>{disciplines.map(value => <option value={value} key={value}>{value}</option>)}</select></label>
-      <label>Categoría<select value={category} onChange={event => setCategory(event.target.value)}><option value="">Todas las categorías</option>{categories.map(value => <option value={value} key={value}>{value}</option>)}</select></label>
-      <label>Temporada<select value={season} onChange={event => setSeason(event.target.value)}><option value="">Todas las temporadas</option>{seasons.map(value => <option value={value} key={value}>{value}</option>)}</select></label>
+      <label>Prueba<select value={discipline} onChange={event => setDiscipline(event.target.value)}><option value="">Todas</option>{disciplines.map(value => <option value={value} key={value}>{value}</option>)}</select></label>
+      <label>Temporada<select value={season} onChange={event => setSeason(event.target.value)}><option value="">Todas</option>{seasons.map(value => <option value={value} key={value}>{value}</option>)}</select></label>
+      <label>Categoría<select value={category} onChange={event => setCategory(event.target.value)}><option value="">Todas</option>{categories.map(value => <option value={value} key={value}>{value}</option>)}</select></label>
     </article>
     <article className="panel table historical-top">{ranked.map((row, index) => <div className={"row historical-rank " + (index < 8 ? "top-eight" : "")} key={row.id}>
       <span><b>{index < 8 ? "★ " : "#"}{index + 1} · {row.athlete_name}</b><small>{row.discipline} · {row.category || "Categoría sin indicar"} · {row.season || "Temporada"}</small></span>
       <span><b>{row.performance_display}</b><small>{index < 8 ? "TOP 8 HISTÓRICO" : "Top 20 histórico"}</small></span>
       <span>{row.competition_name || "Resultado oficial"}<small>{row.result_date ? new Date(row.result_date + "T00:00:00").toLocaleDateString("es-ES") : ""}</small></span>
-    </div>)}{!ranked.length && <div className="empty">Aún no hay resultados oficiales publicados para este filtro.</div>}</article>
+    </div>)}{!ranked.length && <div className="empty">Aún no hay resultados oficiales verificados para este filtro.</div>}</article>
   </section>;
 }
