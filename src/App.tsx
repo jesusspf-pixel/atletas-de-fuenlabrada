@@ -150,7 +150,7 @@ function Admin({ section, profile, go }: { section: string; profile: Profile; go
   if (section === "Cuotas") return <Fees profile={profile} />;
   if (section === "Tienda") return <Shop profile={profile} />;
   if (section === "Carreras") return <CompetitionManager profile={profile} manager />;
-  if (section === "Ranking histórico") return <HistoricalRankingAdmin />;
+  if (section === "Ranking histórico") return <HistoricalRanking />;
   if (section === "Asistencia") return <Attendance profile={profile} />;
   if (section === "Avisos") return <AnnouncementManager profile={profile} />;
   if (section === "Configuración") return <Settings />;
