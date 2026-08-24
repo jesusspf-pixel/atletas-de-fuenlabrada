@@ -2468,6 +2468,28 @@ export const verifiedOfficialResults: VerifiedOfficialResult[] = [
     "result_text": "2:31.64",
     "result_unit": "s",
     "competition_name": "Jornada de Menores 35 · Pinto"
+  },
+  {
+    "id": "fam-2024-10-13-carlos-cazallas-navarro-milla",
+    "athlete_name": "CARLOS CAZALLAS NAVARRO",
+    "event_name": "Milla",
+    "category_label": "U14M",
+    "competition_date": "2024-10-13",
+    "result_value": 342.5,
+    "result_text": "5:42.5",
+    "result_unit": "s",
+    "competition_name": "Cto. Madrid Milla Ruta Menores y Máster · Parla"
+  },
+  {
+    "id": "fam-2024-10-13-marta-bengala-arenas-milla",
+    "athlete_name": "MARTA BENGALA ARENAS",
+    "event_name": "Milla",
+    "category_label": "U16F",
+    "competition_date": "2024-10-13",
+    "result_value": 369.5,
+    "result_text": "6:09.5",
+    "result_unit": "s",
+    "competition_name": "Cto. Madrid Milla Ruta Menores y Máster · Parla"
   }
 
 ];
