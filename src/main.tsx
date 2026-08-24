@@ -24,6 +24,7 @@ function Root() {
   const sports = window.location.pathname === "/deportivo";
   const selfAthlete = window.location.pathname === "/alta-atleta";
   const publicGroups = window.location.pathname === "/grupos-precios";
+  const publicClub = window.location.pathname === "/club";
 
   useEffect(() => {
     const client = supabase;
@@ -248,6 +249,9 @@ function Root() {
     return () => { document.removeEventListener("click", click, true); observer.disconnect(); };
   }, [signedIn, role, profileId, sports, selfAthlete]);
 
+  const openSignup = () => window.location.assign("/?signup=1");
+  if (publicGroups) return <PublicGroupsPage onBack={() => window.location.assign("/club")} onSignup={openSignup} />;
+  if (publicClub) return <PublicClubSite onLogin={() => window.location.assign("/")} onSignup={openSignup} />;
   if (selfAthlete) {
     if (!signedIn) return <App />;
     return <SelfAthleteRegistration onDone={() => window.location.assign("/deportivo")} />;
@@ -255,7 +259,6 @@ function Root() {
   if (sports) return <SportsCenter />;
 
   const signup = () => { window.history.replaceState({}, "", "/?signup=1"); setShowAccess(true); };
-  if (!signedIn && publicGroups) return <PublicGroupsPage onBack={() => window.location.assign("/")} onSignup={signup} />;
   if (!signedIn && !showAccess) return <PublicClubSite onLogin={() => { window.history.replaceState({}, "", "/?access=1"); setShowAccess(true); }} onSignup={signup} />;
   if (!signedIn && showAccess) return <><button className="public-back-access" onClick={() => { window.history.replaceState({}, "", "/"); setShowAccess(false); }}>← Volver a la web del club</button><App /></>;
   return <App />;
