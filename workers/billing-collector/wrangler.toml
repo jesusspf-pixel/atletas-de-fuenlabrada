@@ -1,0 +1,9 @@
+name = "club-atletas-billing-collector"
+main = "src/index.js"
+compatibility_date = "2026-08-24"
+
+# 08:15 UTC. Las cuotas se cobran el día previsto, sin depender de que alguien
+# abra el panel. Al usar la fecha de Madrid en la base de datos, no importa el
+# cambio horario de verano para un proceso que corre una vez al día.
+[triggers]
+crons = ["15 8 * * *"]
