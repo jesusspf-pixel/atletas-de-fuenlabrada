@@ -112,7 +112,7 @@ for each row execute function public.set_membership_enrolment_fee();
 -- Corrige solicitudes de prueba aún no cobradas; los cargos ya pagados no se alteran.
 update public.memberships m set enrolment_fee_cents=public.enrolment_fee_for_category(coalesce(a.training_category,tg.category_label))
 from public.athletes a left join public.training_groups tg on tg.id=a.training_group_id
-where a.id=m.athlete_id and coalesce(m.enrolment_fee_status,'') <> 'paid';
+where a.id=m.athlete_id and m.enrolment_fee_status is distinct from 'paid';
 
 update public.billing_charge_drafts d set calculated_amount_cents=m.enrolment_fee_cents,approved_amount_cents=m.enrolment_fee_cents,
   calculation_snapshot=coalesce(d.calculation_snapshot,'{}'::jsonb)||jsonb_build_object('reason','Matrícula por categoría 2026/27')
