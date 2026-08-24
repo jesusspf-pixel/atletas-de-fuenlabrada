@@ -55,7 +55,8 @@ function eventOrder(value: string) {
 }
 
 export default function HistoricalRanking() {
-  // El ranking público nunca queda vacío por una caída, vista ausente o demora de Supabase.\n  const [rows, setRows] = useState<Performance[]>(fromBundledResults);
+  // El ranking público nunca queda vacío por una caída, vista ausente o demora de Supabase.
+  const [rows, setRows] = useState<Performance[]>(fromBundledResults);
   const [discipline, setDiscipline] = useState("");
   const [category, setCategory] = useState("");
   const [season, setSeason] = useState("");
