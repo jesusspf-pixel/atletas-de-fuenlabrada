@@ -27,6 +27,13 @@ function eventDefinitions() {
   };
 }
 
+function normaliseEventCode(value) {
+  const raw = String(value || "").toUpperCase().replace(/[._\s]/g, "");
+  if (raw === "1000M" || raw === "1000METROS") return "1000M";
+  if (raw === "3000M" || raw === "3000METROS") return "3000M";
+  return raw;
+}
+
 async function supabase(env, path, init = {}) {
   const key = serviceRoleKey(env);
   const base = (env.SUPABASE_URL || "").replace(/\/$/, "").replace(/\/rest\/v1$/, "");
@@ -52,7 +59,8 @@ async function ensureEvents(env, codes) {
   const definitions = eventDefinitions();
   const initial = await supabase(env, "athletics_events?select=id,code", { method: "GET" });
   const known = new Map(initial.map((event) => [String(event.code).toUpperCase(), event.id]));
-  const missing = [...new Set(codes)].filter((code) => !known.has(code) && definitions[code]);
+  const normalisedCodes = [...new Set(codes.map(normaliseEventCode))];
+  const missing = normalisedCodes.filter((code) => !known.has(code) && definitions[code]);
   if (missing.length) {
     const values = missing.map((code) => {
       const [name, discipline, result_kind, sort_direction] = definitions[code];
@@ -103,7 +111,7 @@ async function importFamFile(env, file, events, athletes) {
   const skippedUnknownEvent = [];
   const rows = [];
   for (const row of file.rows) {
-    const eventId = events.get(String(row.event_code).toUpperCase());
+    const eventId = events.get(normaliseEventCode(row.event_code));
     if (!eventId) { skippedUnknownEvent.push(row.event_name); continue; }
     if (existing.has(row.external_row_id)) continue;
     const athleteId = athletes.byLicense.get(String(row.federation_license || "").trim().toUpperCase()) ||
