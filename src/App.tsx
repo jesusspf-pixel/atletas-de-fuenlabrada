@@ -18,7 +18,7 @@ type Profile = { id: string; email: string; full_name: string | null; phone?: st
 type Group = { id: string; name: string; category_label: string; colour: string; active: boolean; schedule_days?: string | null; starts_at?: string | null; ends_at?: string | null; season?: string | null };
 type Athlete = { id: string; first_name: string; last_name: string; club_status: string; license_status: string; license_number: string | null; training_group_id: string | null; family_id: string | null; user_profile_id: string | null; training_groups?: Group | null };
 type Family = { relationship_to_athlete: string; dni_nie: string | null; address_line: string | null; postal_code: string | null; locality: string | null; province: string | null; emergency_phone: string | null; profiles?: Profile | null };
-type AthleteRecord = Athlete & { families?: Family | null; memberships?: { id: string; plan: "monthly" | "term"; enrolment_fee_cents?: number | null }[]; health_declarations?: { injury_limitation: string | null; support_needs: string | null; additional_notes: string | null }[]; consents?: { consent_type: string; accepted_at: string }[] };
+type AthleteRecord = Athlete & { families?: Family | null; memberships?: { id: string; plan: "monthly" | "term"; enrolment_fee_cents?: number | null; enrolment_fee_status?: string | null }[]; health_declarations?: { injury_limitation: string | null; support_needs: string | null; additional_notes: string | null }[]; consents?: { consent_type: string; accepted_at: string }[] };
 const famCalendar = "https://www.atletismomadrid.com/calendario";
 const roleName: Record<Role, string> = { owner: "Propietario", admin: "Administrador", coach: "Entrenador", parent: "Familia", adult_athlete: "Atleta", minor_athlete: "Atleta menor" };
 
@@ -30,6 +30,7 @@ const roleName: Record<Role, string> = { owner: "Propietario", admin: "Administr
   const [registrationAccess, setRegistrationAccess] = useState<"allowed" | "pending">("allowed");
   const [register, setRegister] = useState<"family" | "adult" | null>(null);
   const invitation = new URLSearchParams(window.location.search).get("invitation");
+  const renewal = new URLSearchParams(window.location.search).get("renewal");
 
   useEffect(() => {
     let subscription: { unsubscribe: () => void } | null = null;
@@ -99,12 +100,12 @@ const roleName: Record<Role, string> = { owner: "Propietario", admin: "Administr
   if (checking) return <main className="secure-screen"><div className="access-box">Comprobando el acceso seguro…</div></main>;
   // Nunca cerramos la web por una comprobación de configuración: el formulario de acceso sigue disponible.
   if (!session) return <Access />;
-  if (register === "family") return <FamilyRegistration email={session.user.email ?? ""} onBack={() => { setRegister(null); void supabase?.auth.signOut(); }} />;
+  if (register === "family") return <FamilyRegistration email={session.user.email ?? ""} renewalToken={renewal} onBack={() => { setRegister(null); void supabase?.auth.signOut(); }} />;
   if (register === "adult") return <AdultRegistration email={session.user.email ?? ""} onBack={() => { setRegister(null); void supabase?.auth.signOut(); }} />;
   if (!profile && session.user.email?.toLowerCase() === "jesusspf@gmail.com") {
     return <Portal profile={{ id: session.user.id, email: session.user.email, full_name: "Jesús Pérez", role: "owner" }} signOut={() => void supabase?.auth.signOut()} />;
   }
-  if (!profile && new URLSearchParams(window.location.search).get("payment_method") === "updated") return new URLSearchParams(window.location.search).get("registration") === "adult" ? <AdultRegistration email={session.user.email ?? ""} onBack={() => { setRegister(null); void supabase?.auth.signOut(); }} /> : <FamilyRegistration email={session.user.email ?? ""} onBack={() => { setRegister(null); void supabase?.auth.signOut(); }} />;
+  if (!profile && new URLSearchParams(window.location.search).get("payment_method") === "updated") return new URLSearchParams(window.location.search).get("registration") === "adult" ? <AdultRegistration email={session.user.email ?? ""} onBack={() => { setRegister(null); void supabase?.auth.signOut(); }} /> : <FamilyRegistration email={session.user.email ?? ""} renewalToken={renewal} onBack={() => { setRegister(null); void supabase?.auth.signOut(); }} />;
   if (!profile) return <ChooseRegistration email={session.user.email ?? ""} invitation={invitation} owner={session.user.email?.toLowerCase() === "jesusspf@gmail.com"} family={() => setRegister("family")} adult={() => setRegister("adult")} ownerAction={async () => { if (!supabase) return; const { error } = await supabase.rpc("bootstrap_owner"); if (error) throw error; const { data, error: profileError } = await supabase.from("profiles").select("*").eq("id", session.user.id).single(); if (profileError) throw profileError; setProfile(data as Profile); }} invitationAction={async () => { if (!supabase || !invitation) return; const { error } = await supabase.rpc("accept_staff_invitation", { invitation_token: invitation }); if (error) throw error; const { data } = await supabase.from("profiles").select("*").eq("id", session.user.id).single(); window.history.replaceState({}, "", window.location.pathname); setProfile(data as Profile); }} staffAction={async () => { if (!supabase) return; const { error } = await supabase.rpc("activate_pending_staff_access"); if (error) throw error; const { data, error: profileError } = await supabase.from("profiles").select("*").eq("id", session.user.id).single(); if (profileError) throw profileError; setProfile(data as Profile); }} />;
   if (profile && registrationAccess === "pending") return <RegistrationPending onSignOut={() => void supabase?.auth.signOut()} />;
   return <Portal profile={profile} signOut={() => void supabase?.auth.signOut()} />;
@@ -174,7 +175,7 @@ function AthletesAdmin() {
   const [selectedId, setSelectedId] = useState(""); const [changing, setChanging] = useState(""); const [message, setMessage] = useState("");
   const selected = rows.find(a => a.id === selectedId) || null;
   const [groupId, setGroupId] = useState(""); const [status, setStatus] = useState(""); const [licenseStatus, setLicenseStatus] = useState(""); const [licenseNumber, setLicenseNumber] = useState(""); const [waiveEnrolment, setWaiveEnrolment] = useState(false); const [selectedPlan, setSelectedPlan] = useState<"monthly" | "term">("term"); const [enrolmentFee, setEnrolmentFee] = useState("");
-  useEffect(() => { if (selected) { const membership = selected.memberships?.[0]; setGroupId(selected.training_group_id || ""); setStatus(selected.club_status); setLicenseStatus(selected.license_status); setLicenseNumber(selected.license_number || ""); setSelectedPlan(membership?.plan || "term"); setEnrolmentFee(((membership?.enrolment_fee_cents || 0) / 100).toFixed(2)); setWaiveEnrolment(false); setMessage(""); } }, [selectedId]);
+  useEffect(() => { if (selected) { const membership = selected.memberships?.[0]; setGroupId(selected.training_group_id || ""); setStatus(selected.club_status); setLicenseStatus(selected.license_status); setLicenseNumber(selected.license_number || ""); setSelectedPlan(membership?.plan || "term"); setEnrolmentFee(((membership?.enrolment_fee_cents || 0) / 100).toFixed(2)); setWaiveEnrolment(membership?.enrolment_fee_status === "paid"); setMessage(""); } }, [selectedId]);
   const save = async () => { if (!selected || !supabase) return; setChanging(selected.id); setMessage("");
     const isInitialApproval = selected.club_status === "pending_review" && status === "active";
     if (isInitialApproval) {
@@ -207,7 +208,48 @@ function Groups({ profile }: { profile: Profile }) {
   const coachesOnly = coaches.rows.filter(person => person.role === "coach");
   return <><Header title="Grupos" text="Pulsa un grupo para ver su ficha, editar el horario y asignar entrenadores."><button onClick={startNew}>Nuevo grupo</button></Header><div className="cards">{rows.map(g => <button className={`panel group-card group-button ${selectedId === g.id ? "selected-row" : ""}`} key={g.id} onClick={() => setSelectedId(g.id)}><i style={{ background: g.colour }} /><h2>{g.name}</h2><p>{g.category_label}</p><small>{g.schedule_days ? `${g.schedule_days} · ${g.starts_at?.slice(0, 5)}–${g.ends_at?.slice(0, 5)}` : "Horario pendiente"}</small><small>{assignments.rows.filter(item => item.training_group_id === g.id).length} entrenador(es) asignado(s)</small></button>)}{!rows.length && <Empty>Aún no hay grupos creados.</Empty>}</div><form className="panel group-editor" onSubmit={save}><h2>{selected ? `Ficha del grupo: ${selected.name}` : "Nuevo grupo"}</h2><div className="ops-grid"><label>Nombre<input required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Sub 14" /></label><label>Categoría<input required value={form.category_label} onChange={e => setForm({ ...form, category_label: e.target.value })} placeholder="Sub 14" /></label><label>Días de entrenamiento<input value={form.schedule_days} onChange={e => setForm({ ...form, schedule_days: e.target.value })} placeholder="Lunes a jueves" /></label><label>Hora de inicio<input type="time" value={form.starts_at} onChange={e => setForm({ ...form, starts_at: e.target.value })} /></label><label>Hora de final<input type="time" value={form.ends_at} onChange={e => setForm({ ...form, ends_at: e.target.value })} /></label><label>Temporada<input value={form.season} onChange={e => setForm({ ...form, season: e.target.value })} placeholder="2026" /></label><label>Color<input type="color" value={form.colour} onChange={e => setForm({ ...form, colour: e.target.value })} /></label><label className="check-line"><input type="checkbox" checked={form.active} onChange={e => setForm({ ...form, active: e.target.checked })} />Grupo activo</label></div><fieldset className="coach-picker"><legend>Entrenadores asignados</legend>{coachesOnly.length ? coachesOnly.map(person => <label key={person.id}><input type="checkbox" checked={coachIds.includes(person.id)} onChange={e => setCoachIds(e.target.checked ? [...coachIds, person.id] : coachIds.filter(id => id !== person.id))} />{person.full_name || person.email} <small>{person.email}</small></label>) : <p className="muted">Todavía no hay entrenadores con cuenta. Créales primero una invitación desde «Invitaciones».</p>}</fieldset><button disabled={saving}>{saving ? "Guardando…" : "Guardar grupo y entrenadores"}</button>{notice && <p className={notice.startsWith("Grupo") ? "success-note" : "error-note"}>{notice}</p>}</form></>;
 }
-function Invitations() { const groups = useRows<Group>("training_groups"); const links = useRows<{ id: string; email: string | null; role: string; expires_at: string; accepted_at: string | null }>("invitation_links"); const [email, setEmail] = useState(""); const [role, setRole] = useState<"admin" | "coach">("coach"); const [group, setGroup] = useState(""); const [link, setLink] = useState(""); const [error, setError] = useState(""); const submit = async (e: FormEvent) => { e.preventDefault(); setError(""); const { data, error: rpcError } = await supabase!.rpc("create_staff_invitation", { target_email: email, target_role: role, target_group_id: role === "coach" && group ? group : null }); if (rpcError) return setError(rpcError.message); setLink(`${window.location.origin}/?invitation=${(data as { token: string }).token}`); setEmail(""); void links.reload(); }; return <><Header title="Invitaciones" text="Accesos restringidos para administradores y entrenadores." /><form className="panel invite-form" onSubmit={submit}><label>Correo<input type="email" required value={email} onChange={e => setEmail(e.target.value)} /></label><label>Rol<select value={role} onChange={e => setRole(e.target.value as "admin" | "coach")}><option value="coach">Entrenador</option><option value="admin">Administrador</option></select></label>{role === "coach" && <label>Grupo<select value={group} onChange={e => setGroup(e.target.value)}><option value="">Asignar más tarde</option>{groups.rows.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}</select></label>}<button>Crear enlace personal</button>{error && <p className="error-note">{error}</p>}</form>{link && <article className="panel"><h2>Enlace creado</h2><p className="link-box">{link}</p><button onClick={() => void navigator.clipboard.writeText(link)}>Copiar para correo o WhatsApp</button><small>Caduca en 14 días.</small></article>}<article className="panel table">{links.rows.map(i => <div className="row" key={i.id}><span><b>{i.email || "Enlace sin correo"}</b><small>{i.role}</small></span><span>{i.accepted_at ? "Aceptada" : "Pendiente"}</span><span>Caduca {new Date(i.expires_at).toLocaleDateString("es-ES")}</span></div>)}{!links.rows.length && <Empty>No hay invitaciones creadas.</Empty>}</article></>; }
+function Invitations() {
+  const groups = useRows<Group>("training_groups");
+  const staffLinks = useRows<{ id: string; email: string | null; role: string; expires_at: string; accepted_at: string | null }>("invitation_links");
+  const renewalLinks = useRows<{ id: string; email: string; token: string; expires_at: string; used_at: string | null }>("family_renewal_invitations");
+  const [kind, setKind] = useState<"staff" | "renewal">("staff");
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState<"admin" | "coach">("coach");
+  const [group, setGroup] = useState("");
+  const [link, setLink] = useState("");
+  const [error, setError] = useState("");
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    setError(""); setLink("");
+    if (!supabase) return;
+    if (kind === "renewal") {
+      const { data, error: rpcError } = await supabase.rpc("create_family_renewal_invitation", { target_email: email });
+      if (rpcError) return setError(rpcError.message);
+      const item = (data as { invitation_token: string }[] | null)?.[0];
+      if (!item?.invitation_token) return setError("No se pudo crear el enlace de renovación.");
+      setLink(window.location.origin + "/?renewal=" + item.invitation_token);
+      setEmail(""); void renewalLinks.reload(); return;
+    }
+    const { data, error: rpcError } = await supabase.rpc("create_staff_invitation", { target_email: email, target_role: role, target_group_id: role === "coach" && group ? group : null });
+    if (rpcError) return setError(rpcError.message);
+    setLink(window.location.origin + "/?invitation=" + (data as { token: string }).token);
+    setEmail(""); void staffLinks.reload();
+  };
+
+  return <><Header title="Invitaciones" text="Crea accesos del equipo o enlaces personales de renovación para las familias." />
+    <form className="panel invite-form" onSubmit={submit}>
+      <label>Tipo de invitación<select value={kind} onChange={e => setKind(e.target.value as "staff" | "renewal")}><option value="renewal">Familia renovada · matrícula exenta</option><option value="staff">Entrenador o administrador</option></select></label>
+      <label>Correo de destino<input type="email" required value={email} onChange={e => setEmail(e.target.value)} /></label>
+      {kind === "staff" && <><label>Rol<select value={role} onChange={e => setRole(e.target.value as "admin" | "coach")}><option value="coach">Entrenador</option><option value="admin">Administrador</option></select></label>{role === "coach" && <label>Grupo<select value={group} onChange={e => setGroup(e.target.value)}><option value="">Asignar más tarde</option>{groups.rows.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}</select></label>}</>}
+      {kind === "renewal" && <p className="muted">El enlace será personal para este correo. La familia añadirá tarjeta y elegirá cuota; al validar, no se cobrará matrícula.</p>}
+      <button>{kind === "renewal" ? "Crear enlace de renovación" : "Crear enlace personal"}</button>
+      {error && <p className="error-note">{error}</p>}
+    </form>
+    {link && <article className="panel"><h2>Enlace creado</h2><p className="link-box">{link}</p><button onClick={() => void navigator.clipboard.writeText(link)}>Copiar para correo o WhatsApp</button><small>{kind === "renewal" ? "Caduca en 30 días y solo sirve para ese correo." : "Caduca en 14 días."}</small></article>}
+    {kind === "renewal" ? <article className="panel table">{renewalLinks.rows.map(i => <div className="row" key={i.id}><span><b>{i.email}</b><small>Matrícula exenta</small></span><span>{i.used_at ? "Utilizada" : "Pendiente"}</span><span>Caduca {new Date(i.expires_at).toLocaleDateString("es-ES")}</span></div>)}{!renewalLinks.rows.length && <Empty>No hay enlaces de renovación creados.</Empty>}</article> : <article className="panel table">{staffLinks.rows.map(i => <div className="row" key={i.id}><span><b>{i.email || "Enlace sin correo"}</b><small>{i.role}</small></span><span>{i.accepted_at ? "Aceptada" : "Pendiente"}</span><span>Caduca {new Date(i.expires_at).toLocaleDateString("es-ES")}</span></div>)}{!staffLinks.rows.length && <Empty>No hay invitaciones creadas.</Empty>}</article>}
+  </>;
+}
 function Fees({ profile }: { profile: Profile }) {
   const manager = ["owner", "admin"].includes(profile.role);
   if (!manager) return <MemberFees />;
