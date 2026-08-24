@@ -42,6 +42,8 @@ export function AthleteResults({ athleteId, canAddTraining = false, coachProfile
   const [results, setResults] = useState<Result[]>([]);
   const [pbs, setPbs] = useState<PB[]>([]);
   const [notice, setNotice] = useState("");
+  const [resultEventId, setResultEventId] = useState("");
+  const [resultSort, setResultSort] = useState<"date" | "best">("date");
   const [form, setForm] = useState({ eventId: "", customName: "", customKind: "time", result: "", unit: "seconds" as Unit, date: new Date().toISOString().slice(0, 10), competition: "Entrenamiento", position: "" });
 
   const load = async () => {
@@ -57,7 +59,18 @@ export function AthleteResults({ athleteId, canAddTraining = false, coachProfile
   };
   useEffect(() => { void load(); }, [athleteId]);
 
-  const byEvent = useMemo(() => events.map(event => ({ event, rows: results.filter(row => row.athletics_event_id === event.id), pb: pbs.find(pb => pb.athletics_event_id === event.id) })).filter(item => item.rows.length), [events, results, pbs]);
+  const visibleResults = useMemo(() => {
+    const selected = results.filter(row => !resultEventId || row.athletics_event_id === resultEventId);
+    return [...selected].sort((left, right) => {
+      if (resultSort === "date") return new Date(right.competition_date).getTime() - new Date(left.competition_date).getTime();
+      const direction = left.athletics_events?.sort_direction || right.athletics_events?.sort_direction || "asc";
+      const leftValue = left.result_value, rightValue = right.result_value;
+      if (leftValue !== null && rightValue !== null && leftValue !== rightValue) return direction === "desc" ? rightValue - leftValue : leftValue - rightValue;
+      if (leftValue !== null && rightValue === null) return -1;
+      if (leftValue === null && rightValue !== null) return 1;
+      return new Date(right.competition_date).getTime() - new Date(left.competition_date).getTime();
+    });
+  }, [results, resultEventId, resultSort]);
 
   const addTrainingResult = async (e: FormEvent) => {
     e.preventDefault();
@@ -96,7 +109,7 @@ export function AthleteResults({ athleteId, canAddTraining = false, coachProfile
   return <section className="results-workspace">
     <article className="panel"><h2>Mejores marcas</h2>{pbs.length ? <div className="results-best-grid">{pbs.map(pb => <div className="result-best" key={`${pb.athlete_id}-${pb.athletics_event_id}`}><small>{pb.event_name}</small><b>{pb.result_text}</b><span>{pb.competition_name} · {new Date(pb.competition_date).toLocaleDateString("es-ES")}</span><em>{sourceLabel(pb.source)}{pb.official ? " · Oficial" : ""}</em></div>)}</div> : <p>Aún no hay mejores marcas registradas.</p>}</article>
 
-    <article className="panel"><h2>Histórico de resultados</h2>{byEvent.length ? byEvent.map(({ event, rows, pb }) => <section className="result-event" key={event.id}><h3>{event.name}{pb ? <small> · Mejor: {pb.result_text}</small> : null}</h3>{rows.map(row => <div className="result-row" key={row.id}><span><b>{row.result_text}</b><small>{row.competition_name}</small></span><span>{new Date(row.competition_date).toLocaleDateString("es-ES")}{row.venue ? ` · ${row.venue}` : ""}</span><span>{row.position ? `Puesto ${row.position} · ` : ""}{sourceLabel(row.source)}{row.official ? " · Oficial" : ""}</span></div>)}</section>) : <p>Todavía no hay resultados asociados a este atleta.</p>}</article>
+    <article className="panel"><div className="table-title"><div><h2>Histórico de resultados</h2><p>Resultados oficiales y marcas de entrenamiento registradas.</p></div><div className="result-tools"><label>Prueba<select value={resultEventId} onChange={event => setResultEventId(event.target.value)}><option value="">Todas las pruebas</option>{events.map(event => <option value={event.id} key={event.id}>{event.name}</option>)}</select></label><div className="result-sort" aria-label="Ordenar resultados"><span>Ordenar</span><button type="button" className={resultSort === "date" ? "selected" : "outline"} onClick={() => setResultSort("date")}>Fecha ↓</button><button type="button" className={resultSort === "best" ? "selected" : "outline"} onClick={() => setResultSort("best")}>Marca ↑</button></div></div></div>{visibleResults.length ? <section className="result-event">{visibleResults.map(row => <div className="result-row" key={row.id}><span><b>{row.athletics_events?.name || "Prueba"}</b><small>{row.result_text} · {row.competition_name}</small></span><span>{new Date(row.competition_date).toLocaleDateString("es-ES")}{row.venue ? ` · ${row.venue}` : ""}</span><span>{row.position ? `Puesto ${row.position} · ` : ""}{sourceLabel(row.source)}{row.official ? " · Oficial" : ""}</span></div>)}</section> : <p>Todavía no hay resultados asociados a este atleta.</p>}</article>
 
     <ExternalSports athleteId={athleteId} />
 
