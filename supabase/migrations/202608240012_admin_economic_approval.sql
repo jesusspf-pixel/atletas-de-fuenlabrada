@@ -7,6 +7,7 @@ declare
   payer uuid;
   fee_cents integer;
   category text;
+  effective_waive boolean;
 begin
   if not public.is_admin() then
     raise exception 'Solo administración puede validar una inscripción.';
@@ -30,6 +31,9 @@ begin
   left join public.training_groups tg on tg.id=a.training_group_id
   where a.id=target_athlete_id;
 
+  -- Una invitación de renovación ya abonada también deja la matrícula exenta.
+  effective_waive := waive_enrolment or m.enrolment_fee_status = 'paid';
+
   -- Administración puede ajustar la matrícula antes de aprobar.
   fee_cents := coalesce(m.enrolment_fee_cents, public.enrolment_fee_for_category(category));
 
@@ -40,11 +44,11 @@ begin
   update public.memberships
   set billing_started_on=coalesce(billing_started_on,current_date),
       fee_provider='stripe',
-      enrolment_fee_cents=case when waive_enrolment then 0 else fee_cents end,
-      enrolment_fee_status=case when waive_enrolment then 'paid' else enrolment_fee_status end
+      enrolment_fee_cents=case when effective_waive then 0 else fee_cents end,
+      enrolment_fee_status=case when effective_waive then 'paid' else enrolment_fee_status end
   where id=m.id;
 
-  if waive_enrolment then
+  if effective_waive then
     insert into public.billing_charge_drafts(
       membership_id,athlete_id,payer_profile_id,charge_kind,scheduled_for,
       calculated_amount_cents,approved_amount_cents,status,calculation_snapshot
