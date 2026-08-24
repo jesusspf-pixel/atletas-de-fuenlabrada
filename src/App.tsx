@@ -9,6 +9,7 @@ import { Shop } from "./components/ProfessionalShop";
 import BillingControlCenter from "./components/BillingControlCenter";
 import MemberFees from "./components/MemberFees";
 import FamilyNotices from "./components/FamilyNotices";
+import ClubChallenge from "./components/ClubChallenge";
 import { ensureSupabase, supabase, supabasePublishableKey } from "./lib/supabase";
 import "./club-app.css";
 
@@ -94,11 +95,24 @@ function ChooseRegistration({ email, owner, invitation, family, adult, ownerActi
 function useRows<T>(table: string, select = "*") { const [rows, setRows] = useState<T[]>([]); const [loading, setLoading] = useState(true); const [error, setError] = useState(""); const reload = async () => { if (!supabase) return; setLoading(true); setError(""); const { data, error: queryError } = await supabase.from(table).select(select); setRows((data ?? []) as T[]); setError(queryError?.message ?? ""); setLoading(false); }; useEffect(() => { void reload(); }, [table, select]); return { rows, loading, error, reload }; }
 function Header({ title, text, children }: { title: string; text: string; children?: ReactNode }) { return <div className="page-head"><div><h1>{title}</h1><p>{text}</p></div>{children}</div>; }
 function Empty({ children }: { children: ReactNode }) { return <div className="empty">{children}</div>; }
-function Portal({ profile, signOut }: { profile: Profile; signOut: () => void }) { const [section, setSection] = useState("Inicio"); const [focusedAthleteId, setFocusedAthleteId] = useState(""); const menu = profile.role === "coach" ? ["Inicio", "Mi grupo", "Planificación", "Asistencia", "Carreras", "Avisos", "Tienda"] : ["owner", "admin"].includes(profile.role) ? ["Inicio", "Atletas", "Grupos", "Cuotas", "Carreras", "Asistencia", "Avisos", "Invitaciones", "Tienda", "Configuración"] : ["Inicio", profile.role === "parent" ? "Mis atletas" : "Mi perfil", "Carreras", "Cuotas", "Avisos", "Tienda"];
+function Portal({ profile, signOut }: { profile: Profile; signOut: () => void }) {
+  const [section, setSection] = useState("Inicio");
+  const [focusedAthleteId, setFocusedAthleteId] = useState("");
+  const [challengeAthleteId, setChallengeAthleteId] = useState("");
+  const baseMenu = profile.role === "coach" ? ["Inicio", "Mi grupo", "Planificación", "Asistencia", "Carreras", "Avisos", "Tienda"] : ["owner", "admin"].includes(profile.role) ? ["Inicio", "Atletas", "Grupos", "Cuotas", "Carreras", "Asistencia", "Avisos", "Invitaciones", "Tienda", "Configuración"] : ["Inicio", profile.role === "parent" ? "Mis atletas" : "Mi perfil", "Carreras", "Cuotas", "Avisos", "Tienda"];
+  useEffect(() => { if (!supabase) return; void (async () => {
+    const { data: athleteData } = await supabase.from("athletes").select("id,user_profile_id,families(primary_profile_id)");
+    const own = (athleteData || []).filter((athlete: any) => athlete.user_profile_id === profile.id || athlete.families?.primary_profile_id === profile.id).map((athlete: any) => athlete.id);
+    if (!own.length) return setChallengeAthleteId("");
+    const { data: settings } = await supabase.from("athlete_profile_settings").select("athlete_id").in("athlete_id", own).eq("challenge_opt_in", true).limit(1);
+    setChallengeAthleteId(settings?.[0]?.athlete_id || "");
+  })(); }, [profile.id]);
+  const menu = challengeAthleteId ? [...baseMenu, "Challenge"] : baseMenu;
   const notices = useRows<{ id: string; created_by: string }>("announcements", "id,created_by"); const deliveries = useRows<{ announcement_id: string; recipient_profile_id: string }>("announcement_deliveries", "announcement_id,recipient_profile_id"); const reads = useRows<{ announcement_id: string; profile_id: string }>("announcement_reads", "announcement_id,profile_id"); const mine = new Set(deliveries.rows.filter(item => item.recipient_profile_id === profile.id).map(item => item.announcement_id)); const inbox = notices.rows.filter(item => item.created_by !== profile.id && mine.has(item.id)).map(item => item.id); const unread = inbox.filter(id => !reads.rows.some(read => read.announcement_id === id && read.profile_id === profile.id)).length;
   useEffect(() => { const timer = window.setInterval(() => { void notices.reload(); void deliveries.reload(); void reads.reload(); }, 15000); return () => window.clearInterval(timer); }, []);
   const openAthlete = (id: string) => { setFocusedAthleteId(id); setSection("Mis atletas"); };
-  return <main className="club-shell"><aside className="club-side"><Brand /><small className="side-role">{roleName[profile.role]}</small><nav>{menu.map(item => <button className={section === item ? "selected" : ""} key={item} onClick={() => setSection(item)}>{item}{item === "Avisos" && unread > 0 && <b className="notice-count">{unread > 99 ? "99+" : unread}</b>}</button>)}</nav><div className="side-user"><b>{profile.full_name || profile.email}</b><small>{roleName[profile.role]}</small><button className="plain" onClick={signOut}>Cerrar sesión</button></div></aside><section className="club-content"><header className="topbar"><span>Club Atletas de Fuenlabrada</span><PwaInstall /></header>{["owner", "admin"].includes(profile.role) ? <Admin section={section} profile={profile} go={setSection} /> : profile.role === "coach" ? <Coach section={section} profile={profile} /> : <Member section={section} profile={profile} go={setSection} openAthlete={openAthlete} focusedAthleteId={focusedAthleteId} />}</section></main>; }
+  return <main className="club-shell"><aside className="club-side"><Brand /><small className="side-role">{roleName[profile.role]}</small><nav>{menu.map(item => <button className={section === item ? "selected" : ""} key={item} onClick={() => setSection(item)}>{item}{item === "Avisos" && unread > 0 && <b className="notice-count">{unread > 99 ? "99+" : unread}</b>}</button>)}</nav><div className="side-user"><b>{profile.full_name || profile.email}</b><small>{roleName[profile.role]}</small><a className="button-link outline" href="/club">← Web del club</a><button className="plain" onClick={signOut}>Cerrar sesión</button></div></aside><section className="club-content"><header className="topbar"><span>Club Atletas de Fuenlabrada</span><PwaInstall /></header>{section === "Challenge" && challengeAthleteId ? <><Header title="Club Challenge" text="Tu reto semanal, logros y clasificación dentro del club." /><ClubChallenge athleteId={challengeAthleteId} /></> : ["owner", "admin"].includes(profile.role) ? <Admin section={section} profile={profile} go={setSection} /> : profile.role === "coach" ? <Coach section={section} profile={profile} /> : <Member section={section} profile={profile} go={setSection} openAthlete={openAthlete} focusedAthleteId={focusedAthleteId} />}</section></main>;
+}
 
 function Admin({ section, profile, go }: { section: string; profile: Profile; go: (section: string) => void }) {
   if (section === "Atletas") return <AthletesAdmin />;
