@@ -2402,6 +2402,72 @@ export const verifiedOfficialResults: VerifiedOfficialResult[] = [
     "result_text": "9.70",
     "result_unit": "s",
     "competition_name": "Acta oficial FAM"
+  },
+  {
+    "id": "fam-2024-01-20-jorge-fernandez-1000m",
+    "athlete_name": "JORGE FERNANDEZ GARCIA",
+    "event_name": "1000m",
+    "category_label": "U14M",
+    "competition_date": "2024-01-20",
+    "result_value": 188.29,
+    "result_text": "3:08.29",
+    "result_unit": "s",
+    "competition_name": "Jornada de Menores 20 · Vicálvaro"
+  },
+  {
+    "id": "fam-2024-05-05-lara-morales-60m",
+    "athlete_name": "LARA MARTINA MORALES GOMEZ",
+    "event_name": "60m",
+    "category_label": "U12F",
+    "competition_date": "2024-05-05",
+    "result_value": 11.26,
+    "result_text": "11.26",
+    "result_unit": "s",
+    "competition_name": "Jornada de Menores 47 · Aluche"
+  },
+  {
+    "id": "fam-2024-04-20-carlos-cazallas-80m",
+    "athlete_name": "CARLOS CAZALLAS NAVARRO",
+    "event_name": "80m",
+    "category_label": "U14M",
+    "competition_date": "2024-04-20",
+    "result_value": 11.82,
+    "result_text": "11.82",
+    "result_unit": "s",
+    "competition_name": "Jornada de Menores 43 · Leganés"
+  },
+  {
+    "id": "fam-2024-04-20-jara-hernandez-600m",
+    "athlete_name": "JARA HERNANDEZ VELAZQUEZ",
+    "event_name": "600m",
+    "category_label": "U10F",
+    "competition_date": "2024-04-20",
+    "result_value": 135.32,
+    "result_text": "2:15.32",
+    "result_unit": "s",
+    "competition_name": "Jornada de Menores 43 · Leganés"
+  },
+  {
+    "id": "fam-2024-12-14-aritz-lopez-50m",
+    "athlete_name": "ARITZ LOPEZ GARRIDO",
+    "event_name": "50m",
+    "category_label": "U10M",
+    "competition_date": "2024-12-14",
+    "result_value": 10.03,
+    "result_text": "10.03",
+    "result_unit": "s",
+    "competition_name": "Jornada de Menores 9 · Leganés"
+  },
+  {
+    "id": "fam-2024-03-24-urjc-800m",
+    "athlete_name": "ATLETA URJC FUENLABRADA",
+    "event_name": "800m",
+    "category_label": "U12M",
+    "competition_date": "2024-03-24",
+    "result_value": 151.64,
+    "result_text": "2:31.64",
+    "result_unit": "s",
+    "competition_name": "Jornada de Menores 35 · Pinto"
   }
 
 ];
