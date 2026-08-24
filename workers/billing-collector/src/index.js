@@ -98,7 +98,10 @@ async function run(env) {
 
 export default {
   async scheduled(_controller, env, ctx) {
-    ctx.waitUntil(run(env));
+    ctx.waitUntil(run(env).catch(error => {
+      console.error("Automatic billing run failed", error instanceof Error ? error.message : String(error));
+      throw error;
+    }));
   },
   async fetch(request, env) {
     // Solo para probar el Worker tras instalar los secretos. No expone cobros
