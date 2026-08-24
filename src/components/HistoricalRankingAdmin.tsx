@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
+import HistoricalRanking from "./HistoricalRanking";
 
 type ReviewStatus = "pending" | "reviewed" | "hidden";
 type MetricType = "time" | "distance" | "weight";
@@ -225,6 +226,7 @@ export default function HistoricalRankingAdmin() {
   const visibleRows = rows.filter(row => filter === "all" || row.review_status === filter);
 
   return <section>
+    <HistoricalRanking />
     <div className="page-head">
       <div><h1>Ranking histórico</h1><p>Controla los registros oficiales antes de que aparezcan públicamente. La importación de FAM y RFEA se añadirá sobre este listado.</p></div>
       <button onClick={startNew}>Añadir registro</button>
