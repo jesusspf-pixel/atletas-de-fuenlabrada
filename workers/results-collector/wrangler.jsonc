@@ -4,7 +4,7 @@
   "main": "src/index.js",
   "compatibility_date": "2026-08-24",
   "triggers": {
-    "crons": ["30 5 * * 1,4"]
+    "crons": ["*/5 * * * *", "30 5 * * 1,4"]
   },
   "observability": {
     "enabled": true,
