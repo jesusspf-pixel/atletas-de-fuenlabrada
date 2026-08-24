@@ -203,11 +203,19 @@ export default function HistoricalRankingAdmin() {
     const reason = window.prompt("Motivo del bloqueo (opcional):", "No pertenece al club");
     if (reason === null) return;
     setBusy(row.id + "block");
-    const { error } = await supabase.from("official_import_blocks").upsert({
-      blocked_name: row.historical_athletes.canonical_name,
-      source: row.source,
-      reason: reason || null
-    }, { onConflict: "blocked_name,source" });
+    const { data: existing, error: lookupError } = await supabase
+      .from("official_import_blocks")
+      .select("id")
+      .ilike("blocked_name", row.historical_athletes.canonical_name)
+      .eq("source", row.source)
+      .maybeSingle();
+    const { error } = lookupError || existing
+      ? { error: lookupError }
+      : await supabase.from("official_import_blocks").insert({
+        blocked_name: row.historical_athletes.canonical_name,
+        source: row.source,
+        reason: reason || null
+      });
     if (!error) await supabase.from("official_performances").update({ review_status: "hidden" }).eq("id", row.id);
     setBusy("");
     setNotice(error?.message || "Nombre bloqueado para futuras importaciones y registro ocultado.");
