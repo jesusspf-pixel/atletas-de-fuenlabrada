@@ -5,7 +5,8 @@ const FAM_SOURCES = [
   "https://raw.githubusercontent.com/jesusspf-pixel/atletas-de-fuenlabrada/main/data/official-results/fam-event-2025-06-14-reunion-san-juan-leganes.json",
   "https://raw.githubusercontent.com/jesusspf-pixel/atletas-de-fuenlabrada/main/data/official-results/fam-event-2024-01-20-reunion-fam12-gallur.json",
   "https://raw.githubusercontent.com/jesusspf-pixel/atletas-de-fuenlabrada/main/data/official-results/fam-event-2024-12-14-jornada-menores9-leganes.json",
-  "https://raw.githubusercontent.com/jesusspf-pixel/atletas-de-fuenlabrada/main/data/official-results/fam-event-2026-02-08-cam-madrid-lanzamientos.json"
+  "https://raw.githubusercontent.com/jesusspf-pixel/atletas-de-fuenlabrada/main/data/official-results/fam-event-2026-02-08-cam-madrid-lanzamientos.json",
+  "https://raw.githubusercontent.com/jesusspf-pixel/atletas-de-fuenlabrada/main/data/official-results/fam-historico-ampliado-2024-2026.json"
 ];
 const USER_AGENT = "Club Atletas de Fuenlabrada official-results collector/2.0";
 
