@@ -27,7 +27,7 @@ export async function onRequestPost(context: any) {
         const customer = await fetch(`https://api.stripe.com/v1/customers/${encodeURIComponent(session.customer)}`, { headers: { authorization: `Bearer ${env.STRIPE_SECRET_KEY}` } });
         const customerData = await customer.json().catch(() => null) as { metadata?: { profile_id?: string } } | null;
         const profileId = customerData?.metadata?.profile_id;
-        if (profileId) await fetch(`${env.SUPABASE_URL}/rest/v1/stripe_customers?on_conflict=profile_id`, { method: "POST", headers: { apikey: env.SUPABASE_SERVICE_ROLE_KEY, authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`, "content-type": "application/json", Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify({ profile_id: profileId, stripe_customer_id: session.customer, payment_method_added_at: new Date().toISOString(), updated_at: new Date().toISOString() }) });
+        if (profileId) await fetch(`${env.SUPABASE_URL}/rest/v1/rpc/record_saved_payment_method`, { method: "POST", headers: { apikey: env.SUPABASE_SERVICE_ROLE_KEY, authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`, "content-type": "application/json" }, body: JSON.stringify({ target_profile_id: profileId, target_customer_id: session.customer }) });
       }
     }
   }
