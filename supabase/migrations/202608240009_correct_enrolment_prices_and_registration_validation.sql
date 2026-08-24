@@ -16,7 +16,7 @@ end $$;
 
 create or replace function public.valid_spanish_phone(raw_value text)
 returns boolean language sql immutable as $$
-  select regexp_replace(coalesce(raw_value,''), '[^0-9+]', '', 'g') ~ '^(\\+34)?[6789][0-9]{8}$'
+  select regexp_replace(coalesce(raw_value,''), '[^0-9+]', '', 'g') ~ '^(\+34)?[6789][0-9]{8}$'
 $$;
 
 create or replace function public.enrolment_fee_for_category(raw_category text)
