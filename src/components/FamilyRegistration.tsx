@@ -7,13 +7,14 @@ type Athlete = {
   relevant_condition: boolean; relevant_condition_detail: string; asthma_allergy_medication: string;
   injury_limitation: string; support_needs: string; health_notes: string;
 };
+type Guardian = { relationship: string; first_name: string; last_name: string; dni_nie: string; phone: string; address_line: string; postal_code: string; locality: string; province: string; emergency_phone: string };
 
 const emptyAthlete = (): Athlete => ({first_name:"",last_name:"",birth_date:"",federative_sex:"M",dni_nie:"",relevant_condition:false,relevant_condition_detail:"",asthma_allergy_medication:"",injury_limitation:"",support_needs:"",health_notes:""});
 export default function FamilyRegistration({email,onBack}:{email:string;onBack:()=>void}) {
   const key=`club:family-registration:${email}`; const stored=(()=>{try{return JSON.parse(sessionStorage.getItem(key)||"{}")}catch{return {}}})();
   const [step,setStep]=useState(stored.step||1); const [sent,setSent]=useState(false); const [error,setError]=useState(""); const [sending,setSending]=useState(false);
   const [cardReady,setCardReady]=useState(()=>new URLSearchParams(window.location.search).get("payment_method")==="updated"||Boolean(stored.cardReady));
-  const [guardian,setGuardian]=useState(stored.guardian||{relationship:"padre",first_name:"",last_name:"",dni_nie:"",phone:"",address_line:"",postal_code:"",locality:"",province:"Madrid",emergency_phone:""});
+  const [guardian,setGuardian]=useState<Guardian>(stored.guardian||{relationship:"padre",first_name:"",last_name:"",dni_nie:"",phone:"",address_line:"",postal_code:"",locality:"",province:"Madrid",emergency_phone:""});
   const [athletes,setAthletes]=useState<Athlete[]>(stored.athletes||[emptyAthlete()]); const [plan,setPlan]=useState<"monthly"|"term">(stored.plan||"monthly");
   const [consents,setConsents]=useState<Record<string,boolean>>(stored.consents||{privacy:false,health_data:false,image_use:false,fam_data:false,club_rules:false,recurring_payment:false});
   useEffect(()=>{sessionStorage.setItem(key,JSON.stringify({step,guardian,athletes,plan,consents,cardReady}));},[key,step,guardian,athletes,plan,consents,cardReady]);
