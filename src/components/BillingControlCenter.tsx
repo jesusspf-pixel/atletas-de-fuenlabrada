@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { supabase, supabasePublishableKey } from "../lib/supabase";
+import { supabase } from "../lib/supabase";
 
 type RuleSet = {
   monthly_cents: number; term_autumn_cents: number; term_winter_cents: number; term_spring_cents: number;
@@ -26,7 +26,6 @@ export default function BillingControlCenter() {
   const [scheduledFor, setScheduledFor] = useState(new Date().toISOString().slice(0, 10));
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
-  const [checkoutUrl, setCheckoutUrl] = useState("");
   const [selectedMembershipId, setSelectedMembershipId] = useState("");
 
   const load = async () => {
@@ -46,7 +45,7 @@ export default function BillingControlCenter() {
   useEffect(() => { void load(); }, []);
 
   const totals = useMemo(() => ({
-    forecast: drafts.filter(d => ["awaiting_admin", "approved", "checkout_pending"].includes(d.status)).reduce((sum, d) => sum + (d.approved_amount_cents ?? d.calculated_amount_cents), 0),
+    forecast: drafts.filter(d => ["awaiting_admin", "approved", "collecting", "checkout_pending"].includes(d.status)).reduce((sum, d) => sum + (d.approved_amount_cents ?? d.calculated_amount_cents), 0),
     approved: drafts.filter(d => d.status === "approved").reduce((sum, d) => sum + (d.approved_amount_cents ?? 0), 0),
     paid: drafts.filter(d => d.status === "paid").reduce((sum, d) => sum + (d.approved_amount_cents ?? d.calculated_amount_cents), 0),
     review: drafts.filter(d => d.status === "awaiting_admin").length,
@@ -86,44 +85,16 @@ export default function BillingControlCenter() {
     if (!error) await load(); else { setBusy(false); setMessage(error.message); }
   };
 
-  const prepareStripeCheckout = async (draft: Draft) => {
-    const client = supabase; if (!client) return;
-    setBusy(true); setMessage(""); setCheckoutUrl("");
-    let { data: { session } } = await client.auth.getSession();
-    // Si el token está a punto de caducar, se renueva antes de llamar a Pages.
-    // No se pide de nuevo ningún dato de pago ni se modifica la configuración.
-    if (!session || (session.expires_at ?? 0) * 1000 < Date.now() + 30_000) {
-      const refreshed = await client.auth.refreshSession();
-      session = refreshed.data.session;
-    }
-    if (!session) { setBusy(false); setMessage("La sesión ha caducado. Entra de nuevo para preparar el pago."); return; }
-    const response = await fetch("/api/create-approved-charge-checkout", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        authorization: `Bearer ${session.access_token}`,
-        "x-supabase-key": supabasePublishableKey,
-      },
-      body: JSON.stringify({ draftId: draft.id }),
-    });
-    const body = await response.json().catch(() => ({})) as { url?: string; error?: string };
-    setBusy(false);
-    if (!response.ok || !body.url) return setMessage(body.error || "No se pudo preparar Stripe.");
-    setCheckoutUrl(body.url);
-    setMessage("Enlace de pago Stripe preparado. Puedes abrirlo o enviarlo a la familia.");
-    void load();
-  };
-
   const selectedDrafts = drafts.filter(draft => draft.membership_id === selectedMembershipId);
 
   if (!rules) return <section className="panel"><h2>Cuotas y cobros</h2><p>{busy ? "Cargando centro de control…" : message || "No se pudo cargar la configuración de cobros."}</p></section>;
 
   return <section className="billing-control">
-    <div className="page-head"><div><small>ADMINISTRACIÓN</small><h1>Centro de cuotas y cobros</h1><p>Primero se calcula y revisa; solo después se autoriza el pago. Todo cambio queda registrado.</p></div><button className="outline" disabled={busy} onClick={() => void load()}>Actualizar</button></div>
+    <div className="page-head"><div><small>ADMINISTRACIÓN</small><h1>Centro de cuotas y cobros</h1><p>Al validar un alta se aprueba y programa todo su calendario. Stripe cobra automáticamente cada cuota en su fecha; este panel queda para reglas y excepciones.</p></div><button className="outline" disabled={busy} onClick={() => void load()}>Actualizar</button></div>
     <section className="metric-grid">
       <article className="metric"><small>Previsión pendiente</small><b>{euro(totals.forecast)}</b></article>
       <article className="metric"><small>Listo para aprobar</small><b>{totals.review}</b></article>
-      <article className="metric"><small>Aprobado, pendiente de cobro</small><b>{euro(totals.approved)}</b></article>
+      <article className="metric"><small>Programado para cobro automático</small><b>{euro(totals.approved)}</b></article>
       <article className="metric"><small>Registrado como cobrado</small><b>{euro(totals.paid)}</b></article>
     </section>
 
@@ -143,18 +114,17 @@ export default function BillingControlCenter() {
       </form>
 
       <form className="panel stacked-form" onSubmit={createDraft}>
-        <h2>Preparar cobro</h2>
-        <p>Calcula el importe aplicando la fecha de alta, el tipo de cuota y los descuentos familiares. Después podrás modificarlo antes de aprobarlo.</p>
+        <h2>Cargo excepcional</h2>
+        <p>Solo para un ajuste extraordinario. Las altas normales ya generan y aprueban su matrícula y todas sus cuotas automáticamente.</p>
         <label>Atleta y cuota<select required value={membershipId} onChange={e => setMembershipId(e.target.value)}><option value="">Selecciona una cuota</option>{memberships.map(m => <option key={m.id} value={m.id}>{m.athletes?.first_name} {m.athletes?.last_name} · {m.plan === "monthly" ? "Mensual" : "Trimestral"} · {m.season}</option>)}</select></label>
         <label>Concepto<select value={kind} onChange={e => setKind(e.target.value as "enrolment" | "recurring")}><option value="recurring">Cuota</option><option value="enrolment">Matrícula</option></select></label>
         <label>Fecha prevista<input type="date" value={scheduledFor} onChange={e => setScheduledFor(e.target.value)} /></label>
-        <button disabled={busy || !membershipId}>{busy ? "Calculando…" : "Crear borrador calculado"}</button>
-        <small>«Cuota» calcula mensualidad o trimestre. «Matrícula» solo tiene importe si esa alta tiene matrícula pendiente.</small>
+        <button disabled={busy || !membershipId}>{busy ? "Calculando…" : "Crear cargo excepcional"}</button>
+        <small>No uses este formulario para altas nuevas: se programan solas al validarlas.</small>
       </form>
     </section>
 
     {message && <p className={message.includes("guardadas") || message.includes("Borrador") || message.includes("preparado") ? "success-note panel" : "error-note panel"}>{message}</p>}
-    {checkoutUrl && <article className="panel"><h2>Enlace de pago preparado</h2><p className="link-box">{checkoutUrl}</p><button onClick={() => window.location.assign(checkoutUrl)}>Abrir Stripe Checkout</button> <button className="outline" onClick={() => void navigator.clipboard.writeText(checkoutUrl)}>Copiar enlace para la familia</button></article>}
-    <section className="panel table"><h2>Control financiero de cuotas</h2>{drafts.map(draft => <div className="row" key={draft.id}><span><button className="plain" onClick={() => setSelectedMembershipId(draft.membership_id)}><b>{draft.athletes?.first_name} {draft.athletes?.last_name}</b><small>Ver sus cuotas →</small></button><small>{draft.charge_kind === "enrolment" ? "Matrícula" : "Cuota"} · {draft.memberships?.plan === "monthly" ? "Mensual" : "Trimestral"} · prevista {new Date(draft.scheduled_for).toLocaleDateString("es-ES")}</small></span><span><small>Calculado</small><b>{euro(draft.calculated_amount_cents)}</b>{draft.discount_cents > 0 && <small>Descuento: {euro(draft.discount_cents)}</small>}</span><span><small>Final</small><b>{euro(draft.approved_amount_cents ?? draft.calculated_amount_cents)}</b><small>{draft.status}</small></span><span>{draft.status === "awaiting_admin" && <><button disabled={busy} onClick={() => void updateDraft(draft, "approved")}>Revisar y aprobar</button> <button className="outline" disabled={busy} onClick={() => void updateDraft(draft, "waived")}>Eximir</button></>}{draft.status === "approved" && <><button disabled={busy} onClick={() => void prepareStripeCheckout(draft)}>Preparar pago Stripe</button> <button className="outline" disabled={busy} onClick={() => void updateDraft(draft, "awaiting_admin")}>Volver a revisión</button></>}</span></div>)}{!drafts.length && <p>Aún no hay cuotas preparadas. Crea el primer borrador arriba.</p>}</section>{selectedMembershipId && <section className="panel"><h2>Cuotas del atleta</h2><button className="outline" onClick={() => setSelectedMembershipId("")}>Cerrar</button>{selectedDrafts.map(draft => <div className="row" key={draft.id}><span><b>{draft.athletes?.first_name} {draft.athletes?.last_name}</b><small>{draft.charge_kind === "enrolment" ? "Matrícula" : "Cuota"} · {new Date(draft.scheduled_for).toLocaleDateString("es-ES")} · {draft.status}</small></span><span><b>{euro(draft.approved_amount_cents ?? draft.calculated_amount_cents)}</b><small>{draft.override_reason || "Sin ajuste"}</small></span><span>{draft.status === "awaiting_admin" && <><button disabled={busy} onClick={() => void updateDraft(draft, "approved")}>Aprobar</button> <button className="outline" disabled={busy} onClick={() => void updateDraft(draft, "cancelled")}>Cancelar</button></>}{draft.status === "approved" && <button disabled={busy} onClick={() => void prepareStripeCheckout(draft)}>Preparar Stripe</button>}</span></div>)}</section>}
+    <section className="panel table"><h2>Control financiero de cuotas</h2>{drafts.map(draft => <div className="row" key={draft.id}><span><button className="plain" onClick={() => setSelectedMembershipId(draft.membership_id)}><b>{draft.athletes?.first_name} {draft.athletes?.last_name}</b><small>Ver sus cuotas →</small></button><small>{draft.charge_kind === "enrolment" ? "Matrícula" : "Cuota"} · {draft.memberships?.plan === "monthly" ? "Mensual" : "Trimestral"} · prevista {new Date(draft.scheduled_for).toLocaleDateString("es-ES")}</small></span><span><small>Calculado</small><b>{euro(draft.calculated_amount_cents)}</b>{draft.discount_cents > 0 && <small>Descuento: {euro(draft.discount_cents)}</small>}</span><span><small>Final</small><b>{euro(draft.approved_amount_cents ?? draft.calculated_amount_cents)}</b><small>{draft.status}</small></span><span>{draft.status === "awaiting_admin" && <><button disabled={busy} onClick={() => void updateDraft(draft, "approved")}>Revisar y aprobar</button> <button className="outline" disabled={busy} onClick={() => void updateDraft(draft, "waived")}>Eximir</button></>}{draft.status === "approved" && <small>Se cobrará automáticamente en la fecha prevista.</small>}{draft.status === "collecting" && <small>Stripe está procesando el cobro.</small>}{draft.status === "failed" && <small>Pago fallido: revisa la tarjeta o la excepción.</small>}</span></div>)}{!drafts.length && <p>Aún no hay cuotas preparadas. Crea el primer borrador arriba.</p>}</section>{selectedMembershipId && <section className="panel"><h2>Cuotas del atleta</h2><button className="outline" onClick={() => setSelectedMembershipId("")}>Cerrar</button>{selectedDrafts.map(draft => <div className="row" key={draft.id}><span><b>{draft.athletes?.first_name} {draft.athletes?.last_name}</b><small>{draft.charge_kind === "enrolment" ? "Matrícula" : "Cuota"} · {new Date(draft.scheduled_for).toLocaleDateString("es-ES")} · {draft.status}</small></span><span><b>{euro(draft.approved_amount_cents ?? draft.calculated_amount_cents)}</b><small>{draft.override_reason || "Sin ajuste"}</small></span><span>{draft.status === "awaiting_admin" && <><button disabled={busy} onClick={() => void updateDraft(draft, "approved")}>Aprobar</button> <button className="outline" disabled={busy} onClick={() => void updateDraft(draft, "cancelled")}>Cancelar</button></>}{draft.status === "approved" && <small>Cobro automático programado</small>}{draft.status === "collecting" && <small>Cobro en curso</small>}{draft.status === "failed" && <small>Pago fallido</small>}</span></div>)}</section>}
   </section>;
 }
