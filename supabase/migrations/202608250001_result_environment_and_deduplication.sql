@@ -80,7 +80,8 @@ create unique index if not exists athlete_results_official_same_day_text_unique
   on public.athlete_results(athlete_id, athletics_event_id, competition_date, (lower(btrim(result_text))))
   where official = true and athlete_id is not null and result_value is null;
 
-create or replace view public.athlete_personal_bests
+drop view if exists public.athlete_personal_bests;
+create view public.athlete_personal_bests
 with (security_invoker = true)
 as
 select distinct on (r.athlete_id, r.athletics_event_id, r.competition_environment)
@@ -109,7 +110,8 @@ order by
   case when e.sort_direction = 'desc' then r.result_value end desc nulls last,
   r.competition_date desc;
 
-create or replace view public.club_event_rankings
+drop view if exists public.club_event_rankings;
+create view public.club_event_rankings
 with (security_invoker = true)
 as
 select
