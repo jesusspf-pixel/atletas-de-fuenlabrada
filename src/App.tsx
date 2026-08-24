@@ -8,7 +8,6 @@ import { FamilyAthletes, FamilyHome, GroupManager } from "./components/ClubAdmin
 import { Shop } from "./components/ProfessionalShop";
 import BillingControlCenter from "./components/BillingControlCenter";
 import MemberFees from "./components/MemberFees";
-import HistoricalRankingAdmin from "./components/HistoricalRankingAdmin";
 import HistoricalRanking from "./components/HistoricalRanking";
 import FamilyNotices from "./components/FamilyNotices";
 import ClubChallenge from "./components/ClubChallenge";
