@@ -84,9 +84,13 @@ function fromBundledResults(): Performance[] {
 }
 
 function eventOrder(value: string) {
+  const normalized = value.toLowerCase();
   const number = Number((value.match(/\d+(?:[.,]\d+)?/) || ["9999"])[0].replace(",", "."));
-  const fieldBias = /(longitud|altura|peso|jabalina|disco|martillo|triple)/i.test(value) ? 10000 : 0;
-  return fieldBias + number;
+
+  // Orden de lectura de una jornada: carreras cortas a largas, saltos y lanzamientos.
+  if (/(longitud|altura|triple|pértiga|pertiga)/i.test(normalized)) return 10000 + number;
+  if (/(peso|jabalina|disco|martillo)/i.test(normalized)) return 20000 + number;
+  return number;
 }
 
 export default function HistoricalRanking() {
@@ -149,7 +153,14 @@ export default function HistoricalRanking() {
     // Sin prueba seleccionada se muestra el archivo completo: es una consulta,
     // no un ranking. Conservamos cada resultado y lo ordenamos por fecha.
     if (!discipline) return [...matchingRows]
-      .sort((left, right) => (right.result_date || "").localeCompare(left.result_date || "") || left.discipline.localeCompare(right.discipline, "es") || left.athlete_name.localeCompare(right.athlete_name, "es"));
+      .sort((left, right) =>
+        eventOrder(left.discipline) - eventOrder(right.discipline)
+        || left.discipline.localeCompare(right.discipline, "es")
+        || (categoryOrder.indexOf(left.category || "") - categoryOrder.indexOf(right.category || ""))
+        || (left.sex || "").localeCompare(right.sex || "")
+        || (right.result_date || "").localeCompare(left.result_date || "")
+        || left.athlete_name.localeCompare(right.athlete_name, "es")
+      );
 
     // Con una prueba sí se convierte en ranking: mejor marca por atleta y Top 20.
     const bestByAthlete = new Map<string, Performance>();
