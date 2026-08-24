@@ -31,7 +31,7 @@ begin
   return query
   insert into public.family_renewal_invitations(email,created_by)
   values(lower(trim(target_email)),auth.uid())
-  returning id,token,expires_at;
+  returning public.family_renewal_invitations.id, public.family_renewal_invitations.token, public.family_renewal_invitations.expires_at;
 end $$;
 
 create or replace function public.submit_family_registration(payload jsonb)
