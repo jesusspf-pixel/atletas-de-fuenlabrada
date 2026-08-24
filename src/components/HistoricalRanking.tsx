@@ -34,6 +34,13 @@ function sexFrom(...values: Array<string | null | undefined>): "M" | "F" | null 
   return null;
 }
 
+function disciplineLabel(value: string) {
+  return value
+    .replace(/\s+(?:FEM\.?|FEMENINO|FEMENINA|MASC\.?|MASCULINO)\s*/gi, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
 function isBetter(next: Performance, current: Performance) {
   if (next.performance_value === null) return false;
   if (current.performance_value === null) return true;
@@ -44,7 +51,7 @@ function fromBundledResults(): Performance[] {
   return verifiedOfficialResults.map(row => ({
     id: row.id,
     athlete_name: row.athlete_name.replace(/^0\s+/, ""),
-    discipline: row.event_name,
+    discipline: disciplineLabel(row.event_name),
     category: categoryLabel(row.category_label),
     season: row.competition_date?.slice(0, 4) || "2025",
     metric_type: metricFromUnit(row.result_unit),
@@ -94,7 +101,7 @@ export default function HistoricalRanking() {
           imported.push({
             id: `rank-${String(row.athlete_id || row.athlete_name)}-${String(row.event_code || row.event_name)}-${String(row.season)}-${String(row.category_label)}`,
             athlete_name: String(row.athlete_name || "Atleta"),
-            discipline: String(row.event_name || row.event_code || "Prueba oficial"),
+            discipline: disciplineLabel(String(row.event_name || row.event_code || "Prueba oficial")),
             category: categoryLabel(row.category_label as string | null),
             season: row.season ? String(row.season) : null,
             metric_type: metricFromUnit(row.result_unit as string | null),
