@@ -6,7 +6,7 @@ type MetricType = "time" | "distance" | "weight";
 type Performance = {
   id: string; athlete_name: string; discipline: string; category: string | null; season: string | null;
   metric_type: MetricType; performance_value: number | null; performance_display: string;
-  result_date: string | null; competition_name: string | null;
+  sex: "M" | "F" | null; result_date: string | null; competition_name: string | null;
 };
 
 const categoryOrder = ["Absoluto", "Sub 23", "Sub 20", "Sub 18", "Sub 16", "Sub 14", "Sub 12", "Sub 10", "Sub 8", "Máster"];
@@ -27,6 +27,13 @@ function metricFromUnit(unit: string | null | undefined): MetricType {
   return "distance";
 }
 
+function sexFrom(...values: Array<string | null | undefined>): "M" | "F" | null {
+  const value = values.map(item => String(item || "").toUpperCase()).join(" ");
+  if (/(?:^|\W)(?:F|FEM|FEMENINO|FEMENINA)(?:$|\W)|U\d+F\b/.test(value)) return "F";
+  if (/(?:^|\W)(?:M|MASC|MASCULINO)(?:$|\W)|U\d+M\b/.test(value)) return "M";
+  return null;
+}
+
 function isBetter(next: Performance, current: Performance) {
   if (next.performance_value === null) return false;
   if (current.performance_value === null) return true;
@@ -41,6 +48,7 @@ function fromBundledResults(): Performance[] {
     category: categoryLabel(row.category_label),
     season: row.competition_date?.slice(0, 4) || "2025",
     metric_type: metricFromUnit(row.result_unit),
+    sex: sexFrom(row.category_label, row.event_name),
     performance_value: row.result_value,
     performance_display: row.result_text,
     result_date: row.competition_date,
@@ -70,6 +78,7 @@ export default function HistoricalRanking() {
   const [rows, setRows] = useState<Performance[]>(bundledRows);
   const [discipline, setDiscipline] = useState(defaultDiscipline);
   const [category, setCategory] = useState(defaultCategory);
+  const [sex, setSex] = useState<"M" | "F" | "">("");
   const [season, setSeason] = useState("2025");
 
   useEffect(() => {
@@ -89,6 +98,7 @@ export default function HistoricalRanking() {
             category: categoryLabel(row.category_label as string | null),
             season: row.season ? String(row.season) : null,
             metric_type: metricFromUnit(row.result_unit as string | null),
+            sex: sexFrom(row.category_label as string | null, row.event_name as string | null),
             performance_value: typeof row.result_value === "number" ? row.result_value : null,
             performance_display: String(row.result_text || "Resultado"),
             result_date: row.competition_date ? String(row.competition_date) : null,
@@ -99,7 +109,7 @@ export default function HistoricalRanking() {
       if (alive && imported.length) {
         const merged = new Map<string, Performance>();
         for (const row of [...bundledRows, ...imported]) {
-          merged.set(`${row.athlete_name}|${row.discipline}|${row.category || ""}|${row.season || ""}|${row.performance_display}`, row);
+          merged.set(`${row.athlete_name}|${row.discipline}|${row.category || ""}|${row.sex || ""}|${row.season || ""}|${row.performance_display}`, row);
         }
         setRows([...merged.values()]);
       }
@@ -112,10 +122,10 @@ export default function HistoricalRanking() {
   const seasons = useMemo(() => [...new Set(["2026", "2025", "2024", ...(rows.map(row => row.season).filter(Boolean) as string[])])].sort().reverse(), [rows]);
 
   const ranked = useMemo(() => {
-    const matching = rows.filter(row => (!discipline || row.discipline === discipline) && (!category || row.category === category) && (!season || row.season === season));
+    const matching = rows.filter(row => (!discipline || row.discipline === discipline) && (!category || row.category === category) && (!sex || row.sex === sex) && (!season || row.season === season));
     const bestByAthlete = new Map<string, Performance>();
     for (const row of matching) {
-      const key = row.athlete_name + "|" + row.discipline + "|" + (row.category || "") + "|" + (row.season || "");
+      const key = row.athlete_name + "|" + row.discipline + "|" + (row.category || "") + "|" + (row.sex || "") + "|" + (row.season || "");
       const current = bestByAthlete.get(key);
       if (!current || isBetter(row, current)) bestByAthlete.set(key, row);
     }
@@ -124,17 +134,18 @@ export default function HistoricalRanking() {
       if (right.performance_value === null) return -1;
       return left.metric_type === "time" ? left.performance_value - right.performance_value : right.performance_value - left.performance_value;
     }).slice(0, 20);
-  }, [rows, discipline, category, season]);
+  }, [rows, discipline, category, sex, season]);
 
   return <section>
     <div className="page-head"><div><h1>Ranking histórico del club</h1><p>Top 20 por prueba, categoría y temporada; cada atleta figura con su mejor marca oficial verificada.</p></div></div>
     <article className="panel inline-form">
       <label>Categoría<select value={category} onChange={event => { const next = event.target.value; setCategory(next); const valid = rows.filter(row => !next || row.category === next).map(row => row.discipline); if (discipline && !valid.includes(discipline)) setDiscipline(""); }}><option value="">Todas las categorías</option>{categories.map(value => <option value={value} key={value}>{value}</option>)}</select></label>
+      <label>Sexo<select value={sex} onChange={event => setSex(event.target.value as "M" | "F" | "")}><option value="">Masculino y femenino</option><option value="M">Masculino</option><option value="F">Femenino</option></select></label>
       <label>Prueba<select value={discipline} onChange={event => setDiscipline(event.target.value)}><option value="">Todas las pruebas</option>{disciplines.map(value => <option value={value} key={value}>{value}</option>)}</select></label>
       <label>Temporada<select value={season} onChange={event => setSeason(event.target.value)}><option value="">Todas las temporadas</option>{seasons.map(value => <option value={value} key={value}>{value}</option>)}</select></label>
     </article>
     <article className="panel table historical-top">{ranked.map((row, index) => <div className={"row historical-rank " + (index < 8 ? "top-eight" : "")} key={row.id}>
-      <span><b>{index < 8 ? "★ " : "#"}{index + 1} · {row.athlete_name}</b><small>{row.discipline} · {row.category || "Categoría sin indicar"} · {row.season || "Temporada"}</small></span>
+      <span><b>{index < 8 ? "★ " : "#"}{index + 1} · {row.athlete_name}</b><small>{row.discipline} · {row.category || "Categoría sin indicar"} · {row.sex === "M" ? "Masculino" : row.sex === "F" ? "Femenino" : "Sexo sin indicar"} · {row.season || "Temporada"}</small></span>
       <span><b>{row.performance_display}</b><small>{index < 8 ? "TOP 8 HISTÓRICO" : "Top 20 histórico"}</small></span>
       <span>{row.competition_name || "Resultado oficial"}<small>{row.result_date ? new Date(row.result_date + "T00:00:00").toLocaleDateString("es-ES") : ""}</small></span>
     </div>)}{!ranked.length && <div className="empty">Aún no hay resultados oficiales verificados para este filtro.</div>}</article>
