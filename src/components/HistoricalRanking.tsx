@@ -110,13 +110,29 @@ function eventOrder(value: string) {
   return distance;
 }
 
+function disciplineKey(value: string) {
+  const label = disciplineLabel(value).toLowerCase();
+  const distance = label.match(/^(\d+(?:[.,]\d+)?)\s*m/);
+  if (distance) return `01-${String(Number(distance[1].replace(",", "."))).padStart(6, "0")}-${/vallas/.test(label) ? "vallas" : "lisos"}`;
+  if (/milla/.test(label)) return "01-01609-milla";
+  if (/marcha/.test(label)) return "01-09000-marcha";
+  if (/altura/.test(label)) return "02-01-altura";
+  if (/pértiga|pertiga/.test(label)) return "02-02-pertiga";
+  if (/longitud/.test(label)) return "02-03-longitud";
+  if (/triple/.test(label)) return "02-04-triple";
+  if (/peso/.test(label)) return "03-01-peso";
+  if (/disco/.test(label)) return "03-02-disco";
+  if (/jabalina/.test(label)) return "03-03-jabalina";
+  if (/martillo/.test(label)) return "03-04-martillo";
+  return `09-${label}`;
+}
+
 function compareGeneral(left: Performance, right: Performance) {
-  return eventOrder(left.discipline) - eventOrder(right.discipline)
-    || left.discipline.localeCompare(right.discipline, "es")
+  // Consulta general: primero prueba (carreras, saltos, lanzamientos) y,
+  // dentro de la misma prueba, siempre mejor marca, sin separar sexo/categoría.
+  return disciplineKey(left.discipline).localeCompare(disciplineKey(right.discipline), "es")
     || compareMarks(left, right)
     || left.athlete_name.localeCompare(right.athlete_name, "es")
-    || (left.category || "").localeCompare(right.category || "", "es")
-    || (left.sex || "").localeCompare(right.sex || "")
     || (right.result_date || "").localeCompare(left.result_date || "");
 }
 
@@ -191,6 +207,7 @@ export default function HistoricalRanking() {
   const seasons = useMemo(() => [...new Set(["2026", "2025", "2024", ...(rows.map(row => row.season).filter(Boolean) as string[])])].sort().reverse(), [rows]);
 
   const matchingRows = useMemo(() => rows.filter(row => (!discipline || row.discipline === discipline) && (!category || row.category === category) && (!sex || row.sex === sex) && (!season || row.season === season)), [rows, discipline, category, sex, season]);
+  const coverage = useMemo(() => ["2024", "2025", "2026"].map(year => `${year}: ${rows.filter(row => row.season === year).length}`).join(" · "), [rows]);
 
   const displayedRows = useMemo(() => {
     // Sin prueba seleccionada se muestra el archivo completo: es una consulta,
@@ -211,6 +228,7 @@ export default function HistoricalRanking() {
 
   return <section>
     <div className="page-head"><div><h1>Ranking histórico del club</h1><p>{discipline ? "Top 20 por prueba, categoría y temporada; cada atleta figura con su mejor marca oficial verificada." : "Todos los resultados oficiales encontrados, ordenados por prueba y por marca. Elige una prueba para ver su Top 20 histórico."}</p></div></div>
+    <p className="muted">Resultados disponibles por temporada: {coverage}. La consulta general conserva todos los resultados; al elegir una prueba se aplica su Top 20.</p>
     <article className="panel inline-form">
       <label>Categoría<select value={category} onChange={event => { const next = event.target.value; setCategory(next); const valid = rows.filter(row => (!next || row.category === next) && (!sex || row.sex === sex)).map(row => row.discipline); if (discipline && !valid.includes(discipline)) setDiscipline(valid.sort((a, b) => eventOrder(a) - eventOrder(b))[0] || ""); }}><option value="">Todas las categorías</option>{categories.map(value => <option value={value} key={value}>{value}</option>)}</select></label>
       <label>Sexo<select value={sex} onChange={event => { const next = event.target.value as "M" | "F" | ""; setSex(next); const valid = rows.filter(row => (!category || row.category === category) && (!next || row.sex === next)).map(row => row.discipline); if (discipline && !valid.includes(discipline)) setDiscipline(valid.sort((a, b) => eventOrder(a) - eventOrder(b))[0] || ""); }}><option value="">Masculino y femenino</option><option value="M">Masculino</option><option value="F">Femenino</option></select></label>
