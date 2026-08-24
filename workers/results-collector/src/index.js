@@ -88,7 +88,7 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (url.pathname === "/health") return Response.json({ ok: true, service: "club-atletas-results-collector", schedule: "lunes y jueves a las 05:30 UTC" });
-    if (url.pathname === "/run-now") {
+    if (url.pathname === "/run-now" || url.pathname === "/run_now" || url.pathname === "/run-now/") {
       const token = url.searchParams.get("token");
       if (!env.MANUAL_RUN_TOKEN || !token || token !== env.MANUAL_RUN_TOKEN) {
         return Response.json({ ok: false, error: "No autorizado" }, { status: 401 });
