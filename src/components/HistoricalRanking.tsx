@@ -90,11 +90,8 @@ export default function HistoricalRanking() {
   }, []);
 
   const disciplines = useMemo(() => [...new Set(rows.map(row => row.discipline))].sort((a, b) => eventOrder(a) - eventOrder(b) || a.localeCompare(b, "es")), [rows]);
-  const categories = useMemo(() => [...new Set(rows.map(row => row.category).filter(Boolean) as string[])].sort((a, b) => {
-    const ai = categoryOrder.indexOf(a), bi = categoryOrder.indexOf(b);
-    return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi) || a.localeCompare(b, "es");
-  }), [rows]);
-  const seasons = useMemo(() => [...new Set(rows.map(row => row.season).filter(Boolean) as string[])].sort().reverse(), [rows]);
+  const categories = useMemo(() => [...new Set([...categoryOrder, ...rows.map(row => row.category).filter(Boolean) as string[]])], [rows]);
+  const seasons = useMemo(() => [...new Set(["2026", "2025", "2024", ...rows.map(row => row.season).filter(Boolean) as string[]])].sort().reverse(), [rows]);
 
   const ranked = useMemo(() => {
     const matching = rows.filter(row => (!discipline || row.discipline === discipline) && (!category || row.category === category) && (!season || row.season === season));
