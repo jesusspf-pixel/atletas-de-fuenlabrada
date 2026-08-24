@@ -53,6 +53,7 @@ export async function onRequestPost(context: any) {
     if (!env.STRIPE_SECRET_KEY) return json({ error: "El servicio de tarjeta no está configurado todavía." }, 503);
 
     const authorization = context.request.headers.get("authorization") || "";
+    const requestBody = await context.request.json().catch(() => ({})) as { returnTo?: unknown };
     if (!authorization.startsWith("Bearer ")) return json({ error: "Inicia sesión para añadir la tarjeta." }, 401);
 
     const token = authorization.slice(7);
@@ -86,13 +87,14 @@ export async function onRequestPost(context: any) {
     }
 
     const origin = new URL(context.request.url).origin;
+    const registration = requestBody.returnTo === "adult" ? "&registration=adult" : "";
     const checkoutParams = new URLSearchParams({
       mode: "setup",
       // Checkout requires a currency for a setup-only session. The club bills in EUR.
       currency: "eur",
       customer: customerId,
-      success_url: `${origin}/?access=1&section=Cuotas&payment_method=updated`,
-      cancel_url: `${origin}/?access=1&section=Cuotas&payment_method=cancelled`,
+      success_url: `${origin}/?access=1&section=Cuotas&payment_method=updated${registration}`,
+      cancel_url: `${origin}/?access=1&section=Cuotas&payment_method=cancelled${registration}`,
     });
     const checkout = await stripePost(env.STRIPE_SECRET_KEY, "checkout/sessions", checkoutParams);
     if (!checkout.response.ok || typeof checkout.data.url !== "string") {
