@@ -1,0 +1,13 @@
+{
+  "$schema": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/config-schema.json",
+  "name": "club-atletas-results-collector",
+  "main": "src/index.js",
+  "compatibility_date": "2026-08-24",
+  "triggers": {
+    "crons": ["30 5 * * 1,4"]
+  },
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  }
+}
