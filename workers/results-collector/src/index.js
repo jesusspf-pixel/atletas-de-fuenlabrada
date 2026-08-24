@@ -1,4 +1,7 @@
-const FAM_RANKING_2025 = "https://raw.githubusercontent.com/jesusspf-pixel/atletas-de-fuenlabrada/main/data/official-results/fam-ranking-2025.json";
+const FAM_SOURCES = [
+  "https://raw.githubusercontent.com/jesusspf-pixel/atletas-de-fuenlabrada/main/data/official-results/fam-ranking-2025.json",
+  "https://raw.githubusercontent.com/jesusspf-pixel/atletas-de-fuenlabrada/main/data/official-results/fam-event-2025-02-16-jornada-menores-aluche.json"
+];
 const USER_AGENT = "Club Atletas de Fuenlabrada official-results collector/2.0";
 
 function serviceRoleKey(env) {
@@ -35,11 +38,11 @@ async function supabase(env, path, init = {}) {
   return text ? JSON.parse(text) : null;
 }
 
-async function downloadFam2025() {
-  const res = await fetch(FAM_RANKING_2025, { headers: { "user-agent": USER_AGENT } });
-  if (!res.ok) throw new Error(`No se pudo descargar el ranking FAM 2025 (${res.status}).`);
+async function downloadFamSource(url) {
+  const res = await fetch(url, { headers: { "user-agent": USER_AGENT } });
+  if (!res.ok) throw new Error(`No se pudo descargar una fuente FAM (${res.status}).`);
   const json = await res.json();
-  if (!Array.isArray(json.rows) || !json.rows.length) throw new Error("El archivo FAM no contiene resultados importables.");
+  if (!Array.isArray(json.rows) || !json.rows.length) throw new Error("Una fuente FAM no contiene resultados importables.");
   return json;
 }
 
@@ -81,7 +84,7 @@ async function existingResultIds(env, ids) {
 
 async function upsertSource(env, file) {
   const source = {
-    federation: "FAM", competition_name: file.source.name, competition_date: "2025-12-31",
+    federation: "FAM", competition_name: file.source.name, competition_date: file.source.competition_date || "2025-12-31",
     calendar_url: "https://www.atletismomadrid.com/estadistica/ranking-antiguos", results_url: file.source.url,
     status: "processing", last_checked_at: new Date().toISOString(), error_message: null
   };
@@ -92,11 +95,8 @@ async function upsertSource(env, file) {
   return rows[0];
 }
 
-async function runCollector(env) {
-  const file = await downloadFam2025();
+async function importFamFile(env, file, events, athletes) {
   const source = await upsertSource(env, file);
-  const events = await ensureEvents(env, file.rows.map((row) => row.event_code));
-  const athletes = await currentAthletes(env);
   const existing = await existingResultIds(env, file.rows.map((row) => row.external_row_id));
   const skippedUnknownEvent = [];
   const rows = [];
@@ -120,9 +120,23 @@ async function runCollector(env) {
     method: "PATCH", headers: { Prefer: "return=minimal" },
     body: JSON.stringify({ status: "imported", imported_at: new Date().toISOString(), last_checked_at: new Date().toISOString(), error_message: null })
   });
-  return { federation: "FAM", source: file.source.name, source_rows: file.stats.source_rows,
-    imported_now: rows.length, already_present: existing.size, individual_results_available: file.rows.length,
-    skipped_unknown_event: [...new Set(skippedUnknownEvent)] };
+  return { source: file.source.name, source_rows: file.stats.source_rows, imported_now: rows.length,
+    already_present: existing.size, individual_results_available: file.rows.length, skipped_unknown_event: [...new Set(skippedUnknownEvent)] };
+}
+
+async function runCollector(env) {
+  const files = await Promise.all(FAM_SOURCES.map(downloadFamSource));
+  const events = await ensureEvents(env, files.flatMap((file) => file.rows.map((row) => row.event_code)));
+  const athletes = await currentAthletes(env);
+  const imports = [];
+  for (const file of files) imports.push(await importFamFile(env, file, events, athletes));
+  return {
+    federation: "FAM",
+    sources_processed: imports.length,
+    imported_now: imports.reduce((sum, item) => sum + item.imported_now, 0),
+    individual_results_available: imports.reduce((sum, item) => sum + item.individual_results_available, 0),
+    imports
+  };
 }
 
 export default {
