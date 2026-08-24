@@ -8,6 +8,7 @@ import { FamilyAthletes, FamilyHome, GroupManager } from "./components/ClubAdmin
 import { Shop } from "./components/ProfessionalShop";
 import BillingControlCenter from "./components/BillingControlCenter";
 import MemberFees from "./components/MemberFees";
+import HistoricalRankingAdmin from "./components/HistoricalRankingAdmin";
 import FamilyNotices from "./components/FamilyNotices";
 import ClubChallenge from "./components/ClubChallenge";
 import { ensureSupabase, supabase, supabasePublishableKey } from "./lib/supabase";
@@ -126,7 +127,7 @@ function Portal({ profile, signOut }: { profile: Profile; signOut: () => void })
   const [section, setSection] = useState("Inicio");
   const [focusedAthleteId, setFocusedAthleteId] = useState("");
   const [challengeAthleteId, setChallengeAthleteId] = useState("");
-  const baseMenu = profile.role === "coach" ? ["Inicio", "Mi grupo", "Planificación", "Asistencia", "Carreras", "Avisos", "Tienda"] : ["owner", "admin"].includes(profile.role) ? ["Inicio", "Atletas", "Grupos", "Cuotas", "Carreras", "Asistencia", "Avisos", "Invitaciones", "Tienda", "Configuración"] : ["Inicio", profile.role === "parent" ? "Mis atletas" : "Mi perfil", "Carreras", "Cuotas", "Avisos", "Tienda"];
+  const baseMenu = profile.role === "coach" ? ["Inicio", "Mi grupo", "Planificación", "Asistencia", "Carreras", "Avisos", "Tienda"] : ["owner", "admin"].includes(profile.role) ? ["Inicio", "Atletas", "Grupos", "Cuotas", "Carreras", "Ranking histórico", "Asistencia", "Avisos", "Invitaciones", "Tienda", "Configuración"] : ["Inicio", profile.role === "parent" ? "Mis atletas" : "Mi perfil", "Carreras", "Cuotas", "Avisos", "Tienda"];
   useEffect(() => { if (!supabase) return; void (async () => {
     const { data: athleteData } = await supabase.from("athletes").select("id,user_profile_id,families(primary_profile_id)");
     const own = (athleteData || []).filter((athlete: any) => athlete.user_profile_id === profile.id || athlete.families?.primary_profile_id === profile.id).map((athlete: any) => athlete.id);
@@ -148,6 +149,7 @@ function Admin({ section, profile, go }: { section: string; profile: Profile; go
   if (section === "Cuotas") return <Fees profile={profile} />;
   if (section === "Tienda") return <Shop profile={profile} />;
   if (section === "Carreras") return <CompetitionManager profile={profile} manager />;
+  if (section === "Ranking histórico") return <HistoricalRankingAdmin />;
   if (section === "Asistencia") return <Attendance profile={profile} />;
   if (section === "Avisos") return <AnnouncementManager profile={profile} />;
   if (section === "Configuración") return <Settings />;
