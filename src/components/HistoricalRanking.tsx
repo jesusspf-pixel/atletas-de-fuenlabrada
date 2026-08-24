@@ -156,6 +156,8 @@ export default function HistoricalRanking() {
       .sort((left, right) =>
         eventOrder(left.discipline) - eventOrder(right.discipline)
         || left.discipline.localeCompare(right.discipline, "es")
+        // En carrera, menos tiempo es mejor; en concursos, más metros/kilos es mejor.
+        || (left.performance_value === null ? 1 : right.performance_value === null ? -1 : left.metric_type === "time" ? left.performance_value - right.performance_value : right.performance_value - left.performance_value)
         || (categoryOrder.indexOf(left.category || "") - categoryOrder.indexOf(right.category || ""))
         || (left.sex || "").localeCompare(right.sex || "")
         || (right.result_date || "").localeCompare(left.result_date || "")
