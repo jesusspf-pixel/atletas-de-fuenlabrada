@@ -35,10 +35,20 @@ function sexFrom(...values: Array<string | null | undefined>): "M" | "F" | null 
 }
 
 function disciplineLabel(value: string) {
-  return value
+  const cleaned = value
     .replace(/\s+(?:FEM\.?|FEMENINO|FEMENINA|MASC\.?|MASCULINO)\s*/gi, " ")
     .replace(/\s{2,}/g, " ")
     .trim();
+  const compact = cleaned
+    .toUpperCase()
+    .replace(/[._\s]/g, "")
+    .replace(/MASC(?:ULINO)?|FEM(?:ENINO|ENINA)?/g, "");
+  const metres = compact.match(/^(\d+)M(?:ST)?$/);
+  if (metres) return `${Number(metres[1]).toLocaleString("es-ES")} m`;
+  if (compact === "LONG" || /^LONGITUD/.test(compact)) return "Longitud";
+  if (compact === "SHOT" || /^PESO/.test(compact)) return "Peso";
+  if (compact === "JAVELIN" || /^JABALINA/.test(compact)) return "Jabalina";
+  return cleaned;
 }
 
 function isBetter(next: Performance, current: Performance) {
@@ -124,7 +134,10 @@ export default function HistoricalRanking() {
     return () => { alive = false; };
   }, [bundledRows]);
 
-  const disciplines = useMemo(() => [...new Set(rows.map(row => row.discipline))].sort((a, b) => eventOrder(a) - eventOrder(b) || a.localeCompare(b, "es")), [rows]);
+  const disciplines = useMemo(() => [...new Set(rows
+    .filter(row => (!category || row.category === category) && (!sex || row.sex === sex))
+    .map(row => row.discipline))]
+    .sort((a, b) => eventOrder(a) - eventOrder(b) || a.localeCompare(b, "es")), [rows, category, sex]);
   const categories = useMemo(() => [...new Set([...categoryOrder, ...(rows.map(row => row.category).filter(Boolean) as string[])])], [rows]);
   const seasons = useMemo(() => [...new Set(["2026", "2025", "2024", ...(rows.map(row => row.season).filter(Boolean) as string[])])].sort().reverse(), [rows]);
 
@@ -146,8 +159,8 @@ export default function HistoricalRanking() {
   return <section>
     <div className="page-head"><div><h1>Ranking histórico del club</h1><p>Top 20 por prueba, categoría y temporada; cada atleta figura con su mejor marca oficial verificada.</p></div></div>
     <article className="panel inline-form">
-      <label>Categoría<select value={category} onChange={event => { const next = event.target.value; setCategory(next); const valid = rows.filter(row => !next || row.category === next).map(row => row.discipline); if (discipline && !valid.includes(discipline)) setDiscipline(""); }}><option value="">Todas las categorías</option>{categories.map(value => <option value={value} key={value}>{value}</option>)}</select></label>
-      <label>Sexo<select value={sex} onChange={event => setSex(event.target.value as "M" | "F" | "")}><option value="">Masculino y femenino</option><option value="M">Masculino</option><option value="F">Femenino</option></select></label>
+      <label>Categoría<select value={category} onChange={event => { const next = event.target.value; setCategory(next); const valid = rows.filter(row => (!next || row.category === next) && (!sex || row.sex === sex)).map(row => row.discipline); if (discipline && !valid.includes(discipline)) setDiscipline(valid.sort((a, b) => eventOrder(a) - eventOrder(b))[0] || ""); }}><option value="">Todas las categorías</option>{categories.map(value => <option value={value} key={value}>{value}</option>)}</select></label>
+      <label>Sexo<select value={sex} onChange={event => { const next = event.target.value as "M" | "F" | ""; setSex(next); const valid = rows.filter(row => (!category || row.category === category) && (!next || row.sex === next)).map(row => row.discipline); if (discipline && !valid.includes(discipline)) setDiscipline(valid.sort((a, b) => eventOrder(a) - eventOrder(b))[0] || ""); }}><option value="">Masculino y femenino</option><option value="M">Masculino</option><option value="F">Femenino</option></select></label>
       <label>Prueba<select value={discipline} onChange={event => setDiscipline(event.target.value)}><option value="">Todas las pruebas</option>{disciplines.map(value => <option value={value} key={value}>{value}</option>)}</select></label>
       <label>Temporada<select value={season} onChange={event => setSeason(event.target.value)}><option value="">Todas las temporadas</option>{seasons.map(value => <option value={value} key={value}>{value}</option>)}</select></label>
     </article>
