@@ -38,8 +38,13 @@ function monthsForBackfill(current) {
   }
   return months;
 }
+function serviceRoleKey(env) {
+  // Compatibilidad con la clave creada inicialmente en el panel de Cloudflare.
+  return env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_SERVICE_ROLE_KE || "";
+}
 function serviceHeaders(env) {
-  return { apikey: env.SUPABASE_SERVICE_ROLE_KEY, authorization: "Bearer " + env.SUPABASE_SERVICE_ROLE_KEY, "content-type": "application/json" };
+  const key = serviceRoleKey(env);
+  return { apikey: key, authorization: "Bearer " + key, "content-type": "application/json" };
 }
 async function supabase(env, path, init = {}) {
   const response = await fetch(env.SUPABASE_URL + "/rest/v1/" + path, { ...init, headers: { ...serviceHeaders(env), ...(init.headers || {}) } });
@@ -59,7 +64,8 @@ async function scanFamMonth(env, date) {
   return { month: year + "-" + String(month).padStart(2, "0"), found: rows.length };
 }
 async function runCollector(env) {
-  if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) throw new Error("Faltan los secretos de Supabase.");
+  if (!env.SUPABASE_URL) throw new Error("Falta SUPABASE_URL.");
+  if (!serviceRoleKey(env)) throw new Error("Falta la clave de servicio de Supabase.");
   const settings = await supabase(env, "federation_import_settings?id=eq.true&select=id");
   if (!settings?.[0]) throw new Error("No existe la configuración de importación federativa.");
 
