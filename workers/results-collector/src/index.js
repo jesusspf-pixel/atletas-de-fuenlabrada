@@ -25,17 +25,32 @@ function eventDefinitions() {
     "200M": ["200 m", "track", "time", "asc"], "300M": ["300 m", "track", "time", "asc"],
     "400M": ["400 m", "track", "time", "asc"], "500M": ["500 m", "track", "time", "asc"],
     "600M": ["600 m", "track", "time", "asc"], "800M": ["800 m", "track", "time", "asc"],
-    "1000M": ["1000 m", "track", "time", "asc"], "3000M": ["3000 m", "track", "time", "asc"],
-    "300MH": ["300 m vallas", "track", "time", "asc"], "LONG": ["Longitud", "field", "distance", "desc"],
+    "1000M": ["1000 m", "track", "time", "asc"], "1500M": ["1500 m", "track", "time", "asc"],
+    "3000M": ["3000 m", "track", "time", "asc"], "MILE": ["Milla", "track", "time", "asc"],
+    "60MH": ["60 m vallas", "track", "time", "asc"], "80MH": ["80 m vallas", "track", "time", "asc"],
+    "100MH": ["100 m vallas", "track", "time", "asc"], "300MH": ["300 m vallas", "track", "time", "asc"],
+    "LONG": ["Longitud", "field", "distance", "desc"], "HIGH": ["Altura", "field", "distance", "desc"],
     "SHOT": ["Peso", "field", "distance", "desc"], "JAVELIN": ["Jabalina", "field", "distance", "desc"]
   };
 }
 
 function normaliseEventCode(value) {
-  const raw = String(value || "").toUpperCase().replace(/[._\s]/g, "");
-  if (raw === "1000M" || raw === "1000METROS") return "1000M";
-  if (raw === "3000M" || raw === "3000METROS") return "3000M";
-  return raw;
+  const raw = String(value || "").toUpperCase().replace(/[._\s()-]/g, "");
+  const aliases = {
+    "1000M": "1000M", "1000METROS": "1000M",
+    "1500M": "1500M", "1500METROS": "1500M",
+    "3000M": "3000M", "3000METROS": "3000M",
+    "MILLA": "MILE", "MILE": "MILE",
+    "60MVALLAS": "60MH", "60MH": "60MH",
+    "80MVALLAS": "80MH", "80MH": "80MH",
+    "100MVALLAS": "100MH", "100MH": "100MH",
+    "300MVALLAS": "300MH", "300MH": "300MH",
+    "LONGITUD": "LONG", "LJ": "LONG",
+    "ALTURA": "HIGH", "HJ": "HIGH",
+    "PESO": "SHOT", "SP": "SHOT",
+    "JABALINA": "JAVELIN", "JT": "JAVELIN"
+  };
+  return aliases[raw] || raw;
 }
 
 async function supabase(env, path, init = {}) {
