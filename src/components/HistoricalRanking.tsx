@@ -77,10 +77,26 @@ function disciplineLabel(value: string) {
   return cleaned;
 }
 
+function sortingMark(row: Performance): number | null {
+  if (row.performance_value !== null && Number.isFinite(row.performance_value)) {
+    return row.performance_value;
+  }
+  // Algunas filas antiguas de Supabase guardan la marca visible como texto.
+  // La usamos como respaldo para que nunca rompan el orden del ranking.
+  return numericResult(row.performance_display);
+}
+
+function compareMarks(left: Performance, right: Performance) {
+  const leftMark = sortingMark(left);
+  const rightMark = sortingMark(right);
+  if (leftMark === null) return rightMark === null ? 0 : 1;
+  if (rightMark === null) return -1;
+  const metric = left.metric_type === "time" || right.metric_type === "time" ? "time" : "field";
+  return metric === "time" ? leftMark - rightMark : rightMark - leftMark;
+}
+
 function isBetter(next: Performance, current: Performance) {
-  if (next.performance_value === null) return false;
-  if (current.performance_value === null) return true;
-  return next.metric_type === "time" ? next.performance_value < current.performance_value : next.performance_value > current.performance_value;
+  return compareMarks(next, current) < 0;
 }
 
 function fromBundledResults(): Performance[] {
@@ -173,7 +189,7 @@ export default function HistoricalRanking() {
         eventOrder(left.discipline) - eventOrder(right.discipline)
         || left.discipline.localeCompare(right.discipline, "es")
         // En carrera, menos tiempo es mejor; en concursos, más metros/kilos es mejor.
-        || (left.performance_value === null ? 1 : right.performance_value === null ? -1 : left.metric_type === "time" ? left.performance_value - right.performance_value : right.performance_value - left.performance_value)
+        || compareMarks(left, right)
         || (categoryOrder.indexOf(left.category || "") - categoryOrder.indexOf(right.category || ""))
         || (left.sex || "").localeCompare(right.sex || "")
         || (right.result_date || "").localeCompare(left.result_date || "")
@@ -188,9 +204,7 @@ export default function HistoricalRanking() {
       if (!current || isBetter(row, current)) bestByAthlete.set(key, row);
     }
     return [...bestByAthlete.values()].sort((left, right) => {
-      if (left.performance_value === null) return 1;
-      if (right.performance_value === null) return -1;
-      return left.metric_type === "time" ? left.performance_value - right.performance_value : right.performance_value - left.performance_value;
+      return compareMarks(left, right);
     }).slice(0, 20);
   }, [matchingRows, discipline]);
 
