@@ -9,7 +9,7 @@ type Performance = {
   result_date: string | null; competition_name: string | null;
 };
 
-const categoryOrder = ["Sub 8", "Sub 10", "Sub 12", "Sub 14", "Sub 16", "Sub 18", "Sub 20", "Sub 23", "Absoluto", "Máster"];
+const categoryOrder = ["Absoluto", "Sub 23", "Sub 20", "Sub 18", "Sub 16", "Sub 14", "Sub 12", "Sub 10", "Sub 8", "Máster"];
 
 function categoryLabel(value: string | null | undefined) {
   const normalized = String(value || "").toUpperCase().replace(/\s/g, "");
@@ -56,10 +56,21 @@ function eventOrder(value: string) {
 
 export default function HistoricalRanking() {
   // El ranking público nunca queda vacío por una caída, vista ausente o demora de Supabase.
-  const [rows, setRows] = useState<Performance[]>(fromBundledResults);
-  const [discipline, setDiscipline] = useState("");
-  const [category, setCategory] = useState("");
-  const [season, setSeason] = useState("");
+  const bundledRows = useMemo(() => fromBundledResults(), []);
+  // Arranca en una única prueba que sí tiene resultados. Absoluto será el primero cuando
+  // existan marcas verificadas de esa categoría; mientras tanto evitamos una portada vacía.
+  const defaultCategory = useMemo(() => {
+    if (bundledRows.some(row => row.category === "Absoluto")) return "Absoluto";
+    return bundledRows.find(row => row.category === "Sub 16")?.category || bundledRows[0]?.category || "";
+  }, [bundledRows]);
+  const defaultDiscipline = useMemo(() => {
+    const options = bundledRows.filter(row => row.category === defaultCategory).map(row => row.discipline);
+    return [...new Set(options)].sort((a, b) => eventOrder(a) - eventOrder(b) || a.localeCompare(b, "es"))[0] || "";
+  }, [bundledRows, defaultCategory]);
+  const [rows, setRows] = useState<Performance[]>(bundledRows);
+  const [discipline, setDiscipline] = useState(defaultDiscipline);
+  const [category, setCategory] = useState(defaultCategory);
+  const [season, setSeason] = useState("2025");
 
   useEffect(() => {
     let alive = true;
@@ -85,10 +96,16 @@ export default function HistoricalRanking() {
           });
         }
       }
-      if (alive && imported.length) setRows(imported);
+      if (alive && imported.length) {
+        const merged = new Map<string, Performance>();
+        for (const row of [...bundledRows, ...imported]) {
+          merged.set(`${row.athlete_name}|${row.discipline}|${row.category || ""}|${row.season || ""}|${row.performance_display}`, row);
+        }
+        setRows([...merged.values()]);
+      }
     })();
     return () => { alive = false; };
-  }, []);
+  }, [bundledRows]);
 
   const disciplines = useMemo(() => [...new Set(rows.map(row => row.discipline))].sort((a, b) => eventOrder(a) - eventOrder(b) || a.localeCompare(b, "es")), [rows]);
   const categories = useMemo(() => [...new Set([...categoryOrder, ...(rows.map(row => row.category).filter(Boolean) as string[])])], [rows]);
@@ -112,9 +129,9 @@ export default function HistoricalRanking() {
   return <section>
     <div className="page-head"><div><h1>Ranking histórico del club</h1><p>Top 20 por prueba, categoría y temporada; cada atleta figura con su mejor marca oficial verificada.</p></div></div>
     <article className="panel inline-form">
-      <label>Prueba<select value={discipline} onChange={event => setDiscipline(event.target.value)}><option value="">Todas</option>{disciplines.map(value => <option value={value} key={value}>{value}</option>)}</select></label>
-      <label>Temporada<select value={season} onChange={event => setSeason(event.target.value)}><option value="">Todas</option>{seasons.map(value => <option value={value} key={value}>{value}</option>)}</select></label>
-      <label>Categoría<select value={category} onChange={event => setCategory(event.target.value)}><option value="">Todas</option>{categories.map(value => <option value={value} key={value}>{value}</option>)}</select></label>
+      <label>Categoría<select value={category} onChange={event => { const next = event.target.value; setCategory(next); const valid = rows.filter(row => !next || row.category === next).map(row => row.discipline); if (discipline && !valid.includes(discipline)) setDiscipline(""); }}><option value="">Todas las categorías</option>{categories.map(value => <option value={value} key={value}>{value}</option>)}</select></label>
+      <label>Prueba<select value={discipline} onChange={event => setDiscipline(event.target.value)}><option value="">Todas las pruebas</option>{disciplines.map(value => <option value={value} key={value}>{value}</option>)}</select></label>
+      <label>Temporada<select value={season} onChange={event => setSeason(event.target.value)}><option value="">Todas las temporadas</option>{seasons.map(value => <option value={value} key={value}>{value}</option>)}</select></label>
     </article>
     <article className="panel table historical-top">{ranked.map((row, index) => <div className={"row historical-rank " + (index < 8 ? "top-eight" : "")} key={row.id}>
       <span><b>{index < 8 ? "★ " : "#"}{index + 1} · {row.athlete_name}</b><small>{row.discipline} · {row.category || "Categoría sin indicar"} · {row.season || "Temporada"}</small></span>
