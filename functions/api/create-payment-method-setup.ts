@@ -87,14 +87,16 @@ export async function onRequestPost(context: any) {
     }
 
     const origin = new URL(context.request.url).origin;
-    const registration = requestBody.returnTo === "adult" ? "&registration=adult" : "";
+    const registration = requestBody.returnTo === "adult" ? "adult" : "family";
     const checkoutParams = new URLSearchParams({
       mode: "setup",
       // Checkout requires a currency for a setup-only session. The club bills in EUR.
       currency: "eur",
       customer: customerId,
-      success_url: `${origin}/?access=1&section=Cuotas&payment_method=updated${registration}`,
-      cancel_url: `${origin}/?access=1&section=Cuotas&payment_method=cancelled${registration}`,
+      // El ID permite comprobar en el servidor que Stripe terminó el Setup antes
+      // de enviar la inscripción. Nunca se acepta un "OK" solo desde el navegador.
+      success_url: `${origin}/?access=1&section=Cuotas&payment_method=updated&registration=${registration}&checkout_session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${origin}/?access=1&section=Cuotas&payment_method=cancelled&registration=${registration}`,
     });
     const checkout = await stripePost(env.STRIPE_SECRET_KEY, "checkout/sessions", checkoutParams);
     if (!checkout.response.ok || typeof checkout.data.url !== "string") {
