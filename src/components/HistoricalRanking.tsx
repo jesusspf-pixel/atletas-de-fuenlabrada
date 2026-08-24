@@ -63,7 +63,7 @@ function disciplineLabel(value: string) {
     .toUpperCase()
     .replace(/[._\s]/g, "")
     .replace(/MASC(?:ULINO)?|FEM(?:ENINO|ENINA)?/g, "");
-  const metres = compact.match(/^(\d+)M(?:ST)?$/);
+  const hurdles = compact.match(/^(\d+)M(?:V|VALLAS)$/);\n  if (hurdles) return `${Number(hurdles[1]).toLocaleString("es-ES")} m vallas`;\n  const metres = compact.match(/^(\d+)M(?:ST)?$/);
   if (metres) return `${Number(metres[1]).toLocaleString("es-ES")} m`;
   if (compact === "LONG" || /^LONGITUD/.test(compact)) return "Longitud";
   // El peso mantiene el implemento cuando existe: no es comparable un peso
@@ -118,11 +118,12 @@ function fromBundledResults(): Performance[] {
 function eventOrder(value: string) {
   const normalized = value.toLowerCase();
   const number = Number((value.match(/\d+(?:[.,]\d+)?/) || ["9999"])[0].replace(",", "."));
+  const hurdleOffset = /vallas|\bmv\b/i.test(normalized) ? 0.1 : 0;
 
   // Orden de lectura de una jornada: carreras cortas a largas, saltos y lanzamientos.
   if (/(longitud|altura|triple|pértiga|pertiga)/i.test(normalized)) return 10000 + number;
   if (/(peso|jabalina|disco|martillo)/i.test(normalized)) return 20000 + number;
-  return number;
+  return number + hurdleOffset;
 }
 
 export default function HistoricalRanking() {
@@ -199,7 +200,7 @@ export default function HistoricalRanking() {
     // Con una prueba sí se convierte en ranking: mejor marca por atleta y Top 20.
     const bestByAthlete = new Map<string, Performance>();
     for (const row of matchingRows) {
-      const key = row.athlete_name + "|" + row.discipline + "|" + (row.category || "") + "|" + (row.sex || "") + "|" + (row.season || "");
+      const key = row.athlete_name + "|" + row.discipline;
       const current = bestByAthlete.get(key);
       if (!current || isBetter(row, current)) bestByAthlete.set(key, row);
     }
