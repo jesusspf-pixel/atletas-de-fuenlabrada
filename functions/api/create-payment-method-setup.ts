@@ -66,14 +66,23 @@ export async function onRequestPost(context: any) {
     const user = await auth.json().catch(() => null) as { id?: string; email?: string } | null;
     if (!auth.ok || !user?.id) return json({ error: "Tu sesión ha caducado. Vuelve a entrar antes de añadir la tarjeta." }, 401);
 
-    // Stripe, not this application, is the sole holder of card details.
-    // Customer creation is intentionally direct: it avoids a dependency on
-    // optional club tables and works exactly like the existing Checkout flow.
-    const customerParams = new URLSearchParams({ "metadata[profile_id]": user.id });
-    if (user.email) customerParams.set("email", user.email);
-    const created = await stripePost(env.STRIPE_SECRET_KEY, "customers", customerParams);
-    if (!created.response.ok || typeof created.data.id !== "string") {
-      return json({ error: stripeFailure("No se pudo preparar la ficha de pago", created) }, 502);
+    // La tarjeta debe quedar siempre en el mismo cliente Stripe del pagador.
+    // Antes se creaba un cliente nuevo en cada intento, y el cobro podía buscar
+    // precisamente uno antiguo que no tenía tarjeta asociada.
+    const search = await fetch(`https://api.stripe.com/v1/customers/search?query=${encodeURIComponent(`metadata['profile_id']:'${user.id}'`)}&limit=100`, {
+      headers: { authorization: `Bearer ${env.STRIPE_SECRET_KEY}` },
+    });
+    const found = await search.json().catch(() => ({})) as { data?: Array<{ id?: string }> };
+    let customerId = search.ok ? found.data?.find(customer => typeof customer.id === "string")?.id : undefined;
+
+    if (!customerId) {
+      const customerParams = new URLSearchParams({ "metadata[profile_id]": user.id });
+      if (user.email) customerParams.set("email", user.email);
+      const created = await stripePost(env.STRIPE_SECRET_KEY, "customers", customerParams);
+      if (!created.response.ok || typeof created.data.id !== "string") {
+        return json({ error: stripeFailure("No se pudo preparar la ficha de pago", created) }, 502);
+      }
+      customerId = created.data.id;
     }
 
     const origin = new URL(context.request.url).origin;
@@ -81,7 +90,7 @@ export async function onRequestPost(context: any) {
       mode: "setup",
       // Checkout requires a currency for a setup-only session. The club bills in EUR.
       currency: "eur",
-      customer: created.data.id,
+      customer: customerId,
       success_url: `${origin}/?access=1&section=Cuotas&payment_method=updated`,
       cancel_url: `${origin}/?access=1&section=Cuotas&payment_method=cancelled`,
     });
