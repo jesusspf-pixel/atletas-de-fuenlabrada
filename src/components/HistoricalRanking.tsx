@@ -53,21 +53,15 @@ function sexFrom(...values: Array<string | null | undefined>): "M" | "F" | null 
 function disciplineLabel(value: string) {
   const cleaned = value
     .replace(/\s+(?:FEM\.?|FEMENINO|FEMENINA|MASC\.?|MASCULINO)\s*/gi, " ")
-    // Las actas FAM añaden a menudo la categoría al final del nombre de la
-    // prueba ("60m Sub 12", "Longitud Sub 12 B"). No es otra prueba: la
-    // categoría ya viaja en su propia columna y debe compartir ranking.
     .replace(/\s+(?:SUB\s*\d{1,2}|U\s*\d{1,2})(?:\s+[A-Z])?\s*$/i, " ")
     .replace(/\s{2,}/g, " ")
     .trim();
-  const compact = cleaned
-    .toUpperCase()
-    .replace(/[._\s]/g, "")
-    .replace(/MASC(?:ULINO)?|FEM(?:ENINO|ENINA)?/g, "");
-  const hurdles = compact.match(/^(\d+)M(?:V|VALLAS)$/);\n  if (hurdles) return `${Number(hurdles[1]).toLocaleString("es-ES")} m vallas`;\n  const metres = compact.match(/^(\d+)M(?:ST)?$/);
+  const compact = cleaned.toUpperCase().replace(/[._\s]/g, "");
+  const hurdles = compact.match(/^(\d+)M(?:V|VALLAS)$/);
+  if (hurdles) return `${Number(hurdles[1]).toLocaleString("es-ES")} m vallas`;
+  const metres = compact.match(/^(\d+)M(?:ST)?$/);
   if (metres) return `${Number(metres[1]).toLocaleString("es-ES")} m`;
   if (compact === "LONG" || /^LONGITUD/.test(compact)) return "Longitud";
-  // El peso mantiene el implemento cuando existe: no es comparable un peso
-  // de 2 kg con uno de 4 kg, pero sí las distintas actas del mismo peso.
   const shot = cleaned.match(/^(?:PESO|SHOT)\s*\((\d+(?:[.,]\d+)?)\s*KG\)$/i);
   if (shot) return `Peso (${shot[1].replace(",", ".")} kg)`;
   if (compact === "SHOT" || /^PESO/.test(compact)) return "Peso";
@@ -78,12 +72,14 @@ function disciplineLabel(value: string) {
 }
 
 function sortingMark(row: Performance): number | null {
-  if (row.performance_value !== null && Number.isFinite(row.performance_value)) {
-    return row.performance_value;
-  }
-  // Algunas filas antiguas de Supabase guardan la marca visible como texto.
-  // La usamos como respaldo para que nunca rompan el orden del ranking.
-  return numericResult(row.performance_display);
+  return row.performance_value !== null && Number.isFinite(row.performance_value)
+    ? row.performance_value
+    : numericResult(row.performance_display);
+}
+
+function isTimedDiscipline(discipline: string) {
+  const value = discipline.toLowerCase();
+  return /^\d+(?:[.,]\d+)?\s*m(?:\s|$)/.test(value) || /milla|marcha|obstáculos|obstaculos/.test(value);
 }
 
 function compareMarks(left: Performance, right: Performance) {
@@ -91,12 +87,37 @@ function compareMarks(left: Performance, right: Performance) {
   const rightMark = sortingMark(right);
   if (leftMark === null) return rightMark === null ? 0 : 1;
   if (rightMark === null) return -1;
-  const metric = left.metric_type === "time" || right.metric_type === "time" ? "time" : "field";
-  return metric === "time" ? leftMark - rightMark : rightMark - leftMark;
+  return isTimedDiscipline(left.discipline) ? leftMark - rightMark : rightMark - leftMark;
 }
 
 function isBetter(next: Performance, current: Performance) {
   return compareMarks(next, current) < 0;
+}
+
+function eventOrder(value: string) {
+  const normalized = value.toLowerCase();
+  const parsed = value.match(/\d+(?:[.,]\d+)?/);
+  const distance = parsed ? Number(parsed[0].replace(",", ".")) : 9999;
+  if (/vallas/.test(normalized)) return distance + 0.01;
+  if (/altura/.test(normalized)) return 10001;
+  if (/longitud/.test(normalized)) return 10002;
+  if (/triple/.test(normalized)) return 10003;
+  if (/pértiga|pertiga/.test(normalized)) return 10004;
+  if (/peso/.test(normalized)) return 20001;
+  if (/disco/.test(normalized)) return 20002;
+  if (/jabalina/.test(normalized)) return 20003;
+  if (/martillo/.test(normalized)) return 20004;
+  return distance;
+}
+
+function compareGeneral(left: Performance, right: Performance) {
+  return eventOrder(left.discipline) - eventOrder(right.discipline)
+    || left.discipline.localeCompare(right.discipline, "es")
+    || compareMarks(left, right)
+    || left.athlete_name.localeCompare(right.athlete_name, "es")
+    || (left.category || "").localeCompare(right.category || "", "es")
+    || (left.sex || "").localeCompare(right.sex || "")
+    || (right.result_date || "").localeCompare(left.result_date || "");
 }
 
 function fromBundledResults(): Performance[] {
@@ -113,17 +134,6 @@ function fromBundledResults(): Performance[] {
     result_date: row.competition_date,
     competition_name: row.competition_name
   }));
-}
-
-function eventOrder(value: string) {
-  const normalized = value.toLowerCase();
-  const number = Number((value.match(/\d+(?:[.,]\d+)?/) || ["9999"])[0].replace(",", "."));
-  const hurdleOffset = /vallas|\bmv\b/i.test(normalized) ? 0.1 : 0;
-
-  // Orden de lectura de una jornada: carreras cortas a largas, saltos y lanzamientos.
-  if (/(longitud|altura|triple|pértiga|pertiga)/i.test(normalized)) return 10000 + number;
-  if (/(peso|jabalina|disco|martillo)/i.test(normalized)) return 20000 + number;
-  return number + hurdleOffset;
 }
 
 export default function HistoricalRanking() {
@@ -185,17 +195,7 @@ export default function HistoricalRanking() {
   const displayedRows = useMemo(() => {
     // Sin prueba seleccionada se muestra el archivo completo: es una consulta,
     // no un ranking. Conservamos cada resultado y lo ordenamos por fecha.
-    if (!discipline) return [...matchingRows]
-      .sort((left, right) =>
-        eventOrder(left.discipline) - eventOrder(right.discipline)
-        || left.discipline.localeCompare(right.discipline, "es")
-        // En carrera, menos tiempo es mejor; en concursos, más metros/kilos es mejor.
-        || compareMarks(left, right)
-        || (categoryOrder.indexOf(left.category || "") - categoryOrder.indexOf(right.category || ""))
-        || (left.sex || "").localeCompare(right.sex || "")
-        || (right.result_date || "").localeCompare(left.result_date || "")
-        || left.athlete_name.localeCompare(right.athlete_name, "es")
-      );
+    if (!discipline) return [...matchingRows].sort(compareGeneral);
 
     // Con una prueba sí se convierte en ranking: mejor marca por atleta y Top 20.
     const bestByAthlete = new Map<string, Performance>();
@@ -210,7 +210,7 @@ export default function HistoricalRanking() {
   }, [matchingRows, discipline]);
 
   return <section>
-    <div className="page-head"><div><h1>Ranking histórico del club</h1><p>{discipline ? "Top 20 por prueba, categoría y temporada; cada atleta figura con su mejor marca oficial verificada." : "Todos los resultados oficiales encontrados. Elige una prueba para ver su Top 20 histórico."}</p></div></div>
+    <div className="page-head"><div><h1>Ranking histórico del club</h1><p>{discipline ? "Top 20 por prueba, categoría y temporada; cada atleta figura con su mejor marca oficial verificada." : "Todos los resultados oficiales encontrados, ordenados por prueba y por marca. Elige una prueba para ver su Top 20 histórico."}</p></div></div>
     <article className="panel inline-form">
       <label>Categoría<select value={category} onChange={event => { const next = event.target.value; setCategory(next); const valid = rows.filter(row => (!next || row.category === next) && (!sex || row.sex === sex)).map(row => row.discipline); if (discipline && !valid.includes(discipline)) setDiscipline(valid.sort((a, b) => eventOrder(a) - eventOrder(b))[0] || ""); }}><option value="">Todas las categorías</option>{categories.map(value => <option value={value} key={value}>{value}</option>)}</select></label>
       <label>Sexo<select value={sex} onChange={event => { const next = event.target.value as "M" | "F" | ""; setSex(next); const valid = rows.filter(row => (!category || row.category === category) && (!next || row.sex === next)).map(row => row.discipline); if (discipline && !valid.includes(discipline)) setDiscipline(valid.sort((a, b) => eventOrder(a) - eventOrder(b))[0] || ""); }}><option value="">Masculino y femenino</option><option value="M">Masculino</option><option value="F">Femenino</option></select></label>
