@@ -43,15 +43,17 @@ export default function SportsCenter() {
       const { data: athleteData } = await client.from("athletes").select("id,first_name,last_name,license_number,federation_license,license_status,training_group_id,user_profile_id,training_groups(*)").order("last_name");
       const ownAthletes = (athleteData ?? []) as unknown as Athlete[];
       setAthletes(ownAthletes);
+      let selectedChallengeAthleteId = "";
       if (ownAthletes.length) {
         const { data: challengeSettings } = await client.from("athlete_profile_settings").select("athlete_id").in("athlete_id", ownAthletes.map(athlete => athlete.id)).eq("challenge_opt_in", true).limit(1);
-        setChallengeAthleteId(challengeSettings?.[0]?.athlete_id || "");
+        selectedChallengeAthleteId = challengeSettings?.[0]?.athlete_id || "";
+        setChallengeAthleteId(selectedChallengeAthleteId);
       }
       const athleteId = requested().get("athleteId");
       const athleteName = requested().get("athleteName")?.toLowerCase();
       const targetAthlete = athleteId ? ownAthletes.find(a => a.id === athleteId) : athleteName ? ownAthletes.find(a => `${a.first_name} ${a.last_name}`.toLowerCase() === athleteName) : null;
       if (targetAthlete) setSelectedAthleteId(targetAthlete.id);
-      if (requested().get("view") === "challenge" && challengeSettings?.[0]?.athlete_id) setMode("challenge");
+      if (requested().get("view") === "challenge" && selectedChallengeAthleteId) setMode("challenge");
 
       if (profile.role === "coach") {
         const { data: linkData } = await client.from("training_group_coaches").select("training_groups(*)").eq("coach_profile_id", profile.id);
