@@ -134,7 +134,7 @@ function AthletesAdmin() {
   const [selectedId, setSelectedId] = useState(""); const [changing, setChanging] = useState(""); const [message, setMessage] = useState("");
   const selected = rows.find(a => a.id === selectedId) || null;
   const [groupId, setGroupId] = useState(""); const [status, setStatus] = useState(""); const [licenseStatus, setLicenseStatus] = useState(""); const [licenseNumber, setLicenseNumber] = useState(""); const [waiveEnrolment, setWaiveEnrolment] = useState(false);
-  useEffect(() => { if (selected) { setGroupId(selected.training_group_id || ""); setStatus(selected.club_status); setLicenseStatus(selected.license_status); setLicenseNumber(selected.license_number || ""); setMessage(""); } }, [selectedId]);
+  useEffect(() => { if (selected) { setGroupId(selected.training_group_id || ""); setStatus(selected.club_status); setLicenseStatus(selected.license_status); setLicenseNumber(selected.license_number || ""); setWaiveEnrolment(false); setMessage(""); } }, [selectedId]);
   const save = async () => { if (!selected || !supabase) return; setChanging(selected.id); setMessage("");
     if (status === "active") {
       const { data, error } = await supabase.rpc("approve_registration_and_schedule", { target_athlete_id: selected.id, waive_enrolment: waiveEnrolment });
