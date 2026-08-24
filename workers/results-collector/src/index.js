@@ -34,7 +34,7 @@ async function supabase(env, path, init = {}) {
   headers.set("content-type", "application/json");
   const res = await fetch(`${base}/rest/v1/${path}`, { ...init, headers });
   const text = await res.text();
-  if (!res.ok) throw new Error(`Supabase respondió ${res.status}: ${text.slice(0, 240)}`);
+  if (!res.ok) throw new Error(`Supabase ${res.status} en ${path}: ${text.slice(0, 1000)}`);
   return text ? JSON.parse(text) : null;
 }
 
@@ -126,16 +126,38 @@ async function importFamFile(env, file, events, athletes) {
 
 async function runCollector(env) {
   const files = await Promise.all(FAM_SOURCES.map(downloadFamSource));
-  const events = await ensureEvents(env, files.flatMap((file) => file.rows.map((row) => row.event_code)));
-  const athletes = await currentAthletes(env);
+  let events, athletes;
+  try {
+    events = await ensureEvents(env, files.flatMap((file) => file.rows.map((row) => row.event_code)));
+  } catch (error) {
+    throw new Error(`Preparando pruebas oficiales: ${error.message}`);
+  }
+  try {
+    athletes = await currentAthletes(env);
+  } catch (error) {
+    throw new Error(`Leyendo atletas actuales: ${error.message}`);
+  }
   const imports = [];
-  for (const file of files) imports.push(await importFamFile(env, file, events, athletes));
+  const failures = [];
+  for (const file of files) {
+    try {
+      imports.push(await importFamFile(env, file, events, athletes));
+    } catch (error) {
+      failures.push({ source: file.source?.name || "Fuente FAM", error: error.message });
+    }
+  }
+  const importedNow = imports.reduce((sum, item) => sum + item.imported_now, 0);
+  if (!imports.length) {
+    throw new Error(`No se pudo importar ninguna fuente. ${failures.map((failure) => `${failure.source}: ${failure.error}`).join(" | ")}`);
+  }
   return {
     federation: "FAM",
     sources_processed: imports.length,
-    imported_now: imports.reduce((sum, item) => sum + item.imported_now, 0),
+    sources_failed: failures.length,
+    imported_now: importedNow,
     individual_results_available: imports.reduce((sum, item) => sum + item.individual_results_available, 0),
-    imports
+    imports,
+    failures
   };
 }
 
