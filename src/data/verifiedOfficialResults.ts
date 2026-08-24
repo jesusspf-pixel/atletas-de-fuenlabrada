@@ -2303,5 +2303,105 @@ export const verifiedOfficialResults: VerifiedOfficialResult[] = [
     "result_text": "7:06.6",
     "result_unit": "s",
     "competition_name": "Acta oficial FAM"
+  },
+  {
+    "id": "fam-2024-04-13-mostoles-violeta-hernaez-80m",
+    "athlete_name": "VIOLETA HERNAEZ DIAZ",
+    "event_name": "80m",
+    "category_label": "U14F",
+    "competition_date": "2024-04-13",
+    "result_value": 11.7,
+    "result_text": "11.70",
+    "result_unit": "s",
+    "competition_name": "Acta oficial FAM"
+  },
+  {
+    "id": "fam-2024-04-13-mostoles-diana-dorado-80m",
+    "athlete_name": "DIANA DORADO GARCIA",
+    "event_name": "80m",
+    "category_label": "U14F",
+    "competition_date": "2024-04-13",
+    "result_value": 12.48,
+    "result_text": "12.48",
+    "result_unit": "s",
+    "competition_name": "Acta oficial FAM"
+  },
+  {
+    "id": "fam-2024-04-13-mostoles-lara-morales-80m",
+    "athlete_name": "LARA MARTINA MORALES GOMEZ",
+    "event_name": "80m",
+    "category_label": "U14F",
+    "competition_date": "2024-04-13",
+    "result_value": 11.52,
+    "result_text": "11.52",
+    "result_unit": "s",
+    "competition_name": "Acta oficial FAM"
+  },
+  {
+    "id": "fam-2024-04-13-mostoles-sofia-moreno-80m",
+    "athlete_name": "SOFIA MORENO FERNANDEZ",
+    "event_name": "80m",
+    "category_label": "U14F",
+    "competition_date": "2024-04-13",
+    "result_value": 12.05,
+    "result_text": "12.05",
+    "result_unit": "s",
+    "competition_name": "Acta oficial FAM"
+  },
+  {
+    "id": "fam-2024-04-13-mostoles-lara-morales-longitud",
+    "athlete_name": "LARA MARTINA MORALES GOMEZ",
+    "event_name": "Longitud",
+    "category_label": "U14F",
+    "competition_date": "2024-04-13",
+    "result_value": 4.2,
+    "result_text": "4.20",
+    "result_unit": "m",
+    "competition_name": "Acta oficial FAM"
+  },
+  {
+    "id": "fam-2024-04-13-mostoles-jara-hernandez-longitud",
+    "athlete_name": "JARA HERNANDEZ VELAZQUEZ",
+    "event_name": "Longitud",
+    "category_label": "U12F",
+    "competition_date": "2024-04-13",
+    "result_value": 3.27,
+    "result_text": "3.27",
+    "result_unit": "m",
+    "competition_name": "Acta oficial FAM"
+  },
+  {
+    "id": "fam-2024-02-03-arganda-lara-morales-60m",
+    "athlete_name": "LARA MARTINA MORALES GOMEZ",
+    "event_name": "60m",
+    "category_label": "U14F",
+    "competition_date": "2024-02-03",
+    "result_value": 8.76,
+    "result_text": "8.76",
+    "result_unit": "s",
+    "competition_name": "Acta oficial FAM"
+  },
+  {
+    "id": "fam-2024-02-03-arganda-violeta-hernaez-60m",
+    "athlete_name": "VIOLETA HERNAEZ DIAZ",
+    "event_name": "60m",
+    "category_label": "U14F",
+    "competition_date": "2024-02-03",
+    "result_value": 9.2,
+    "result_text": "9.20",
+    "result_unit": "s",
+    "competition_name": "Acta oficial FAM"
+  },
+  {
+    "id": "fam-2024-02-03-arganda-sofia-moreno-60m",
+    "athlete_name": "SOFIA MORENO FERNANDEZ",
+    "event_name": "60m",
+    "category_label": "U14F",
+    "competition_date": "2024-02-03",
+    "result_value": 9.7,
+    "result_text": "9.70",
+    "result_unit": "s",
+    "competition_name": "Acta oficial FAM"
   }
+
 ];
