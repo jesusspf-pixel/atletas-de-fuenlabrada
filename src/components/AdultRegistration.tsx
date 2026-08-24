@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 import ConsentChecklist from "./ConsentChecklist";
 
+type AdultData = { first_name: string; last_name: string; dni_nie: string; phone: string; birth_date: string; federative_sex: string; training_group_id: string; nationality: string; birthplace: string; previous_license: string; previous_club: string; relevant_condition: boolean; relevant_condition_detail: string; asthma_allergy_medication: string; injury_limitation: string; support_needs: string; health_notes: string };
 const validSpanishId = (raw:string) => { const value=raw.toUpperCase().replace(/[\s-]/g,""); const normalized=/^[XYZ]/.test(value)?`${({X:"0",Y:"1",Z:"2"} as Record<string,string>)[value[0]]}${value.slice(1)}`:value; return /^\d{8}[A-Z]$/.test(normalized) && "TRWAGMYFPDXBNJZSQVHLCKE"[Number(normalized.slice(0,8))%23]===normalized[8]; };
 const validPhone = (raw:string) => /^(?:\+34)?[6789]\d{8}$/.test(raw.replace(/[\s.-]/g,""));
 const validBirthDate = (raw:string) => Boolean(raw) && !Number.isNaN(new Date(`${raw}T00:00:00`).getTime()) && new Date(`${raw}T00:00:00`) <= new Date();
@@ -9,7 +10,7 @@ const validBirthDate = (raw:string) => Boolean(raw) && !Number.isNaN(new Date(`$
 export default function AdultRegistration({ email, onBack }: { email: string; onBack: () => void }) {
   const storageKey = `club:adult-registration:${email}`; const stored = (() => { try { return JSON.parse(sessionStorage.getItem(storageKey) || "{}"); } catch { return {}; } })();
   const [step, setStep] = useState(stored.step || 1); const [busy, setBusy] = useState(false); const [sent, setSent] = useState(false); const [error, setError] = useState("");
-  const [data, setData] = useState(stored.data || { first_name: "", last_name: "", dni_nie: "", phone: "", birth_date: "", federative_sex: "M", training_group_id: "", nationality: "Española", birthplace: "", previous_license: "", previous_club: "", relevant_condition: false, relevant_condition_detail: "", asthma_allergy_medication: "", injury_limitation: "", support_needs: "", health_notes: "" });
+  const [data, setData] = useState<AdultData>(stored.data || { first_name: "", last_name: "", dni_nie: "", phone: "", birth_date: "", federative_sex: "M", training_group_id: "", nationality: "Española", birthplace: "", previous_license: "", previous_club: "", relevant_condition: false, relevant_condition_detail: "", asthma_allergy_medication: "", injury_limitation: "", support_needs: "", health_notes: "" });
   const [groups, setGroups] = useState<{ id: string; name: string; category_label: string; schedule_days: string | null; starts_at: string | null; ends_at: string | null }[]>([]);
   const [plan, setPlan] = useState<"monthly" | "term">("monthly");
   const [consents, setConsents] = useState<Record<string, boolean>>({ privacy: false, health_data: false, image_use: false, fam_data: false, club_rules: false, recurring_payment: false });
