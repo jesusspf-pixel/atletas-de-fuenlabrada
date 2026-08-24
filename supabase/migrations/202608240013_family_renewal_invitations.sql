@@ -1,4 +1,4 @@
--- Enlaces personales para familias renovadas: matrícula ya abonada/exenta.
+-- Enlaces personales para familias renovadas. La exención se decide por atleta durante la validación administrativa.
 create table if not exists public.family_renewal_invitations (
   id uuid primary key default gen_random_uuid(),
   email text not null,
@@ -49,21 +49,21 @@ declare
   v_competition_category text;
   v_training_year integer := extract(year from current_date)::integer + case when extract(month from current_date) >= 7 then 1 else 0 end;
   v_renewal_token uuid := nullif(payload->>'renewal_invitation','')::uuid;
-  v_renewal_exempt boolean := false;
+  v_renewal_allowed boolean := false;
 begin
   if v_profile_id is null then raise exception 'Debes iniciar sesión para enviar una inscripción.'; end if;
   if v_email = '' then raise exception 'No se ha encontrado el correo de la cuenta.'; end if;
   if jsonb_array_length(coalesce(payload -> 'athletes', '[]'::jsonb)) = 0 then raise exception 'Añade al menos un atleta.'; end if;
 
   if v_renewal_token is not null then
-    select true into v_renewal_exempt
+    select true into v_renewal_allowed
     from public.family_renewal_invitations
     where token=v_renewal_token
       and lower(email)=lower(v_email)
       and used_at is null
       and expires_at > now();
 
-    if not coalesce(v_renewal_exempt,false) then
+    if not coalesce(v_renewal_allowed,false) then
       raise exception 'El enlace de renovación no es válido para este correo o ha caducado.';
     end if;
 
@@ -106,11 +106,11 @@ begin
     end loop;
 
     insert into public.memberships(athlete_id,season,plan,enrolment_fee_cents,enrolment_fee_status,fee_provider,starts_on)
-    values(v_athlete_id,'2026/27',payload->>'plan',case when v_renewal_exempt then 0 else null end,case when v_renewal_exempt then 'paid' else 'awaiting_admin' end,'paused',current_date);
+    values(v_athlete_id,'2026/27',payload->>'plan',null,'awaiting_admin','paused',current_date);
   end loop;
 
   insert into public.audit_log(actor_id,entity_type,entity_id,action,metadata)
-  values(v_profile_id,'family',v_family_id,'registration_submitted',jsonb_build_object('athletes',jsonb_array_length(payload->'athletes'),'renewal_invitation',v_renewal_exempt));
+  values(v_profile_id,'family',v_family_id,'registration_submitted',jsonb_build_object('athletes',jsonb_array_length(payload->'athletes'),'renewal_invitation',v_renewal_allowed));
 
   return v_family_id;
 end $$;
