@@ -41,15 +41,19 @@ function withoutDuplicateResults(rows: Result[]) {
 
 function withoutDuplicateRankingRows(rows: any[]) {
   const seen = new Set<string>();
-  return rows.filter(row => {
-    const mark = row.result_value !== null && row.result_value !== undefined
-      ? `value:${row.result_value}`
-      : `text:${String(row.result_text || "").trim().toLocaleLowerCase("es-ES")}`;
-    const key = [row.athlete_id || "", row.athletics_event_id || "", row.competition_date || "", mark].join("|");
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+  return [...rows]
+    .sort((left, right) => String(right.athlete_name || "").length - String(left.athlete_name || "").length)
+    .filter(row => {
+      const mark = row.result_value !== null && row.result_value !== undefined
+        ? `value:${row.result_value}`
+        : `text:${String(row.result_text || "").trim().toLocaleLowerCase("es-ES")}`;
+      const person = String(row.athlete_name || [row.first_name, row.last_name].filter(Boolean).join(" "))
+        .trim().toLocaleLowerCase("es-ES").split(/\\s+/).slice(0, 2).join(" ");
+      const key = [person, row.athletics_event_id || "", row.competition_date || "", row.category_label || "", row.competition_environment || "", mark].join("|");
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
 }
 
 function parseResult(raw: string, unit: Unit) {
