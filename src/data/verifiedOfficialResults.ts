@@ -719,5 +719,49 @@ export const verifiedOfficialResults: VerifiedOfficialResult[] = [
     "result_text": "14.45",
     "result_unit": "s",
     "competition_name": "Reunión San Juan Leganés"
+  },
+  {
+    "id": "fam-2024-01-20-gallur12-alba-marquez-60m",
+    "athlete_name": "ALBA MARQUEZ MARTINEZ",
+    "event_name": "60m",
+    "category_label": "Absoluta femenina",
+    "competition_date": "2024-01-20",
+    "result_value": 9.13,
+    "result_text": "9.13",
+    "result_unit": "s",
+    "competition_name": "Reunión FAM 12 Gallur"
+  },
+  {
+    "id": "fam-2024-01-20-gallur12-miriam-del-pliego-60m",
+    "athlete_name": "MIRIAM DEL PLIEGO SECO",
+    "event_name": "60m",
+    "category_label": "Absoluta femenina",
+    "competition_date": "2024-01-20",
+    "result_value": 9.38,
+    "result_text": "9.38",
+    "result_unit": "s",
+    "competition_name": "Reunión FAM 12 Gallur"
+  },
+  {
+    "id": "fam-2024-12-14-menores9-aritz-lopez-60m",
+    "athlete_name": "ARITZ LOPEZ GARRIDO",
+    "event_name": "60m",
+    "category_label": "U12M",
+    "competition_date": "2024-12-14",
+    "result_value": 10.03,
+    "result_text": "10.03",
+    "result_unit": "s",
+    "competition_name": "Jornada de Menores 9 Leganés"
+  },
+  {
+    "id": "fam-2026-02-08-lanzamientos-alba-marquez-jabalina",
+    "athlete_name": "ALBA MARQUEZ MARTINEZ",
+    "event_name": "Jabalina (600g)",
+    "category_label": "Absoluta femenina",
+    "competition_date": "2026-02-08",
+    "result_value": 22.65,
+    "result_text": "22.65",
+    "result_unit": "m",
+    "competition_name": "Campeonato de Madrid de Lanzamientos Largos"
   }
 ];

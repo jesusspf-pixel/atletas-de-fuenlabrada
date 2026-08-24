@@ -2,7 +2,10 @@ const FAM_SOURCES = [
   "https://raw.githubusercontent.com/jesusspf-pixel/atletas-de-fuenlabrada/main/data/official-results/fam-ranking-2025.json",
   "https://raw.githubusercontent.com/jesusspf-pixel/atletas-de-fuenlabrada/main/data/official-results/fam-event-2025-02-16-jornada-menores-aluche.json",
   "https://raw.githubusercontent.com/jesusspf-pixel/atletas-de-fuenlabrada/main/data/official-results/fam-event-2025-01-26-reunion-fam15-gallur.json",
-  "https://raw.githubusercontent.com/jesusspf-pixel/atletas-de-fuenlabrada/main/data/official-results/fam-event-2025-06-14-reunion-san-juan-leganes.json"
+  "https://raw.githubusercontent.com/jesusspf-pixel/atletas-de-fuenlabrada/main/data/official-results/fam-event-2025-06-14-reunion-san-juan-leganes.json",
+  "https://raw.githubusercontent.com/jesusspf-pixel/atletas-de-fuenlabrada/main/data/official-results/fam-event-2024-01-20-reunion-fam12-gallur.json",
+  "https://raw.githubusercontent.com/jesusspf-pixel/atletas-de-fuenlabrada/main/data/official-results/fam-event-2024-12-14-jornada-menores9-leganes.json",
+  "https://raw.githubusercontent.com/jesusspf-pixel/atletas-de-fuenlabrada/main/data/official-results/fam-event-2026-02-08-cam-madrid-lanzamientos.json"
 ];
 const USER_AGENT = "Club Atletas de Fuenlabrada official-results collector/2.0";
 
@@ -174,7 +177,7 @@ async function runCollector(env) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    if (url.pathname === "/health") return response({ ok: true, schedule: "lunes y jueves 05:30 UTC", source: "FAM 2025" });
+    if (url.pathname === "/health") return response({ ok: true, schedule: "lunes y jueves 05:30 UTC", source: "FAM 2024–2026" });
     if (!env.MANUAL_RUN_TOKEN || url.searchParams.get("token") !== env.MANUAL_RUN_TOKEN) {
       return response({ ok: false, error: "No autorizado" }, 401);
     }

@@ -1,0 +1,52 @@
+{
+  "source": {
+    "federation": "FAM",
+    "verified": true,
+    "name": "Reunión FAM 12 Gallur",
+    "competition_date": "2024-01-20",
+    "venue": "Centro Deportivo Municipal Gallur, Madrid",
+    "url": "https://www.atletismomadrid.com/images/stories/ficheros/eventos/2024.01.20_REUNION_FAM_12_GALLUR.pdf"
+  },
+  "stats": {
+    "source_rows": 2,
+    "importable_individual_results": 2,
+    "relays_excluded": 0,
+    "parser_skipped": 0
+  },
+  "rows": [
+    {
+      "external_row_id": "fam-2024-01-20-gallur12-alba-marquez-60m",
+      "athlete_name": "ALBA MARQUEZ MARTINEZ",
+      "federation_license": "M27042",
+      "club_name": "Atletismo URJC Fuenlabrada",
+      "event_name": "60m",
+      "result_text": "9.13",
+      "result_value": 9.13,
+      "result_unit": "s",
+      "position": null,
+      "category_label": "Absoluta femenina",
+      "competition_date": "2024-01-20",
+      "birth_date": "2006-10-04",
+      "venue": "Centro Deportivo Municipal Gallur, Madrid",
+      "raw_line": "60m femenino · Alba Marquez Martinez · 9.13",
+      "event_code": "60M"
+    },
+    {
+      "external_row_id": "fam-2024-01-20-gallur12-miriam-del-pliego-60m",
+      "athlete_name": "MIRIAM DEL PLIEGO SECO",
+      "federation_license": "M29602",
+      "club_name": "Atletismo URJC Fuenlabrada",
+      "event_name": "60m",
+      "result_text": "9.38",
+      "result_value": 9.38,
+      "result_unit": "s",
+      "position": null,
+      "category_label": "Absoluta femenina",
+      "competition_date": "2024-01-20",
+      "birth_date": "2006-04-28",
+      "venue": "Centro Deportivo Municipal Gallur, Madrid",
+      "raw_line": "60m femenino · Miriam Del Pliego Seco · 9.38",
+      "event_code": "60M"
+    }
+  ]
+}

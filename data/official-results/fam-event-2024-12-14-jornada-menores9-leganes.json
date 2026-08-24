@@ -1,0 +1,35 @@
+{
+  "source": {
+    "federation": "FAM",
+    "verified": true,
+    "name": "Jornada de Menores 9 Leganés",
+    "competition_date": "2024-12-14",
+    "venue": "Leganés",
+    "url": "https://www.atletismomadrid.com/images/stories/ficheros/eventos/2024.12.14_JORNADA_MENORES_9_LEGANES.pdf"
+  },
+  "stats": {
+    "source_rows": 1,
+    "importable_individual_results": 1,
+    "relays_excluded": 0,
+    "parser_skipped": 0
+  },
+  "rows": [
+    {
+      "external_row_id": "fam-2024-12-14-menores9-aritz-lopez-60m",
+      "athlete_name": "ARITZ LOPEZ GARRIDO",
+      "federation_license": "M22851",
+      "club_name": "Atletismo URJC Fuenlabrada",
+      "event_name": "60m",
+      "result_text": "10.03",
+      "result_value": 10.03,
+      "result_unit": "s",
+      "position": null,
+      "category_label": "U12M",
+      "competition_date": "2024-12-14",
+      "birth_date": "2014-10-28",
+      "venue": "Leganés",
+      "raw_line": "60m Sub 12 Masculino · Aritz Lopez Garrido · 10.03",
+      "event_code": "60M"
+    }
+  ]
+}

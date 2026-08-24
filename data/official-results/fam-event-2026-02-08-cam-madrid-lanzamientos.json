@@ -1,0 +1,35 @@
+{
+  "source": {
+    "federation": "FAM",
+    "verified": true,
+    "name": "Campeonato de Madrid de Lanzamientos Largos",
+    "competition_date": "2026-02-08",
+    "venue": "Aluche, Madrid",
+    "url": "https://www.atletismomadrid.com/images/stories/ficheros/eventos/CtoJabalinaAbss20_Competicion_ResultadosComp_260209T093016.pdf"
+  },
+  "stats": {
+    "source_rows": 1,
+    "importable_individual_results": 1,
+    "relays_excluded": 0,
+    "parser_skipped": 0
+  },
+  "rows": [
+    {
+      "external_row_id": "fam-2026-02-08-lanzamientos-alba-marquez-jabalina",
+      "athlete_name": "ALBA MARQUEZ MARTINEZ",
+      "federation_license": "M27042",
+      "club_name": "Atletismo URJC Fuenlabrada",
+      "event_name": "Jabalina (600g)",
+      "result_text": "22.65",
+      "result_value": 22.65,
+      "result_unit": "m",
+      "position": 10,
+      "category_label": "Absoluta femenina",
+      "competition_date": "2026-02-08",
+      "birth_date": "2006-10-04",
+      "venue": "Aluche, Madrid",
+      "raw_line": "Jabalina 600g femenino · Alba Marquez Martinez · 22.65",
+      "event_code": "JAVELIN"
+    }
+  ]
+}
