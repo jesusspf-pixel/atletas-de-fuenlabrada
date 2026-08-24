@@ -27,6 +27,22 @@ function metricFromUnit(unit: string | null | undefined): MetricType {
   return "distance";
 }
 
+function numericResult(value: unknown): number | null {
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+
+  const normalized = String(value ?? "").trim().replace(",", ".");
+  if (!normalized) return null;
+
+  const minutesAndSeconds = normalized.match(/^(\d+):(\d+(?:\.\d+)?)$/);
+  if (minutesAndSeconds) {
+    const total = Number(minutesAndSeconds[1]) * 60 + Number(minutesAndSeconds[2]);
+    return Number.isFinite(total) ? total : null;
+  }
+
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 function sexFrom(...values: Array<string | null | undefined>): "M" | "F" | null {
   const value = values.map(item => String(item || "").toUpperCase()).join(" ");
   if (/(?:^|\W)(?:F|FEM|FEMENINO|FEMENINA)(?:$|\W)|U\d+F\b/.test(value)) return "F";
@@ -76,7 +92,7 @@ function fromBundledResults(): Performance[] {
     season: row.competition_date?.slice(0, 4) || "2025",
     metric_type: metricFromUnit(row.result_unit),
     sex: sexFrom(row.category_label, row.event_name),
-    performance_value: row.result_value,
+    performance_value: numericResult(row.result_value),
     performance_display: row.result_text,
     result_date: row.competition_date,
     competition_name: row.competition_name
@@ -122,7 +138,7 @@ export default function HistoricalRanking() {
             season: row.season ? String(row.season) : null,
             metric_type: metricFromUnit(row.result_unit as string | null),
             sex: sexFrom(row.category_label as string | null, row.event_name as string | null),
-            performance_value: typeof row.result_value === "number" ? row.result_value : null,
+            performance_value: numericResult(row.result_value),
             performance_display: String(row.result_text || "Resultado"),
             result_date: row.competition_date ? String(row.competition_date) : null,
             competition_name: row.competition_name ? String(row.competition_name) : null
