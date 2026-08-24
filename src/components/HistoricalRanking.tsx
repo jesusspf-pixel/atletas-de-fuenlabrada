@@ -55,7 +55,7 @@ function eventOrder(value: string) {
 }
 
 export default function HistoricalRanking() {
-  const [rows, setRows] = useState<Performance[]>([]);
+  // El ranking público nunca queda vacío por una caída, vista ausente o demora de Supabase.\n  const [rows, setRows] = useState<Performance[]>(fromBundledResults);
   const [discipline, setDiscipline] = useState("");
   const [category, setCategory] = useState("");
   const [season, setSeason] = useState("");
@@ -84,14 +84,14 @@ export default function HistoricalRanking() {
           });
         }
       }
-      if (alive) setRows(imported.length ? imported : fromBundledResults());
+      if (alive && imported.length) setRows(imported);
     })();
     return () => { alive = false; };
   }, []);
 
   const disciplines = useMemo(() => [...new Set(rows.map(row => row.discipline))].sort((a, b) => eventOrder(a) - eventOrder(b) || a.localeCompare(b, "es")), [rows]);
-  const categories = useMemo(() => [...new Set([...categoryOrder, ...rows.map(row => row.category).filter(Boolean) as string[]])], [rows]);
-  const seasons = useMemo(() => [...new Set(["2026", "2025", "2024", ...rows.map(row => row.season).filter(Boolean) as string[]])].sort().reverse(), [rows]);
+  const categories = useMemo(() => [...new Set([...categoryOrder, ...(rows.map(row => row.category).filter(Boolean) as string[])])], [rows]);
+  const seasons = useMemo(() => [...new Set(["2026", "2025", "2024", ...(rows.map(row => row.season).filter(Boolean) as string[])])].sort().reverse(), [rows]);
 
   const ranked = useMemo(() => {
     const matching = rows.filter(row => (!discipline || row.discipline === discipline) && (!category || row.category === category) && (!season || row.season === season));
