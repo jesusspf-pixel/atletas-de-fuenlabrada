@@ -138,3 +138,7 @@ button:disabled{opacity:.6;cursor:not-allowed}
 .result-row span b,.result-row span small{display:block}
 .result-row span small{margin-top:3px}
 @media(max-width:820px){.results-workspace{margin-left:18px;margin-right:18px}.result-row{grid-template-columns:1fr;gap:5px}.result-tools{align-items:flex-start}.table-title{display:grid;gap:12px}}
+
+.historical-rank.top-eight{background:linear-gradient(90deg,#fff7dc,#fff)}
+.historical-rank.top-eight b{color:#8b5b00}
+.historical-rank.top-eight small{color:#9b711c}
