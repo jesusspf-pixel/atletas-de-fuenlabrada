@@ -29,7 +29,7 @@ function eventDefinitions() {
 
 async function supabase(env, path, init = {}) {
   const key = serviceRoleKey(env);
-  const base = (env.SUPABASE_URL || "").replace(/\/$/, "");
+  const base = (env.SUPABASE_URL || "").replace(/\/$/, "").replace(/\/rest\/v1$/, "");
   if (!base || !key) throw new Error("Faltan los secretos de Supabase.");
   const headers = new Headers(init.headers || {});
   headers.set("apikey", key); headers.set("authorization", `Bearer ${key}`);
