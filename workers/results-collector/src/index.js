@@ -30,10 +30,6 @@ function calendarRows(html, year) {
   }
   return rows;
 }
-function addMonths(month, count) {
-  const date = new Date(Date.UTC(month.getUTCFullYear(), month.getUTCMonth() + count, 1));
-  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
-}
 function monthsForBackfill(current) {
   const months = [];
   for (const year of [2024, 2025, current.getUTCFullYear()]) {
@@ -67,8 +63,6 @@ async function runCollector(env) {
   const settings = await supabase(env, "federation_import_settings?id=eq.true&select=id");
   if (!settings?.[0]) throw new Error("No existe la configuración de importación federativa.");
 
-  // Desde la primera ejecución recorre 2024, 2025 y la temporada actual.
-  // Se limita a cuatro consultas simultáneas para respetar la web de la FAM.
   const current = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1));
   const months = monthsForBackfill(current);
   const summary = [];
@@ -91,9 +85,22 @@ async function runCollector(env) {
   return { scope: "2024-2026", summary };
 }
 export default {
-  async fetch(request) {
+  async fetch(request, env) {
     const url = new URL(request.url);
     if (url.pathname === "/health") return Response.json({ ok: true, service: "club-atletas-results-collector", schedule: "lunes y jueves a las 05:30 UTC" });
+    if (url.pathname === "/run-now") {
+      const token = url.searchParams.get("token");
+      if (!env.MANUAL_RUN_TOKEN || !token || token !== env.MANUAL_RUN_TOKEN) {
+        return Response.json({ ok: false, error: "No autorizado" }, { status: 401 });
+      }
+      try {
+        const result = await runCollector(env);
+        return Response.json({ ok: true, ...result });
+      } catch (error) {
+        console.error(JSON.stringify({ event: "manual_fam_calendar_scan_failed", message: error instanceof Error ? error.message : "Error desconocido" }));
+        return Response.json({ ok: false, error: error instanceof Error ? error.message : "Error desconocido" }, { status: 500 });
+      }
+    }
     return Response.json({ ok: true, message: "El colector se ejecuta de forma programada lunes y jueves a las 05:30 UTC." });
   },
   async scheduled(_controller, env, ctx) {
