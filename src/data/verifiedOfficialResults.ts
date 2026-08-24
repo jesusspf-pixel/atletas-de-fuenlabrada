@@ -3799,8 +3799,7 @@ export const verifiedOfficialResults: VerifiedOfficialResult[] = [
     "result_unit": "m",
     "competition_name": "Ranking FAM 2025 · Gallur",
     "id": "fam-ranking-2025-violetahernaezdiaz-peso-2025-11-23-629"
-  }
-,
+  },
   {
     "athlete_name": "NICOLAS ARRANZ ROLDAN",
     "event_name": "400m",
@@ -5131,37 +5130,35 @@ export const verifiedOfficialResults: VerifiedOfficialResult[] = [
     "result_unit": "s",
     "competition_name": "Ranking FAM 2026 · Vallehermoso",
     "id": "fam-ranking-2026-sofiamorenofernandez-1500mobs-2026-04-19-61079"
-  }
-,
-  {
-    id: 'fam-2024-12-14-carlos-cazallas-60m',
-    athleteName: 'CARLOS CAZALLAS NAVARRO',
-    sex: 'male',
-    category: 'U14M',
-    season: '2024',
-    event: '60m',
-    performance: '9.02',
-    value: 9.02,
-    unit: 's',
-    resultDate: '2024-12-14',
-    competition: 'Jornada de Menores 9 · Leganés',
-    source: 'FAM',
-    verified: true,
   },
   {
-    id: 'fam-2024-12-14-lara-morales-altura',
-    athleteName: 'LARA MARTINA MORALES GOMEZ',
-    sex: 'female',
-    category: 'U14F',
-    season: '2024',
-    event: 'Altura',
-    performance: '1.28',
-    value: 1.28,
-    unit: 'm',
-    resultDate: '2024-12-14',
-    competition: 'Jornada de Menores 9 · Leganés',
-    source: 'FAM',
-    verified: true,
+    "id": "fam-2024-12-14-carlos-cazallas-60m",
+    "athleteName": "CARLOS CAZALLAS NAVARRO",
+    "sex": "male",
+    "category": "U14M",
+    "season": "2024",
+    "event": "60m",
+    "performance": "9.02",
+    "value": 9.02,
+    "unit": "s",
+    "resultDate": "2024-12-14",
+    "competition": "Jornada de Menores 9 · Leganés",
+    "source": "FAM",
+    "verified": true
+  },
+  {
+    "id": "fam-2024-12-14-lara-morales-altura",
+    "athleteName": "LARA MARTINA MORALES GOMEZ",
+    "sex": "female",
+    "category": "U14F",
+    "season": "2024",
+    "event": "Altura",
+    "performance": "1.28",
+    "value": 1.28,
+    "unit": "m",
+    "resultDate": "2024-12-14",
+    "competition": "Jornada de Menores 9 · Leganés",
+    "source": "FAM",
+    "verified": true
   }
-
 ];
