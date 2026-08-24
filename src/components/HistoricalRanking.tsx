@@ -37,6 +37,10 @@ function sexFrom(...values: Array<string | null | undefined>): "M" | "F" | null 
 function disciplineLabel(value: string) {
   const cleaned = value
     .replace(/\s+(?:FEM\.?|FEMENINO|FEMENINA|MASC\.?|MASCULINO)\s*/gi, " ")
+    // Las actas FAM añaden a menudo la categoría al final del nombre de la
+    // prueba ("60m Sub 12", "Longitud Sub 12 B"). No es otra prueba: la
+    // categoría ya viaja en su propia columna y debe compartir ranking.
+    .replace(/\s+(?:SUB\s*\d{1,2}|U\s*\d{1,2})(?:\s+[A-Z])?\s*$/i, " ")
     .replace(/\s{2,}/g, " ")
     .trim();
   const compact = cleaned
@@ -46,7 +50,13 @@ function disciplineLabel(value: string) {
   const metres = compact.match(/^(\d+)M(?:ST)?$/);
   if (metres) return `${Number(metres[1]).toLocaleString("es-ES")} m`;
   if (compact === "LONG" || /^LONGITUD/.test(compact)) return "Longitud";
+  // El peso mantiene el implemento cuando existe: no es comparable un peso
+  // de 2 kg con uno de 4 kg, pero sí las distintas actas del mismo peso.
+  const shot = cleaned.match(/^(?:PESO|SHOT)\s*\((\d+(?:[.,]\d+)?)\s*KG\)$/i);
+  if (shot) return `Peso (${shot[1].replace(",", ".")} kg)`;
   if (compact === "SHOT" || /^PESO/.test(compact)) return "Peso";
+  const javelin = cleaned.match(/^(?:JABALINA|JAVELIN)\s*\((\d+)\s*G\)$/i);
+  if (javelin) return `Jabalina (${javelin[1]} g)`;
   if (compact === "JAVELIN" || /^JABALINA/.test(compact)) return "Jabalina";
   return cleaned;
 }
