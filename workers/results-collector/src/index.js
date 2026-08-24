@@ -66,9 +66,6 @@ async function scanFamMonth(env, date) {
 async function runCollector(env) {
   if (!env.SUPABASE_URL) throw new Error("Falta SUPABASE_URL.");
   if (!serviceRoleKey(env)) throw new Error("Falta la clave de servicio de Supabase.");
-  const settings = await supabase(env, "federation_import_settings?id=eq.true&select=id");
-  if (!settings?.[0]) throw new Error("No existe la configuración de importación federativa.");
-
   const current = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1));
   const months = monthsForBackfill(current);
   const summary = [];
@@ -80,15 +77,8 @@ async function runCollector(env) {
     summary.push(...batch);
   }
   const errors = summary.filter(item => item.error).map(item => item.month + ": " + item.error).join(" | ");
-  await supabase(env, "federation_import_settings?id=eq.true", {
-    method: "PATCH", headers: { Prefer: "return=minimal" },
-    body: JSON.stringify({
-      fam_last_scan_at: new Date().toISOString(),
-      import_job_last_error: errors || null
-    })
-  });
-  console.log(JSON.stringify({ event: "fam_calendar_scan", scope: "2024-2026", summary }));
-  return { scope: "2024-2026", summary };
+  console.log(JSON.stringify({ event: "fam_calendar_scan", scope: "2024-2026", summary, errors: errors || null }));
+  return { scope: "2024-2026", summary, errors: errors || null };
 }
 export default {
   async fetch(request, env) {
