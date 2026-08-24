@@ -34,19 +34,13 @@ function addMonths(month, count) {
   const date = new Date(Date.UTC(month.getUTCFullYear(), month.getUTCMonth() + count, 1));
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
 }
-function monthAt(value) {
-  const date = value ? new Date(value + "T00:00:00Z") : new Date();
-  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
-}
-function sameOrBefore(left, right) { return left.getTime() <= right.getTime(); }
-function stageEnd(stage, current) {
-  if (stage === "2026") return current;
-  return new Date(Date.UTC(Number(stage), 11, 1));
-}
-function nextStage(stage) {
-  if (stage === "2026") return "2025";
-  if (stage === "2025") return "2024";
-  return "complete";
+function monthsForBackfill(current) {
+  const months = [];
+  for (const year of [2024, 2025, current.getUTCFullYear()]) {
+    const lastMonth = year === current.getUTCFullYear() ? current.getUTCMonth() : 11;
+    for (let month = 0; month <= lastMonth; month += 1) months.push(new Date(Date.UTC(year, month, 1)));
+  }
+  return months;
 }
 function serviceHeaders(env) {
   return { apikey: env.SUPABASE_SERVICE_ROLE_KEY, authorization: "Bearer " + env.SUPABASE_SERVICE_ROLE_KEY, "content-type": "application/json" };
@@ -70,41 +64,31 @@ async function scanFamMonth(env, date) {
 }
 async function runCollector(env) {
   if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) throw new Error("Faltan los secretos de Supabase.");
-  const settings = await supabase(env, "federation_import_settings?id=eq.true&select=history_cursor_month,history_from,history_backfill_stage");
-  const setting = settings?.[0];
-  if (!setting) throw new Error("No existe la configuración de importación federativa.");
-  const now = new Date(), current = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-  const stage = setting.history_backfill_stage || "2026";
-  const collectingHistory = stage !== "complete";
-  const end = collectingHistory ? stageEnd(stage, current) : current;
-  const cursor = collectingHistory ? monthAt(setting.history_cursor_month || (stage + "-01-01")) : current;
-  // Para 2026 se recogen seis meses por ejecución; el histórico posterior, dos.
-  const batchSize = stage === "2026" ? 6 : 2;
-  const months = collectingHistory
-    ? Array.from({ length: batchSize }, (_, index) => addMonths(cursor, index)).filter(month => sameOrBefore(month, end))
-    : [current, addMonths(current, -1)];
+  const settings = await supabase(env, "federation_import_settings?id=eq.true&select=id");
+  if (!settings?.[0]) throw new Error("No existe la configuración de importación federativa.");
+
+  // Desde la primera ejecución recorre 2024, 2025 y la temporada actual.
+  // Se limita a cuatro consultas simultáneas para respetar la web de la FAM.
+  const current = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1));
+  const months = monthsForBackfill(current);
   const summary = [];
-  for (const month of months) {
-    try { summary.push(await scanFamMonth(env, month)); }
-    catch (error) { summary.push({ month: month.toISOString().slice(0, 7), error: error instanceof Error ? error.message : "Error desconocido" }); }
-  }
-  let nextCursor = setting.history_cursor_month;
-  let nextBackfillStage = stage;
-  if (collectingHistory && months.length) {
-    const candidate = addMonths(months[months.length - 1], 1);
-    if (sameOrBefore(candidate, end)) nextCursor = candidate.toISOString().slice(0, 10);
-    else {
-      nextBackfillStage = nextStage(stage);
-      nextCursor = nextBackfillStage === "complete" ? null : nextBackfillStage + "-01-01";
-    }
+  for (let index = 0; index < months.length; index += 4) {
+    const batch = await Promise.all(months.slice(index, index + 4).map(async month => {
+      try { return await scanFamMonth(env, month); }
+      catch (error) { return { month: month.toISOString().slice(0, 7), error: error instanceof Error ? error.message : "Error desconocido" }; }
+    }));
+    summary.push(...batch);
   }
   const errors = summary.filter(item => item.error).map(item => item.month + ": " + item.error).join(" | ");
   await supabase(env, "federation_import_settings?id=eq.true", {
     method: "PATCH", headers: { Prefer: "return=minimal" },
-    body: JSON.stringify({ history_cursor_month: nextCursor, history_backfill_stage: nextBackfillStage, fam_last_scan_at: new Date().toISOString(), import_job_last_error: errors || null })
+    body: JSON.stringify({
+      fam_last_scan_at: new Date().toISOString(),
+      import_job_last_error: errors || null
+    })
   });
-  console.log(JSON.stringify({ event: "fam_calendar_scan", stage, summary, nextCursor, nextBackfillStage }));
-  return { stage, summary, nextCursor, nextBackfillStage };
+  console.log(JSON.stringify({ event: "fam_calendar_scan", scope: "2024-2026", summary }));
+  return { scope: "2024-2026", summary };
 }
 export default {
   async fetch(request) {
