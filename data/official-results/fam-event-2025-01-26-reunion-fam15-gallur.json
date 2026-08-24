@@ -1,0 +1,50 @@
+{
+  "source": {
+    "federation": "FAM",
+    "name": "Reunión FAM 15 Gallur",
+    "competition_date": "2025-01-26",
+    "venue": "Centro Deportivo Municipal Gallur, Madrid",
+    "url": "https://www.atletismomadrid.com/images/stories/ficheros/eventos/2025.01.26_REUNION_FAM_15_GALLUR.pdf",
+    "verified": true
+  },
+  "stats": {
+    "source_rows": 2,
+    "importable_individual_results": 2,
+    "relays_excluded": 0,
+    "parser_skipped": 0
+  },
+  "rows": [
+    {
+      "external_row_id": "fam-2025-01-26-gallur15-cristina-del-pozo-60m-sf12",
+      "athlete_name": "Cristina Del Pozo Poza",
+      "federation_license": "M22721",
+      "club_name": "Atletismo URJC Fuenlabrada",
+      "event_name": "60 m",
+      "event_code": "60M",
+      "category_label": "Absoluta femenina",
+      "competition_date": "2025-01-26",
+      "venue": "Centro Deportivo Municipal Gallur, Madrid",
+      "result_text": "8.99",
+      "result_value": 8.99,
+      "result_unit": "s",
+      "position": 5,
+      "birth_date": "2006-07-07"
+    },
+    {
+      "external_row_id": "fam-2025-01-26-gallur15-alba-marquez-60m-sf13",
+      "athlete_name": "Alba Marquez Martinez",
+      "federation_license": "M27042",
+      "club_name": "Atletismo URJC Fuenlabrada",
+      "event_name": "60 m",
+      "event_code": "60M",
+      "category_label": "Absoluta femenina",
+      "competition_date": "2025-01-26",
+      "venue": "Centro Deportivo Municipal Gallur, Madrid",
+      "result_text": "9.11",
+      "result_value": 9.11,
+      "result_unit": "s",
+      "position": 5,
+      "birth_date": "2006-10-04"
+    }
+  ]
+}
