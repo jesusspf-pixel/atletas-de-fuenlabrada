@@ -1,5 +1,5 @@
-const CACHE="atletas-fuenla-v5";
-const APP_SHELL=["/manifest.webmanifest","/favicon.svg"];
+const CACHE="atletas-fuenla-v6";
+const APP_SHELL=["/manifest.webmanifest","/favicon.svg","/app-icon-192.png","/app-icon-512.png","/apple-touch-icon.png"];
 
 self.addEventListener("install",event=>{
   self.skipWaiting();
