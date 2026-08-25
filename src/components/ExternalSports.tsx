@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../lib/supabase";
 import ClubChallenge from "./ClubChallenge";
 
@@ -15,6 +15,7 @@ export default function ExternalSports({ athleteId }: { athleteId: string }) {
   const [canConnect, setCanConnect] = useState(false);
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  const autoSyncAttempted = useRef(false);
 
   const load = async () => {
     const client = supabase; if (!client) return;
@@ -59,6 +60,14 @@ export default function ExternalSports({ athleteId }: { athleteId: string }) {
     if (!response.ok) return setNotice(result.error || "No se pudo sincronizar Strava.");
     setNotice(`${result.synced ?? 0} actividades revisadas desde Strava.`); void load();
   };
+
+  useEffect(() => {
+    if (!canConnect || integration?.status !== "connected" || autoSyncAttempted.current) return;
+    const stale = !integration.last_synced_at || Date.now() - new Date(integration.last_synced_at).getTime() > 30 * 60 * 1000;
+    if (!stale) return;
+    autoSyncAttempted.current = true;
+    void sync();
+  }, [canConnect, integration?.id, integration?.status, integration?.last_synced_at]);
 
   const disconnect = async () => {
     if (!window.confirm("¿Desconectar Strava de esta ficha deportiva? Las actividades ya importadas se conservarán como histórico.")) return;

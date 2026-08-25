@@ -1,57 +1,26 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
 
-type ChallengeRow = {
-  athlete_id: string;
-  first_name: string;
-  last_name: string;
-  group_name: string | null;
-  activities: number;
-  distance_m: number;
-  moving_time_s: number;
-  elevation_gain_m: number;
-  pace_seconds_per_km: number | null;
-};
+type ChallengeRow = { athlete_id:string; first_name:string; last_name:string; group_name:string|null; avatar_url?:string|null; activities:number; distance_m:number; moving_time_s:number; elevation_gain_m:number; pace_seconds_per_km?:number|null; active_days?:number; longest_streak_days?:number };
+const distancePins=[50,100,200,300,400,500,750,1000];
+const km=(row?:ChallengeRow)=>Number(row?.distance_m||0)/1000;
+const pace=(seconds?:number|null)=>!seconds||!Number.isFinite(seconds)?"—":`${Math.floor(seconds/60)}:${String(Math.round(seconds%60)).padStart(2,"0")}/km`;
+const initials=(row:ChallengeRow)=>`${row.first_name[0]||""}${row.last_name[0]||""}`.toUpperCase();
 
-type Achievement = { id: string; athlete_id: string; title: string; description: string | null; earned_at: string };
-
-const pace = (seconds: number | null) => {
-  if (!seconds || !Number.isFinite(seconds)) return "—";
-  const m = Math.floor(seconds / 60);
-  const s = Math.round(seconds % 60);
-  return `${m}:${String(s).padStart(2, "0")}/km`;
-};
-
-export default function ClubChallenge({ athleteId }: { athleteId?: string }) {
-  const [rows, setRows] = useState<ChallengeRow[]>([]);
-  const [achievements, setAchievements] = useState<Achievement[]>([]);
-  const [filter, setFilter] = useState<"club" | "group">("club");
-  const [groupName, setGroupName] = useState<string | null>(null);
-
-  useEffect(() => {
-    const client = supabase; if (!client) return;
-    void Promise.all([
-      client.from("club_challenge_weekly").select("*").order("distance_m", { ascending: false }),
-      athleteId ? client.from("athlete_achievements").select("id,athlete_id,title,description,earned_at").eq("athlete_id", athleteId).order("earned_at", { ascending: false }).limit(12) : Promise.resolve({ data: [] }),
-      athleteId ? client.from("athletes").select("training_groups(name)").eq("id", athleteId).maybeSingle() : Promise.resolve({ data: null }),
-    ]).then(([challenge, achievementRows, athlete]) => {
-      setRows((challenge.data ?? []) as ChallengeRow[]);
-      setAchievements((achievementRows.data ?? []) as Achievement[]);
-      const relation = athlete.data as { training_groups?: { name?: string } | { name?: string }[] | null } | null;
-      const value = Array.isArray(relation?.training_groups) ? relation?.training_groups?.[0]?.name : relation?.training_groups?.name;
-      setGroupName(value ?? null);
-    });
-  }, [athleteId]);
-
-  const visible = useMemo(() => filter === "group" && groupName ? rows.filter(row => row.group_name === groupName) : rows, [rows, filter, groupName]);
-  const total = visible.reduce((sum, row) => sum + Number(row.distance_m || 0), 0) / 1000;
-
+export default function ClubChallenge({athleteId}:{athleteId?:string}){
+  const [weekly,setWeekly]=useState<ChallengeRow[]>([]); const [season,setSeason]=useState<ChallengeRow[]>([]);
+  const [filter,setFilter]=useState<"club"|"group">("club"); const [period,setPeriod]=useState<"week"|"season">("season"); const [groupName,setGroupName]=useState<string|null>(null);
+  useEffect(()=>{const client=supabase;if(!client)return;void Promise.all([
+    client.from("club_challenge_weekly").select("*").order("distance_m",{ascending:false}),
+    client.from("club_challenge_season").select("*").order("distance_m",{ascending:false}),
+    athleteId?client.from("athletes").select("training_groups(name)").eq("id",athleteId).maybeSingle():Promise.resolve({data:null}),
+  ]).then(([weekRows,seasonRows,athlete])=>{const weekData=(weekRows.data??[]) as ChallengeRow[];setWeekly(weekData);setSeason((seasonRows.data??weekData) as ChallengeRow[]);const relation=athlete.data as {training_groups?:{name?:string}|{name?:string}[]|null}|null;setGroupName((Array.isArray(relation?.training_groups)?relation.training_groups[0]?.name:relation?.training_groups?.name)??null)})},[athleteId]);
+  const source=period==="season"?season:weekly; const visible=useMemo(()=>filter==="group"&&groupName?source.filter(row=>row.group_name===groupName):source,[source,filter,groupName]);
+  const own=season.find(row=>row.athlete_id===athleteId); const ownKm=km(own); const nextPin=distancePins.find(target=>ownKm<target);
+  const runningGroups=useMemo(()=>{const totals=new Map<string,{name:string;distance:number;athletes:number}>();season.filter(row=>/running|m[aá]ster/i.test(row.group_name||"")).forEach(row=>{const name=(row.group_name||"Running").replace(/m[aá]ster/ig,"Running");const current=totals.get(name)||{name,distance:0,athletes:0};current.distance+=km(row);current.athletes+=1;totals.set(name,current)});return [...totals.values()].sort((a,b)=>b.distance-a.distance)},[season]);
   return <section className="club-challenge">
-    <article className="panel">
-      <div className="table-title"><div><h2>🏆 Club Challenge</h2><p>Clasificación semanal entre atletas que han activado voluntariamente su participación.</p></div><div className="challenge-tabs"><button className={filter === "club" ? "selected-row" : "outline"} onClick={() => setFilter("club")}>Todo el club</button>{groupName && <button className={filter === "group" ? "selected-row" : "outline"} onClick={() => setFilter("group")}>Mi grupo</button>}</div></div>
-      <div className="metric-grid"><article className="metric"><small>Kilómetros del reto</small><b>{total.toFixed(1)} km</b><small>Esta semana</small></article><article className="metric"><small>Atletas participantes</small><b>{visible.length}</b><small>Con actividad compartida</small></article><article className="metric"><small>Grupos</small><b>{new Set(visible.map(row => row.group_name).filter(Boolean)).size}</b><small>Participando</small></article></div>
-      {visible.length ? <div className="table challenge-table">{visible.slice(0, 50).map((row, index) => <div className={`row ${row.athlete_id === athleteId ? "selected-row" : ""}`} key={row.athlete_id}><span><b>{index === 0 ? "🥇" : index === 1 ? "🥈" : index === 2 ? "🥉" : `${index + 1}.`} {row.first_name} {row.last_name}</b><small>{row.group_name || "Sin grupo"}</small></span><span><b>{(Number(row.distance_m || 0) / 1000).toFixed(1)} km</b><small>{row.activities} actividad(es)</small></span><span><b>{pace(row.pace_seconds_per_km)}</b><small>+{Math.round(Number(row.elevation_gain_m || 0))} m</small></span></div>)}</div> : <p>Aún no hay actividades compartidas esta semana.</p>}
-    </article>
-    {athleteId && <article className="panel"><h2>Logros</h2>{achievements.length ? <div className="achievement-grid">{achievements.map(item => <article className="achievement" key={item.id}><b>🏅 {item.title}</b>{item.description && <p>{item.description}</p>}<small>{new Date(item.earned_at).toLocaleDateString("es-ES")}</small></article>)}</div> : <p>Aún no hay logros desbloqueados. La actividad del Club Challenge irá generándolos.</p>}</article>}
-  </section>;
+    <article className="panel team-challenge"><div className="table-title"><div><small>RETO COLECTIVO · TEMPORADA 2026/27</small><h2>🏟️ Running A contra Running B</h2><p>Primer grupo que alcance 500 km sumando las actividades de todos sus atletas.</p></div><b className="challenge-target">META · 500 KM</b></div><div className="team-progress-grid">{runningGroups.length?runningGroups.map((group,index)=><article key={group.name}><div><b>{index===0?"👟 ":""}{group.name}</b><strong>{group.distance.toFixed(1)} km</strong></div><div className="progress-track"><i style={{width:`${Math.min(100,group.distance/5)}%`}}/></div><small>{group.athletes} participante(s) · faltan {Math.max(0,500-group.distance).toFixed(1)} km</small></article>):<p>Aún no hay corredores con actividad compartida en Running A o Running B.</p>}</div></article>
+    <article className="panel"><div className="table-title"><div><h2>🏆 Clasificación Challenge</h2><p>Nombre, foto y actividad de quienes han aceptado participar.</p></div><div className="challenge-tabs"><button className={period==="season"?"selected-row":"outline"} onClick={()=>setPeriod("season")}>Temporada</button><button className={period==="week"?"selected-row":"outline"} onClick={()=>setPeriod("week")}>Semana</button><button className={filter==="club"?"selected-row":"outline"} onClick={()=>setFilter("club")}>Club</button>{groupName&&<button className={filter==="group"?"selected-row":"outline"} onClick={()=>setFilter("group")}>Mi grupo</button>}</div></div><div className="metric-grid"><article className="metric"><small>Kilómetros</small><b>{visible.reduce((sum,row)=>sum+km(row),0).toFixed(1)} km</b><small>{period==="season"?"Esta temporada":"Esta semana"}</small></article><article className="metric"><small>Atletas</small><b>{visible.length}</b><small>Participando</small></article><article className="metric"><small>Grupos</small><b>{new Set(visible.map(row=>row.group_name).filter(Boolean)).size}</b><small>En clasificación</small></article></div>{visible.length?<div className="table challenge-table">{visible.slice(0,50).map((row,index)=><div className={`row ${row.athlete_id===athleteId?"selected-row":""}`} key={row.athlete_id}><span className="challenge-person">{row.avatar_url?<img src={row.avatar_url} alt=""/>:<i>{initials(row)}</i>}<span><b>{index===0?"🥇":index===1?"🥈":index===2?"🥉":`${index+1}.`} {row.first_name} {row.last_name}</b><small>{(row.group_name||"Sin grupo").replace(/m[aá]ster/ig,"Running")}</small></span></span><span><b>{km(row).toFixed(1)} km</b><small>{row.activities} actividad(es)</small></span><span><b>{pace(row.pace_seconds_per_km)}</b><small>+{Math.round(Number(row.elevation_gain_m||0))} m</small></span></div>)}</div>:<p>Aún no hay actividades compartidas en este periodo.</p>}</article>
+    {athleteId&&<article className="panel"><div className="table-title"><div><h2>🎖️ Mis logros individuales</h2><p>Los pines se desbloquean automáticamente con los datos de Strava.</p></div>{nextPin&&<b>Próximo: {nextPin} km</b>}</div><div className="achievement-grid"><article className={`achievement ${Number(own?.longest_streak_days||0)>=4?"unlocked":"locked"}`}><b>🔥 Cuatro días seguidos</b><p>Registra actividad cuatro días consecutivos.</p><small>{Number(own?.longest_streak_days||0)>=4?"CONSEGUIDO":`Mejor racha: ${own?.longest_streak_days||0} días`}</small></article>{distancePins.map(target=><article className={`achievement ${ownKm>=target?"unlocked":"locked"}`} key={target}><b>{target===1000?"👑":"📍"} {target} km</b><p>Acumula {target} kilómetros durante la temporada.</p><small>{ownKm>=target?"CONSEGUIDO":`${Math.min(100,ownKm/target*100).toFixed(0)}% · ${ownKm.toFixed(1)} km`}</small></article>)}</div>{ownKm<50&&<p className="challenge-hint">Tu primer pin llegará al alcanzar 50 km. Cada sincronización actualiza el progreso.</p>}</article>}
+  </section>
 }
