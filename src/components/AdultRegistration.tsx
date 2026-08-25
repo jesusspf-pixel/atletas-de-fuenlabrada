@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "../lib/supabase";
 import ConsentChecklist from "./ConsentChecklist";
-import { trainingCategory as categoryFromBirthDate } from "../lib/athleticsCategories";
+import { isRunningAge, trainingCategory as categoryFromBirthDate } from "../lib/athleticsCategories";
 
 type AdultData = { first_name: string; last_name: string; dni_nie: string; phone: string; birth_date: string; federative_sex: string; training_group_id: string; license_option: "with" | "without"; nationality: string; birthplace: string; previous_license: string; previous_club: string; other_interest_info: string };
 const validSpanishId = (raw:string) => { const value=raw.toUpperCase().replace(/[\s-]/g,""); const normalized=/^[XYZ]/.test(value)?`${({X:"0",Y:"1",Z:"2"} as Record<string,string>)[value[0]]}${value.slice(1)}`:value; return /^\d{8}[A-Z]$/.test(normalized) && "TRWAGMYFPDXBNJZSQVHLCKE"[Number(normalized.slice(0,8))%23]===normalized[8]; };
@@ -22,10 +22,17 @@ export default function AdultRegistration({ email, onBack }: { email: string; on
   const [cardReady, setCardReady] = useState(() => Boolean(stored.cardReady));
   const [cardChecking, setCardChecking] = useState(() => Boolean(paymentReturned && checkoutSessionId));
   const update = (key: keyof typeof data, value: string | boolean) => setData(current => ({ ...current, [key]: value }));
-  const trainingCategory = categoryFromBirthDate(data.birth_date);
-  const isMaster = trainingCategory === "Absoluto / Máster";
-  const needsFederation = Boolean(trainingCategory && trainingCategory !== "Sub 6" && (!isMaster || data.license_option === "with"));
-  const availableGroups = groups.filter(group => group.category_label.toLowerCase().includes(trainingCategory.toLowerCase()) || (/sub 23|absoluto/.test(trainingCategory.toLowerCase()) && /m[aá]ster|master|running|absoluto/.test(`${group.name} ${group.category_label}`.toLowerCase())));
+  const coreTrainingCategory = categoryFromBirthDate(data.birth_date);
+  const runningAge = isRunningAge(data.birth_date);
+  const trainingCategory = runningAge ? "Running" : coreTrainingCategory;
+  const adultCategory = coreTrainingCategory === "Absoluto / Máster";
+  const isMaster = adultCategory;
+  const needsFederation = Boolean(coreTrainingCategory && coreTrainingCategory !== "Sub 6" && (!adultCategory || data.license_option === "with"));
+  const availableGroups = groups
+    .filter(group => runningAge
+      ? /m[aá]ster\s*[ab]|running\s*[ab]/i.test(group.name)
+      : group.category_label.toLowerCase().includes(coreTrainingCategory.toLowerCase()) || (/sub 23|absoluto/.test(coreTrainingCategory.toLowerCase()) && /m[aá]ster|master|running|absoluto/.test(`${group.name} ${group.category_label}`.toLowerCase())))
+    .map(group => runningAge ? { ...group, name: group.name.replace(/m[aá]ster/ig, "Running") } : group);
   const valid = Boolean(data.first_name.trim() && data.last_name.trim() && validSpanishId(data.dni_nie) && validPhone(data.phone) && validBirthDate(data.birth_date) && data.training_group_id && (!needsFederation || (data.nationality.trim() && data.birthplace.trim())));
   const acceptAll = Object.values(consents).every(Boolean);
   useEffect(() => { sessionStorage.setItem(storageKey, JSON.stringify({ step, data, plan, consents, cardReady })); }, [storageKey, step, data, plan, consents, cardReady]);

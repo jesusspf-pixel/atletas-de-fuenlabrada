@@ -19,6 +19,11 @@ export const trainingCategory = (birthDate: string, seasonYear = trainingSeasonY
   return categoryForBirthYear(Number(birthDate.slice(0, 4)), seasonYear);
 };
 
+export const isRunningAge = (birthDate: string, seasonYear = trainingSeasonYear()) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) return false;
+  return seasonYear - Number(birthDate.slice(0, 4)) > 28;
+};
+
 export const birthYearsFor2027: Record<string, string> = {
   "Sub-6": "2022–2023",
   "Sub-8": "2020–2021",
@@ -29,6 +34,6 @@ export const birthYearsFor2027: Record<string, string> = {
   "Sub-18": "2010–2011",
   "Sub-20": "2008–2009",
   "Sub-23": "2005–2007",
-  Absoluto: "1993–2004",
-  Máster: "1992 o anteriores",
+  Absoluto: "1999–2004",
+  Running: "Mayores de 18 años",
 };
