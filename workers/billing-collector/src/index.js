@@ -29,6 +29,15 @@ async function mark(env, id, status, payload = {}) {
   });
 }
 
+async function finalizeRegistration(env, draftId) {
+  return supabase(env, "/rest/v1/rpc/finalize_paid_registration", { method: "POST", body: JSON.stringify({ target_draft_id: draftId }) });
+}
+
+async function sendEmail(env, to, subject, html) {
+  if (!env.RESEND_API_KEY || !to) return;
+  await fetch("https://api.resend.com/emails", { method: "POST", headers: { authorization: `Bearer ${env.RESEND_API_KEY}`, "content-type": "application/json" }, body: JSON.stringify({ from: "Club Atletas de Fuenlabrada <info@atletasdefuenlabrada.com>", to: [to], subject, html }) });
+}
+
 async function collectOne(env, draft) {
   const amount = Number(draft.approved_amount_cents ?? draft.calculated_amount_cents);
   if (!Number.isInteger(amount) || amount <= 0) {
@@ -78,10 +87,21 @@ async function collectOne(env, draft) {
 
   if (payment.response.ok && payment.data?.status === "succeeded") {
     await mark(env, draft.id, "paid", { provider_reference: payment.data.id, admin_note: null });
+    if (draft.charge_kind === "enrolment") await finalizeRegistration(env, draft.id);
     return;
   }
   const error = typeof payment.data?.error?.message === "string" ? payment.data.error.message : "Stripe no ha podido completar el cobro.";
-  await mark(env, draft.id, "failed", { admin_note: error.slice(0, 500) });
+  await mark(env, draft.id, "failed", { admin_note: error.slice(0, 500), next_attempt_at: new Date(Date.now() + 86400000).toISOString() });
+  if (draft.charge_kind === "enrolment") {
+    const payer = await supabase(env, `/rest/v1/profiles?id=eq.${encodeURIComponent(draft.payer_profile_id)}&select=email`);
+    const settings = await supabase(env, "/rest/v1/club_settings?id=eq.true&select=registration_notification_email,contact_email");
+    const payerEmail = payer.data?.[0]?.email;
+    const clubEmail = settings.data?.[0]?.registration_notification_email || settings.data?.[0]?.contact_email || "info@atletasdefuenlabrada.com";
+    await Promise.all([
+      sendEmail(env, payerEmail, "No hemos podido validar tu alta", "<p>El banco ha rechazado el pago de la matrícula. Tu alta continúa pendiente.</p><p>Revisa la tarjeta o el saldo. Volveremos a intentarlo pasadas 24 horas.</p>"),
+      sendEmail(env, clubEmail, "Nuevo rechazo al reintentar una matrícula", `<p>La matrícula de ${athleteName} continúa rechazada y el alta sigue pendiente.</p>`),
+    ]);
+  }
 }
 
 async function run(env) {
