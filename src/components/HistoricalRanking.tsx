@@ -3,10 +3,11 @@ import { supabase } from "../lib/supabase";
 import { verifiedOfficialResults } from "../data/verifiedOfficialResults";
 
 type MetricType = "time" | "distance" | "weight";
+type CompetitionEnvironment = "indoor" | "outdoor" | "unknown";
 type Performance = {
   id: string; athlete_name: string; discipline: string; category: string | null; season: string | null;
   metric_type: MetricType; performance_value: number | null; performance_display: string;
-  sex: "M" | "F" | null; result_date: string | null; competition_name: string | null;
+  sex: "M" | "F" | null; result_date: string | null; competition_name: string | null; competition_environment: CompetitionEnvironment;
 };
 
 const categoryOrder = ["Absoluto", "Sub 23", "Sub 20", "Sub 18", "Sub 16", "Sub 14", "Sub 12", "Sub 10", "Sub 8", "Máster"];
@@ -136,8 +137,33 @@ function compareGeneral(left: Performance, right: Performance) {
     || (right.result_date || "").localeCompare(left.result_date || "");
 }
 
+function competitionEnvironment(value: string | null | undefined): CompetitionEnvironment {
+  const normalized = String(value || "").toLocaleUpperCase("es-ES");
+  if (/PISTA\s+CUBIERTA|\bP\.?\s*C\.?\b|\bPC\b|GALLUR/.test(normalized)) return "indoor";
+  if (/AIRE\s+LIBRE|\bA\.?\s*L\.?\b|\bAL\b/.test(normalized)) return "outdoor";
+  return "unknown";
+}
+
+function environmentLabel(value: CompetitionEnvironment) {
+  return value === "indoor" ? "Pista cubierta" : value === "outdoor" ? "Aire libre" : "Sin identificar";
+}
+
+function rankingIdentity(value: string) {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9\s]/g, " ").trim().toLocaleLowerCase("es-ES").split(/\s+/).slice(0, 2).join(" ");
+}
+
+function deduplicateRows(rows: Performance[]) {
+  const unique = new Map<string, Performance>();
+  for (const row of rows) {
+    const key = [rankingIdentity(row.athlete_name), row.discipline, row.result_date || "", row.performance_display, row.competition_environment].join("|");
+    const current = unique.get(key);
+    if (!current || row.athlete_name.length > current.athlete_name.length) unique.set(key, row);
+  }
+  return [...unique.values()];
+}
+
 function fromBundledResults(): Performance[] {
-  return verifiedOfficialResults.map(row => ({
+  return deduplicateRows(verifiedOfficialResults.map(row => ({
     id: row.id,
     athlete_name: row.athlete_name.replace(/^0\s+/, ""),
     discipline: disciplineLabel(row.event_name),
@@ -148,8 +174,9 @@ function fromBundledResults(): Performance[] {
     performance_value: numericResult(row.result_value),
     performance_display: row.result_text,
     result_date: row.competition_date,
-    competition_name: row.competition_name
-  }));
+    competition_name: row.competition_name,
+    competition_environment: competitionEnvironment(row.competition_name)
+  })));
 }
 
 export default function HistoricalRanking() {
@@ -161,6 +188,7 @@ export default function HistoricalRanking() {
   const [discipline, setDiscipline] = useState("");
   const [category, setCategory] = useState("");
   const [sex, setSex] = useState<"M" | "F" | "">("");
+  const [environment, setEnvironment] = useState<CompetitionEnvironment | "">("");
   const [season, setSeason] = useState("");
 
   useEffect(() => {
@@ -170,7 +198,7 @@ export default function HistoricalRanking() {
       if (supabase) {
         const { data } = await supabase
           .from("club_event_rankings")
-          .select("athlete_id,athlete_name,event_name,event_code,season,category_label,result_value,result_text,result_unit,competition_name,competition_date,ranking_position")
+          .select("athlete_id,athlete_name,event_name,event_code,season,category_label,result_value,result_text,result_unit,competition_name,competition_date,competition_environment,ranking_position")
           .lte("ranking_position", 20);
         for (const row of (data || []) as Array<Record<string, unknown>>) {
           imported.push({
@@ -184,29 +212,26 @@ export default function HistoricalRanking() {
             performance_value: numericResult(row.result_value),
             performance_display: String(row.result_text || "Resultado"),
             result_date: row.competition_date ? String(row.competition_date) : null,
-            competition_name: row.competition_name ? String(row.competition_name) : null
+            competition_name: row.competition_name ? String(row.competition_name) : null,
+            competition_environment: (row.competition_environment === "indoor" || row.competition_environment === "outdoor") ? row.competition_environment : competitionEnvironment(row.competition_name ? String(row.competition_name) : null)
           });
         }
       }
       if (alive && imported.length) {
-        const merged = new Map<string, Performance>();
-        for (const row of [...bundledRows, ...imported]) {
-          merged.set(`${row.athlete_name}|${row.discipline}|${row.category || ""}|${row.sex || ""}|${row.season || ""}|${row.performance_display}`, row);
-        }
-        setRows([...merged.values()]);
+        setRows(deduplicateRows([...bundledRows, ...imported]));
       }
     })();
     return () => { alive = false; };
   }, [bundledRows]);
 
   const disciplines = useMemo(() => [...new Set(rows
-    .filter(row => (!category || row.category === category) && (!sex || row.sex === sex))
+    .filter(row => (!category || row.category === category) && (!sex || row.sex === sex) && (!environment || row.competition_environment === environment))
     .map(row => row.discipline))]
-    .sort((a, b) => eventOrder(a) - eventOrder(b) || a.localeCompare(b, "es")), [rows, category, sex]);
+    .sort((a, b) => eventOrder(a) - eventOrder(b) || a.localeCompare(b, "es")), [rows, category, sex, environment]);
   const categories = useMemo(() => [...new Set([...categoryOrder, ...(rows.map(row => row.category).filter(Boolean) as string[])])], [rows]);
   const seasons = useMemo(() => [...new Set(["2026", "2025", "2024", ...(rows.map(row => row.season).filter(Boolean) as string[])])].sort().reverse(), [rows]);
 
-  const matchingRows = useMemo(() => rows.filter(row => (!discipline || row.discipline === discipline) && (!category || row.category === category) && (!sex || row.sex === sex) && (!season || row.season === season)), [rows, discipline, category, sex, season]);
+  const matchingRows = useMemo(() => rows.filter(row => (!discipline || row.discipline === discipline) && (!category || row.category === category) && (!sex || row.sex === sex) && (!environment || row.competition_environment === environment) && (!season || row.season === season)), [rows, discipline, category, sex, environment, season]);
   const coverage = useMemo(() => ["2024", "2025", "2026"].map(year => `${year}: ${rows.filter(row => row.season === year).length}`).join(" · "), [rows]);
 
   const displayedRows = useMemo(() => {
@@ -217,7 +242,7 @@ export default function HistoricalRanking() {
     // Con una prueba sí se convierte en ranking: mejor marca por atleta y Top 20.
     const bestByAthlete = new Map<string, Performance>();
     for (const row of matchingRows) {
-      const key = row.athlete_name + "|" + row.discipline;
+      const key = rankingIdentity(row.athlete_name) + "|" + row.discipline + "|" + row.competition_environment;
       const current = bestByAthlete.get(key);
       if (!current || isBetter(row, current)) bestByAthlete.set(key, row);
     }
@@ -232,11 +257,12 @@ export default function HistoricalRanking() {
     <article className="panel inline-form">
       <label>Categoría<select value={category} onChange={event => { const next = event.target.value; setCategory(next); const valid = rows.filter(row => (!next || row.category === next) && (!sex || row.sex === sex)).map(row => row.discipline); if (discipline && !valid.includes(discipline)) setDiscipline(valid.sort((a, b) => eventOrder(a) - eventOrder(b))[0] || ""); }}><option value="">Todas las categorías</option>{categories.map(value => <option value={value} key={value}>{value}</option>)}</select></label>
       <label>Sexo<select value={sex} onChange={event => { const next = event.target.value as "M" | "F" | ""; setSex(next); const valid = rows.filter(row => (!category || row.category === category) && (!next || row.sex === next)).map(row => row.discipline); if (discipline && !valid.includes(discipline)) setDiscipline(valid.sort((a, b) => eventOrder(a) - eventOrder(b))[0] || ""); }}><option value="">Masculino y femenino</option><option value="M">Masculino</option><option value="F">Femenino</option></select></label>
+      <label>Superficie<select value={environment} onChange={event => { setEnvironment(event.target.value as CompetitionEnvironment | ""); setDiscipline(""); }}><option value="">Pista cubierta y aire libre</option><option value="indoor">Pista cubierta</option><option value="outdoor">Aire libre</option><option value="unknown">Sin identificar</option></select></label>
       <label>Prueba<select value={discipline} onChange={event => setDiscipline(event.target.value)}><option value="">Todas las pruebas</option>{disciplines.map(value => <option value={value} key={value}>{value}</option>)}</select></label>
       <label>Temporada<select value={season} onChange={event => setSeason(event.target.value)}><option value="">Todas las temporadas</option>{seasons.map(value => <option value={value} key={value}>{value}</option>)}</select></label>
     </article>
     <article className="panel table historical-top">{displayedRows.map((row, index) => <div className={"row historical-rank " + (discipline && index < 8 ? "top-eight" : "")} key={row.id}>
-      <span><b>{discipline ? `${index < 8 ? "★ " : "#"}${index + 1} · ` : ""}{row.athlete_name}</b><small>{row.discipline} · {row.category || "Categoría sin indicar"} · {row.sex === "M" ? "Masculino" : row.sex === "F" ? "Femenino" : "Sexo sin indicar"} · {row.season || "Temporada"}</small></span>
+      <span><b>{discipline ? `${index < 8 ? "★ " : "#"}${index + 1} · ` : ""}{row.athlete_name}</b><small>{row.discipline} · {row.category || "Categoría sin indicar"} · {row.sex === "M" ? "Masculino" : row.sex === "F" ? "Femenino" : "Sexo sin indicar"} · {row.season || "Temporada"} · {environmentLabel(row.competition_environment)}</small></span>
       <span><b>{row.performance_display}</b><small>{discipline ? (index < 8 ? "TOP 8 HISTÓRICO" : "Top 20 histórico") : "Resultado oficial"}</small></span>
       <span>{row.competition_name || "Resultado oficial"}<small>{row.result_date ? new Date(row.result_date + "T00:00:00").toLocaleDateString("es-ES") : ""}</small></span>
     </div>)}{!displayedRows.length && <div className="empty">Aún no hay resultados oficiales verificados para este filtro.</div>}</article>
