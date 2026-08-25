@@ -1,7 +1,7 @@
 (() => {
   const FRIENDLY = [
     [/email rate limit exceeded/i, ["Se ha alcanzado temporalmente el límite de correos. Espera un minuto y vuelve a intentarlo.", true]],
-    [/error sending confirmation email/i, ["No hemos podido enviarte el correo de confirmación. Puedes solicitar uno nuevo.", true]],
+    [/error sending confirmation email/i, ["No se ha creado la cuenta porque falló el servidor de correo. Pulsa Crear cuenta para intentarlo de nuevo.", false]],
     [/user already registered|already been registered|already registered/i, ["Este correo ya tiene una cuenta. Entra con tu contraseña.", false]],
     [/email not confirmed|email_not_confirmed/i, ["Tu cuenta existe, pero falta confirmar el correo electrónico.", true]],
     [/invalid login credentials/i, ["El correo o la contraseña no son correctos.", false]],
