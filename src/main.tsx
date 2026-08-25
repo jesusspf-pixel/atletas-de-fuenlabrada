@@ -11,6 +11,7 @@ import "./styles.css";
 import "./access.css";
 import "./components/family-registration.css";
 import "./components/sports-center.css";
+// El acceso de ranking abre siempre la vista de resultados del área deportiva.
 
 type Role = "owner" | "admin" | "coach" | "parent" | "adult_athlete" | "minor_athlete";
 
