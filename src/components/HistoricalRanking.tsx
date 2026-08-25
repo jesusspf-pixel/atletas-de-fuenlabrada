@@ -286,7 +286,7 @@ export default function HistoricalRanking() {
   }, [matchingRows, discipline]);
 
   return <section>
-    <div className="page-head"><div><h1>Ranking histórico del club</h1><p>{discipline ? "Top 20 por prueba, categoría y temporada; cada atleta figura con su mejor marca oficial verificada." : "Todos los resultados oficiales encontrados, ordenados por prueba y por marca. Elige una prueba para ver su Top 20 histórico."}</p></div></div>
+    <div className="page-head"><div><h1>Ranking del club</h1><p>{discipline ? "Top 20 por prueba, categoría y temporada; cada atleta figura con su mejor marca oficial verificada." : "Todos los resultados oficiales encontrados, ordenados por prueba y por marca. Elige una prueba para ver su Top 20 histórico."}</p></div></div>
     <p className="muted">Resultados disponibles por temporada: {coverage}. La consulta general conserva todos los resultados; al elegir una prueba se aplica su Top 20.</p>
     <article className="panel inline-form">
       <label>Categoría<select value={category} onChange={event => { const next = event.target.value; setCategory(next); const valid = rows.filter(row => (!next || row.category === next) && (!sex || row.sex === sex)).map(row => row.discipline); if (discipline && !valid.includes(discipline)) setDiscipline(valid.sort((a, b) => eventOrder(a) - eventOrder(b))[0] || ""); }}><option value="">Todas las categorías</option>{categories.map(value => <option value={value} key={value}>{value}</option>)}</select></label>
