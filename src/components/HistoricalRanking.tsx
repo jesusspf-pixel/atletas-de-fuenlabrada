@@ -140,8 +140,9 @@ function compareGeneral(left: Performance, right: Performance) {
 function competitionEnvironment(value: string | null | undefined): CompetitionEnvironment {
   const normalized = String(value || "").toLocaleUpperCase("es-ES");
   if (/PISTA\s+CUBIERTA|\bP\.?\s*C\.?\b|\bPC\b|GALLUR/.test(normalized)) return "indoor";
-  if (/AIRE\s+LIBRE|\bA\.?\s*L\.?\b|\bAL\b/.test(normalized)) return "outdoor";
-  return "unknown";
+  // En el histórico FAM, si no figura PC ni una sede cubierta como Gallur,
+  // se trata como aire libre: muchas actas antiguas no escriben literalmente “AL”.
+  return "outdoor";
 }
 
 function environmentLabel(value: CompetitionEnvironment) {
