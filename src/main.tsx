@@ -154,7 +154,7 @@ function Root() {
         const button = document.createElement("button");
         button.type = "button";
         button.dataset.sportsNav = "true";
-        button.textContent = role === "parent" ? "Marcas" : "Marcas y rankings";
+        button.textContent = role === "parent" ? "Marcas" : "Atletas y marcas";
         button.addEventListener("click", () => window.location.assign("/deportivo"));
         nav.appendChild(button);
       }
