@@ -64,10 +64,14 @@ export default function MemberExperience({ profileId }: { profileId: string }) {
       if (!mine.length) { setLedger([]); setEntries([]); setPlans([]); setDocuments([]); setProfileSettings(null); setLoading(false); return; }
       const ids = mine.map(a => a.id);
       const groupIds = [...new Set(mine.map(a => a.training_group_id).filter((id): id is string => Boolean(id)))];
+      const weekStart = mondayKey();
+      const weekEndDate = new Date(`${weekStart}T12:00:00`);
+      weekEndDate.setDate(weekEndDate.getDate() + 6);
+      const weekEnd = weekEndDate.toISOString().slice(0, 10);
       const [{ data: ledgerData }, { data: entryData }, planResult, documentResult, settingsResult] = await Promise.all([
         supabase.from("billing_charge_drafts").select("id,charge_kind,approved_amount_cents,calculated_amount_cents,status,scheduled_for").in("athlete_id", ids).order("scheduled_for", { ascending: true }),
         supabase.from("competition_entries").select("athlete_id,status,competition_events(title,starts_at,venue)").in("athlete_id", ids).order("created_at", { ascending: false }),
-        groupIds.length ? supabase.from("training_plans").select("id,title,body,week_starts_on,training_group_id,published_at").in("training_group_id", groupIds).eq("week_starts_on", mondayKey()).order("published_at", { ascending: false }) : Promise.resolve({ data: [] }),
+        groupIds.length ? supabase.from("training_plans").select("id,title,body,week_starts_on,training_group_id,published_at").in("training_group_id", groupIds).gte("week_starts_on", weekStart).lte("week_starts_on", weekEnd).order("published_at", { ascending: false }) : Promise.resolve({ data: [] }),
         groupIds.length ? supabase.from("club_documents").select("id,title,storage_path,training_group_id,created_at").eq("document_type", "training_plan").in("training_group_id", groupIds).order("created_at", { ascending: false }) : Promise.resolve({ data: [] }),
         supabase.from("athlete_profile_settings").select("athlete_id,avatar_url,cover_url,bio,challenge_opt_in,show_activity_to_club").eq("athlete_id", mine[0].id).maybeSingle(),
       ]);
