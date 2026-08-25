@@ -229,7 +229,7 @@ function Invitations() {
   const [kind, setKind] = useState<"staff" | "renewal" | "demo">("staff");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<"admin" | "coach">("coach");
-  const [group, setGroup] = useState("");
+  const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
   const [link, setLink] = useState("");
   const [error, setError] = useState("");
 
@@ -251,7 +251,7 @@ function Invitations() {
       setLink(window.location.origin + "/?invitation=" + (data as { token: string }).token);
       setEmail(""); void staffLinks.reload(); return;
     }
-    const { data, error: rpcError } = await supabase.rpc("create_staff_invitation", { target_email: email, target_role: role, target_group_id: role === "coach" && group ? group : null });
+    const { data, error: rpcError } = await supabase.rpc("create_staff_invitation_multi", { target_email: email, target_role: role, target_group_ids: role === "coach" ? selectedGroups : [] });
     if (rpcError) return setError(rpcError.message);
     setLink(window.location.origin + "/?invitation=" + (data as { token: string }).token);
     setEmail(""); void staffLinks.reload();
@@ -261,7 +261,7 @@ function Invitations() {
     <form className="panel invite-form" onSubmit={submit}>
       <label>Tipo de invitación<select value={kind} onChange={e => setKind(e.target.value as "staff" | "renewal" | "demo")}><option value="demo">Atleta de demostración · sin Stripe</option><option value="renewal">Familia renovada · revisar matrícula</option><option value="staff">Entrenador o administrador</option></select></label>
       <label>{kind === "demo" ? "Correo de destino (opcional)" : "Correo de destino"}<input type="email" required={kind !== "demo"} value={email} onChange={e => setEmail(e.target.value)} placeholder={kind === "demo" ? "Déjalo vacío para crear un enlace abierto" : ""} /></label>
-      {kind === "staff" && <><label>Rol<select value={role} onChange={e => setRole(e.target.value as "admin" | "coach")}><option value="coach">Entrenador</option><option value="admin">Administrador</option></select></label>{role === "coach" && <label>Grupo<select value={group} onChange={e => setGroup(e.target.value)}><option value="">Asignar más tarde</option>{groups.rows.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}</select></label>}</>}
+      {kind === "staff" && <><label>Rol<select value={role} onChange={e => setRole(e.target.value as "admin" | "coach")}><option value="coach">Entrenador</option><option value="admin">Administrador</option></select></label>{role === "coach" && <fieldset className="coach-picker invite-group-picker"><legend>Grupos autorizados</legend><label><input type="checkbox" checked={selectedGroups.length === groups.rows.length && groups.rows.length > 0} onChange={e => setSelectedGroups(e.target.checked ? groups.rows.map(g => g.id) : [])} />Todos los grupos</label>{groups.rows.map(g => <label key={g.id}><input type="checkbox" checked={selectedGroups.includes(g.id)} onChange={e => setSelectedGroups(e.target.checked ? [...selectedGroups, g.id] : selectedGroups.filter(id => id !== g.id))} />{g.name}<small>{g.category_label}</small></label>)}{!selectedGroups.length && <small>Sin grupos seleccionados: podrás asignarlos más tarde.</small>}</fieldset>}</>}
       {kind === "renewal" && <p className="muted">El enlace será personal para este correo. La familia añadirá tarjeta y elegirá cuota. En la validación decidirás la matrícula de cada atleta: exenta, abonada o con importe ajustado.</p>}
       {kind === "demo" && <p className="muted">Si dejas el correo vacío, obtendrás un enlace abierto para enviarlo a cualquier persona. Será de un solo uso, abrirá el panel completo de atleta con cuotas ficticias y Stripe estará desactivado.</p>}
       <button>{kind === "renewal" ? "Crear enlace de renovación" : kind === "demo" ? "Crear acceso de demostración" : "Crear enlace personal"}</button>
