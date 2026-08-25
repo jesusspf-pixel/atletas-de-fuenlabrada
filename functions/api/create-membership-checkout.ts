@@ -66,8 +66,9 @@ export async function onRequestPost(context: any) {
     if (!enrolmentFee) return json({ error: "Antes de cobrar hay que asignar la categoría del atleta para calcular correctamente la matrícula." }, 409);
   }
 
-  const profileResponse = await fetch(`${env.SUPABASE_URL}/rest/v1/profiles?id=eq.${encodeURIComponent(user.id)}&select=id,email,full_name`, { headers: serviceHeaders });
+  const profileResponse = await fetch(`${env.SUPABASE_URL}/rest/v1/profiles?id=eq.${encodeURIComponent(user.id)}&select=id,email,full_name,is_demo`, { headers: serviceHeaders });
   const [profile] = await profileResponse.json().catch(() => []) as any[];
+  if (profile?.is_demo) return json({ error: "Los accesos de demostración no pueden generar cobros en Stripe." }, 403);
   const customerResponse = await fetch(`${env.SUPABASE_URL}/rest/v1/stripe_customers?profile_id=eq.${encodeURIComponent(user.id)}&select=stripe_customer_id`, { headers: serviceHeaders });
   const [savedCustomer] = await customerResponse.json().catch(() => []) as any[];
   let customerId = savedCustomer?.stripe_customer_id as string | undefined;

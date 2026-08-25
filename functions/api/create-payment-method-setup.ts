@@ -67,6 +67,12 @@ export async function onRequestPost(context: any) {
     const user = await auth.json().catch(() => null) as { id?: string; email?: string } | null;
     if (!auth.ok || !user?.id) return json({ error: "Tu sesión ha caducado. Vuelve a entrar antes de añadir la tarjeta." }, 401);
 
+    const profileResponse = await fetch(`${supabaseUrl}/rest/v1/profiles?id=eq.${encodeURIComponent(user.id)}&select=is_demo`, {
+      headers: { apikey: apiKey, authorization },
+    });
+    const [profile] = await profileResponse.json().catch(() => []) as Array<{ is_demo?: boolean }>;
+    if (profile?.is_demo) return json({ error: "Los accesos de demostración no pueden abrir Stripe ni guardar tarjetas." }, 403);
+
     // La tarjeta debe quedar siempre en el mismo cliente Stripe del pagador.
     // Antes se creaba un cliente nuevo en cada intento, y el cobro podía buscar
     // precisamente uno antiguo que no tenía tarjeta asociada.

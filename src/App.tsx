@@ -14,7 +14,7 @@ import { ensureSupabase, supabase, supabasePublishableKey } from "./lib/supabase
 import "./club-app.css";
 
 type Role = "owner" | "admin" | "coach" | "parent" | "adult_athlete" | "minor_athlete";
-type Profile = { id: string; email: string; full_name: string | null; phone?: string | null; role: Role };
+type Profile = { id: string; email: string; full_name: string | null; phone?: string | null; role: Role; is_demo?: boolean };
 type Group = { id: string; name: string; category_label: string; colour: string; active: boolean; schedule_days?: string | null; starts_at?: string | null; ends_at?: string | null; season?: string | null };
 type Athlete = { id: string; first_name: string; last_name: string; club_status: string; license_status: string; license_number: string | null; training_group_id: string | null; family_id: string | null; user_profile_id: string | null; training_groups?: Group | null };
 type Family = { relationship_to_athlete: string; dni_nie: string | null; address_line: string | null; postal_code: string | null; locality: string | null; province: string | null; emergency_phone: string | null; profiles?: Profile | null };
@@ -52,7 +52,7 @@ const roleName: Record<Role, string> = { owner: "Propietario", admin: "Administr
             const { error } = await client.rpc("bootstrap_owner");
             if (!error) ({ data } = await client.from("profiles").select("*").eq("id", next.user.id).maybeSingle());
           }
-          if (!data) {
+          if (!data && !new URLSearchParams(window.location.search).has("invitation")) {
             const { error } = await client.rpc("activate_pending_staff_access");
             if (!error) ({ data } = await client.from("profiles").select("*").eq("id", next.user.id).maybeSingle());
           }
@@ -138,7 +138,7 @@ function Portal({ profile, signOut }: { profile: Profile; signOut: () => void })
   const notices = useRows<{ id: string; created_by: string }>("announcements", "id,created_by"); const deliveries = useRows<{ announcement_id: string; recipient_profile_id: string }>("announcement_deliveries", "announcement_id,recipient_profile_id"); const reads = useRows<{ announcement_id: string; profile_id: string }>("announcement_reads", "announcement_id,profile_id"); const mine = new Set(deliveries.rows.filter(item => item.recipient_profile_id === profile.id).map(item => item.announcement_id)); const inbox = notices.rows.filter(item => item.created_by !== profile.id && mine.has(item.id)).map(item => item.id); const unread = inbox.filter(id => !reads.rows.some(read => read.announcement_id === id && read.profile_id === profile.id)).length;
   useEffect(() => { const timer = window.setInterval(() => { void notices.reload(); void deliveries.reload(); void reads.reload(); }, 15000); return () => window.clearInterval(timer); }, []);
   const openAthlete = (id: string) => { setFocusedAthleteId(id); setSection("Mis atletas"); };
-  return <main className="club-shell"><aside className="club-side"><Brand /><small className="side-role">{roleName[profile.role]}</small><nav>{menu.map(item => <button className={section === item ? "selected" : ""} key={item} onClick={() => setSection(item)}>{item}{item === "Avisos" && unread > 0 && <b className="notice-count">{unread > 99 ? "99+" : unread}</b>}</button>)}</nav><div className="side-user"><b>{profile.full_name || profile.email}</b><small>{roleName[profile.role]}</small><a className="button-link outline" href="/club">← Web del club</a><button className="plain" onClick={signOut}>Cerrar sesión</button></div></aside><section className="club-content"><header className="topbar"><span>Club Atletas de Fuenlabrada</span><PwaInstall /></header>{section === "Challenge" && challengeAthleteId ? <><Header title="Club Challenge" text="Tu reto semanal, logros y clasificación dentro del club." /><ClubChallenge athleteId={challengeAthleteId} /></> : ["owner", "admin"].includes(profile.role) ? <Admin section={section} profile={profile} go={setSection} /> : profile.role === "coach" ? <Coach section={section} profile={profile} /> : <Member section={section} profile={profile} go={setSection} openAthlete={openAthlete} focusedAthleteId={focusedAthleteId} />}</section></main>;
+  return <main className="club-shell"><aside className="club-side"><Brand /><small className="side-role">{profile.is_demo ? "Atleta · Demo" : roleName[profile.role]}</small><nav>{menu.map(item => <button className={section === item ? "selected" : ""} key={item} onClick={() => setSection(item)}>{item}{item === "Avisos" && unread > 0 && <b className="notice-count">{unread > 99 ? "99+" : unread}</b>}</button>)}</nav><div className="side-user"><b>{profile.full_name || profile.email}</b><small>{profile.is_demo ? "Modo demostración" : roleName[profile.role]}</small><a className="button-link outline" href="/club">← Web del club</a><button className="plain" onClick={signOut}>Cerrar sesión</button></div></aside><section className="club-content"><header className="topbar"><span>{profile.is_demo ? "MODO DEMOSTRACIÓN · Sin cobros reales" : "Club Atletas de Fuenlabrada"}</span><PwaInstall /></header>{section === "Challenge" && challengeAthleteId ? <><Header title="Club Challenge" text="Tu reto semanal, logros y clasificación dentro del club." /><ClubChallenge athleteId={challengeAthleteId} /></> : ["owner", "admin"].includes(profile.role) ? <Admin section={section} profile={profile} go={setSection} /> : profile.role === "coach" ? <Coach section={section} profile={profile} /> : <Member section={section} profile={profile} go={setSection} openAthlete={openAthlete} focusedAthleteId={focusedAthleteId} />}</section></main>;
 }
 
 function Admin({ section, profile, go }: { section: string; profile: Profile; go: (section: string) => void }) {
@@ -212,7 +212,7 @@ function Invitations() {
   const groups = useRows<Group>("training_groups");
   const staffLinks = useRows<{ id: string; email: string | null; role: string; expires_at: string; accepted_at: string | null }>("invitation_links");
   const renewalLinks = useRows<{ id: string; email: string; token: string; expires_at: string; used_at: string | null }>("family_renewal_invitations");
-  const [kind, setKind] = useState<"staff" | "renewal">("staff");
+  const [kind, setKind] = useState<"staff" | "renewal" | "demo">("staff");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<"admin" | "coach">("coach");
   const [group, setGroup] = useState("");
@@ -231,6 +231,12 @@ function Invitations() {
       setLink(window.location.origin + "/?renewal=" + item.invitation_token);
       setEmail(""); void renewalLinks.reload(); return;
     }
+    if (kind === "demo") {
+      const { data, error: rpcError } = await supabase.rpc("create_demo_athlete_invitation", { target_email: email });
+      if (rpcError) return setError(rpcError.message);
+      setLink(window.location.origin + "/?invitation=" + (data as { token: string }).token);
+      setEmail(""); void staffLinks.reload(); return;
+    }
     const { data, error: rpcError } = await supabase.rpc("create_staff_invitation", { target_email: email, target_role: role, target_group_id: role === "coach" && group ? group : null });
     if (rpcError) return setError(rpcError.message);
     setLink(window.location.origin + "/?invitation=" + (data as { token: string }).token);
@@ -239,11 +245,12 @@ function Invitations() {
 
   return <><Header title="Invitaciones" text="Crea accesos del equipo o enlaces personales de renovación para las familias." />
     <form className="panel invite-form" onSubmit={submit}>
-      <label>Tipo de invitación<select value={kind} onChange={e => setKind(e.target.value as "staff" | "renewal")}><option value="renewal">Familia renovada · revisar matrícula</option><option value="staff">Entrenador o administrador</option></select></label>
+      <label>Tipo de invitación<select value={kind} onChange={e => setKind(e.target.value as "staff" | "renewal" | "demo")}><option value="demo">Atleta de demostración · sin Stripe</option><option value="renewal">Familia renovada · revisar matrícula</option><option value="staff">Entrenador o administrador</option></select></label>
       <label>Correo de destino<input type="email" required value={email} onChange={e => setEmail(e.target.value)} /></label>
       {kind === "staff" && <><label>Rol<select value={role} onChange={e => setRole(e.target.value as "admin" | "coach")}><option value="coach">Entrenador</option><option value="admin">Administrador</option></select></label>{role === "coach" && <label>Grupo<select value={group} onChange={e => setGroup(e.target.value)}><option value="">Asignar más tarde</option>{groups.rows.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}</select></label>}</>}
       {kind === "renewal" && <p className="muted">El enlace será personal para este correo. La familia añadirá tarjeta y elegirá cuota. En la validación decidirás la matrícula de cada atleta: exenta, abonada o con importe ajustado.</p>}
-      <button>{kind === "renewal" ? "Crear enlace de renovación" : "Crear enlace personal"}</button>
+      {kind === "demo" && <p className="muted">Abrirá el panel completo de atleta con cuotas ficticias. Stripe estará desactivado y no se generará ningún cobro.</p>}
+      <button>{kind === "renewal" ? "Crear enlace de renovación" : kind === "demo" ? "Crear acceso de demostración" : "Crear enlace personal"}</button>
       {error && <p className="error-note">{error}</p>}
     </form>
     {link && <article className="panel"><h2>Enlace creado</h2><p className="link-box">{link}</p><button onClick={() => void navigator.clipboard.writeText(link)}>Copiar para correo o WhatsApp</button><small>{kind === "renewal" ? "Caduca en 30 días y solo sirve para ese correo." : "Caduca en 14 días."}</small></article>}
@@ -252,7 +259,7 @@ function Invitations() {
 }
 function Fees({ profile }: { profile: Profile }) {
   const manager = ["owner", "admin"].includes(profile.role);
-  if (!manager) return <MemberFees />;
+  if (!manager) return <MemberFees isDemo={profile.is_demo} />;
   const charges = useRows<{ id: string; charge_kind: "enrolment" | "recurring" | "manual"; calculated_amount_cents: number; approved_amount_cents: number | null; status: string; scheduled_for: string | null }>("billing_charge_drafts", "id,charge_kind,calculated_amount_cents,approved_amount_cents,status,scheduled_for");
   if (manager) return <BillingControlCenter />;
   const [cardBusy, setCardBusy] = useState(false);
