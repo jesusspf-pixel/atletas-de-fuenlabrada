@@ -38,3 +38,5 @@ self.addEventListener("fetch",event=>{
     }
   })());
 });
+self.addEventListener("push",event=>{const data=event.data?.json?.()||{};event.waitUntil(self.registration.showNotification(data.title||"Club Atletas de Fuenlabrada",{body:data.body||"Tienes una novedad.",icon:"/app-icon-192.png",badge:"/app-icon-192.png",data:{url:data.url||"/?access=1"}}))});
+self.addEventListener("notificationclick",event=>{event.notification.close();event.waitUntil(clients.matchAll({type:"window",includeUncontrolled:true}).then(list=>{const url=event.notification.data?.url||"/?access=1";const open=list[0];if(open){open.navigate(url);return open.focus()}return clients.openWindow(url)}))});

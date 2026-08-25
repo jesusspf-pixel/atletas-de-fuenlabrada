@@ -13,11 +13,9 @@
   <body>
     <div id="root"></div>
     <script>
-      // Se desactiva temporalmente la caché offline para impedir que una PWA
-      // instalada conserve una versión antigua de la aplicación.
       if ("serviceWorker" in navigator) {
-        navigator.serviceWorker.getRegistrations()
-          .then((registrations) => Promise.all(registrations.map((registration) => registration.unregister())))
+        navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" })
+          .then((registration) => registration.update())
           .catch(() => undefined);
       }
     </script>

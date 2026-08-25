@@ -39,6 +39,7 @@ export default function MemberExperience({ profileId }: { profileId: string }) {
   const [profileSettings, setProfileSettings] = useState<ProfileSettings | null>(null);
   const [planNotice, setPlanNotice] = useState("");
   const [loading, setLoading] = useState(true);
+  const [refreshVersion, setRefreshVersion] = useState(0);
 
   useEffect(() => {
     const detect = () => {
@@ -78,6 +79,20 @@ export default function MemberExperience({ profileId }: { profileId: string }) {
       setLoading(false);
     };
     void load();
+  }, [profileId, refreshVersion]);
+
+  useEffect(() => {
+    if (!supabase) return;
+    const refresh = () => setRefreshVersion(value => value + 1);
+    const onVisibility = () => { if (document.visibilityState === "visible") refresh(); };
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("focus", refresh);
+    const timer = window.setInterval(refresh, 60000);
+    const channel = supabase.channel(`member-plans-${profileId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "training_plans" }, refresh)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "club_documents" }, refresh)
+      .subscribe();
+    return () => { document.removeEventListener("visibilitychange", onVisibility); window.removeEventListener("focus", refresh); window.clearInterval(timer); void supabase?.removeChannel(channel); };
   }, [profileId]);
 
   const athlete = athletes[0] || null;

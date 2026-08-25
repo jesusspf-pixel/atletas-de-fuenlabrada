@@ -4,6 +4,7 @@ type Env = {
   VITE_SUPABASE_PUBLISHABLE_KEY?: string;
   VITE_SUPABASE_ANON_KEY?: string;
   SUPABASE_ANON_KEY?: string;
+  VAPID_PUBLIC_KEY?: string;
 };
 
 export const onRequestGet = ({ env }: { env: Env }) => {
@@ -15,5 +16,5 @@ export const onRequestGet = ({ env }: { env: Env }) => {
       headers: { "cache-control": "no-store" }
     });
   }
-  return Response.json({ url, key }, { headers: { "cache-control": "no-store" } });
+  return Response.json({ url, key, vapidPublicKey: env.VAPID_PUBLIC_KEY || null }, { headers: { "cache-control": "no-store" } });
 };
