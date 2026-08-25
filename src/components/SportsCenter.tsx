@@ -73,7 +73,6 @@ export default function SportsCenter() {
   if (loading) return <main className="secure-screen"><section className="access-box"><h1>Cargando área deportiva…</h1></section></main>;
   if (!session || !profile) return <main className="secure-screen"><section className="access-box"><h1>Área deportiva</h1><p>Inicia sesión primero en la aplicación del club.</p><a className="button-link" href="/">Volver al acceso</a></section></main>;
 
-  const isStaff = ["owner", "admin", "coach"].includes(profile.role);
   const visibleAthletes = profile.role === "coach" && selectedGroupId ? athletes.filter(a => a.training_group_id === selectedGroupId) : athletes;
   const selected = athletes.find(a => a.id === selectedAthleteId) || null;
 
