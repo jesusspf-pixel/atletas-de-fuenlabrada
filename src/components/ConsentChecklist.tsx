@@ -1,6 +1,5 @@
 export type ConsentKey =
   | "privacy"
-  | "health_data"
   | "image_use"
   | "fam_data"
   | "club_rules"
@@ -19,14 +18,6 @@ const documents: Record<ConsentKey, ConsentDocument> = {
     paragraphs: [
       "El Club Atletas de Fuenlabrada tratará los datos de la persona responsable y de los atletas para tramitar el alta, gestionar entrenamientos, licencias, comunicaciones y cobros.",
       "Los datos se comunicarán únicamente a proveedores necesarios para prestar el servicio y, cuando corresponda, a la Federación de Atletismo de Madrid. Podrás solicitar acceso, rectificación, supresión, limitación u oposición mediante los canales oficiales del club.",
-    ],
-  },
-  health_data: {
-    title: "Datos de salud",
-    summary: "Autorización expresa para usar la información sanitaria con fines de seguridad deportiva.",
-    paragraphs: [
-      "Autorizas al club a tratar los datos de salud incluidos en esta solicitud para adaptar el entrenamiento, prevenir riesgos y actuar ante una emergencia.",
-      "El acceso queda limitado a administración y al entrenador asignado. Esta información no se utilizará con fines publicitarios.",
     ],
   },
   image_use: {
