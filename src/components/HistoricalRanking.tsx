@@ -153,14 +153,47 @@ function rankingIdentity(value: string) {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9\s]/g, " ").trim().toLocaleLowerCase("es-ES").split(/\s+/).slice(0, 2).join(" ");
 }
 
-function deduplicateRows(rows: Performance[]) {
-  const unique = new Map<string, Performance>();
-  for (const row of rows) {
-    const key = [rankingIdentity(row.athlete_name), row.discipline, row.result_date || "", row.performance_display, row.competition_environment].join("|");
-    const current = unique.get(key);
-    if (!current || row.athlete_name.length > current.athlete_name.length) unique.set(key, row);
+function nameWords(value: string) {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("es-ES").replace(/[^a-z0-9\s]/g, " ").trim().split(/\s+/).filter(Boolean);
+}
+
+function editDistance(left: string, right: string) {
+  const previous = Array.from({ length: right.length + 1 }, (_, index) => index);
+  for (let i = 1; i <= left.length; i += 1) {
+    let diagonal = previous[0];
+    previous[0] = i;
+    for (let j = 1; j <= right.length; j += 1) {
+      const saved = previous[j];
+      previous[j] = Math.min(previous[j] + 1, previous[j - 1] + 1, diagonal + (left[i - 1] === right[j - 1] ? 0 : 1));
+      diagonal = saved;
+    }
   }
-  return [...unique.values()];
+  return previous[right.length];
+}
+
+function sameRankingAthlete(left: string, right: string) {
+  if (rankingIdentity(left) === rankingIdentity(right)) return true;
+  const leftWords = nameWords(left);
+  const rightWords = nameWords(right);
+  if (leftWords.length < 2 || rightWords.length < 2) return false;
+  const sameSurname = leftWords.slice(1).some(word => rightWords.slice(1).includes(word));
+  return sameSurname && editDistance(leftWords[0], rightWords[0]) <= 2;
+}
+
+function deduplicateRows(rows: Performance[]) {
+  const unique: Performance[] = [];
+  for (const row of rows) {
+    const currentIndex = unique.findIndex(current =>
+      current.discipline === row.discipline &&
+      current.result_date === row.result_date &&
+      current.performance_display === row.performance_display &&
+      current.competition_environment === row.competition_environment &&
+      sameRankingAthlete(current.athlete_name, row.athlete_name)
+    );
+    if (currentIndex === -1) unique.push(row);
+    else if (row.athlete_name.length > unique[currentIndex].athlete_name.length) unique[currentIndex] = row;
+  }
+  return unique;
 }
 
 function fromBundledResults(): Performance[] {
