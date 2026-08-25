@@ -20,8 +20,13 @@ export async function onRequestPost(context: any) {
   const drafts = await fetch(`${env.SUPABASE_URL}/rest/v1/billing_charge_drafts?id=eq.${encodeURIComponent(body.draftId)}&select=id,membership_id,athlete_id,payer_profile_id,charge_kind,approved_amount_cents,calculated_amount_cents,status`, { headers: dbHeaders(env) });
   const draft = (await drafts.json().catch(() => []))?.[0];
   if (!draft || draft.charge_kind !== 'enrolment') return json({ error: "No se encontró la matrícula." }, 404);
-  if (draft.status === 'paid') return json({ ok: true, paid: true });
+  if (!['approved','failed','paid'].includes(draft.status)) return json({ error: "La matrícula no está aprobada para cobrar." }, 409);
+  if (draft.status === 'paid') {
+    const finalized = await fetch(`${env.SUPABASE_URL}/rest/v1/rpc/finalize_paid_registration`, { method: "POST", headers: dbHeaders(env), body: JSON.stringify({ target_draft_id: draft.id }) });
+    return finalized.ok ? json({ ok: true, paid: true }) : json({ error: "La matrícula está cobrada, pero el alta necesita reintentar la activación." }, 502);
+  }
   const amount = Number(draft.approved_amount_cents ?? draft.calculated_amount_cents);
+  if (!Number.isInteger(amount) || amount <= 0 || amount > 100000) return json({ error: "El importe de matrícula no es válido." }, 409);
   const customerResponse = await fetch(`${env.SUPABASE_URL}/rest/v1/stripe_customers?profile_id=eq.${draft.payer_profile_id}&select=stripe_customer_id`, { headers: dbHeaders(env) });
   const customerId = (await customerResponse.json().catch(() => []))?.[0]?.stripe_customer_id;
   let failure = "La cuenta no tiene una tarjeta válida en Stripe.";
@@ -34,9 +39,9 @@ export async function onRequestPost(context: any) {
       const paymentResponse = await fetch("https://api.stripe.com/v1/payment_intents", { method: "POST", headers: { authorization: `Bearer ${env.STRIPE_SECRET_KEY}`, "content-type": "application/x-www-form-urlencoded", "Idempotency-Key": `club-enrolment-${draft.id}` }, body: params });
       const payment = await paymentResponse.json().catch(() => ({})) as { id?: string; status?: string; error?: { message?: string } };
       if (paymentResponse.ok && payment.status === 'succeeded') {
-        await fetch(`${env.SUPABASE_URL}/rest/v1/billing_charge_drafts?id=eq.${draft.id}`, { method: "PATCH", headers: { ...dbHeaders(env), Prefer: "return=minimal" }, body: JSON.stringify({ status: "paid", provider_reference: payment.id, admin_note: null, updated_at: new Date().toISOString() }) });
-        await fetch(`${env.SUPABASE_URL}/rest/v1/rpc/finalize_paid_registration`, { method: "POST", headers: dbHeaders(env), body: JSON.stringify({ target_draft_id: draft.id }) });
-        return json({ ok: true, paid: true });
+        const marked = await fetch(`${env.SUPABASE_URL}/rest/v1/billing_charge_drafts?id=eq.${draft.id}`, { method: "PATCH", headers: { ...dbHeaders(env), Prefer: "return=minimal" }, body: JSON.stringify({ status: "paid", provider_reference: payment.id, admin_note: null, updated_at: new Date().toISOString() }) });
+        const finalized = marked.ok ? await fetch(`${env.SUPABASE_URL}/rest/v1/rpc/finalize_paid_registration`, { method: "POST", headers: dbHeaders(env), body: JSON.stringify({ target_draft_id: draft.id }) }) : null;
+        return marked.ok && finalized?.ok ? json({ ok: true, paid: true }) : json({ error: "Stripe ha cobrado la matrícula, pero el alta necesita reintentar la activación." }, 502);
       }
       failure = payment.error?.message || "El banco ha rechazado el pago de la matrícula.";
     }

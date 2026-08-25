@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { supabase } from "../lib/supabase";
 import ConsentChecklist from "./ConsentChecklist";
+import { trainingCategory } from "../lib/athleticsCategories";
 
 type Athlete = {
   first_name: string; last_name: string; birth_date: string; federative_sex: "M" | "F"; dni_nie: string;
@@ -15,21 +16,6 @@ const validSpanishId = (raw:string) => { const value=raw.toUpperCase().replace(/
 const validPhone = (raw:string) => /^(?:\+34)?[6789]\d{8}$/.test(raw.replace(/[\s.-]/g,""));
 const validPostalCode = (raw:string) => /^\d{5}$/.test(raw.trim());
 const validBirthDate = (raw:string) => Boolean(raw) && !Number.isNaN(new Date(`${raw}T00:00:00`).getTime()) && new Date(`${raw}T00:00:00`) <= new Date();
-const trainingCategory = (birthDate: string) => {
-  if (!birthDate) return "";
-  const seasonYear = new Date().getFullYear() + (new Date().getMonth() >= 6 ? 1 : 0);
-  const age = seasonYear - Number(birthDate.slice(0, 4));
-  if (age <= 5) return "Sub 6";
-  if (age <= 7) return "Sub 8";
-  if (age <= 9) return "Sub 10";
-  if (age <= 11) return "Sub 12";
-  if (age <= 13) return "Sub 14";
-  if (age <= 15) return "Sub 16";
-  if (age <= 17) return "Sub 18";
-  if (age <= 19) return "Sub 20";
-  if (age <= 22) return "Sub 23";
-  return "Absoluto / Máster";
-};
 const groupsFor = (birthDate: string, groups: TrainingGroup[]) => {
   const category = trainingCategory(birthDate).toLowerCase();
   if (!category) return [];
