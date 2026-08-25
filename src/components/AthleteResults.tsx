@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
 import ExternalSports from "./ExternalSports";
+import { verifiedOfficialResults } from "../data/verifiedOfficialResults";
 
 type EventDef = { id: string; code: string; name: string; result_kind: string; sort_direction: "asc" | "desc" };
 type Result = {
@@ -10,7 +11,7 @@ type Result = {
   athletics_events?: EventDef | null;
 };
 type PB = { athlete_id: string; athletics_event_id: string; event_name: string; competition_environment?: "indoor" | "outdoor" | "unknown"; result_text: string; competition_name: string; competition_date: string; source: string; official: boolean };
-type Props = { athleteId: string; canAddTraining?: boolean; coachProfileId?: string };
+type Props = { athleteId: string; athleteName?: string; canAddTraining?: boolean; coachProfileId?: string };
 
 type Unit = "seconds" | "minutes_seconds" | "meters" | "centimeters" | "points" | "repetitions" | "position" | "other";
 const unitLabels: Record<Unit, string> = {
@@ -25,6 +26,23 @@ const unitLabels: Record<Unit, string> = {
 };
 const sourceLabel = (source: string) => source === "fam" ? "FAM" : source === "rfea" ? "RFEA" : source === "training" ? "Entrenamiento" : "Manual";
 const environmentLabel = (environment?: string) => environment === "indoor" ? "Pista cubierta" : environment === "outdoor" ? "Aire libre" : "Sin identificar";
+
+function normalizedName(value: string) {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9\s]/g, " ").trim().toLocaleLowerCase("es-ES").replace(/\s+/g, " ");
+}
+
+function sameAthleteName(registeredName: string, historicName: string) {
+  const registered = normalizedName(registeredName);
+  const historic = normalizedName(historicName.replace(/^0\s+/, ""));
+  return registered === historic || registered.startsWith(historic + " ") || historic.startsWith(registered + " ");
+}
+
+function historicEnvironment(competition: string) {
+  const name = competition.toLocaleUpperCase("es-ES");
+  if (/PISTA\s+CUBIERTA|\bP\.?\s*C\.?\b|\bPC\b|GALLUR/.test(name)) return "indoor";
+  if (/AIRE\s+LIBRE|\bA\.?\s*L\.?\b|\bAL\b/.test(name)) return "outdoor";
+  return "unknown";
+}
 
 function withoutDuplicateResults(rows: Result[]) {
   const seen = new Set<string>();
@@ -68,7 +86,7 @@ function parseResult(raw: string, unit: Unit) {
   return { value, text: unit === "position" ? `Puesto ${raw.trim()}` : `${raw.trim()}${suffix[unit]}` };
 }
 
-export function AthleteResults({ athleteId, canAddTraining = false, coachProfileId }: Props) {
+export function AthleteResults({ athleteId, athleteName = "", canAddTraining = false, coachProfileId }: Props) {
   const [events, setEvents] = useState<EventDef[]>([]);
   const [results, setResults] = useState<Result[]>([]);
   const [pbs, setPbs] = useState<PB[]>([]);
@@ -76,6 +94,16 @@ export function AthleteResults({ athleteId, canAddTraining = false, coachProfile
   const [resultEventId, setResultEventId] = useState("");
   const [resultSort, setResultSort] = useState<"date" | "best">("date");
   const [form, setForm] = useState({ eventId: "", customName: "", customKind: "time", result: "", unit: "seconds" as Unit, date: new Date().toISOString().slice(0, 10), competition: "Entrenamiento", position: "" });
+  const historicResults = useMemo(() => {
+    const unique = new Map<string, typeof verifiedOfficialResults[number]>();
+    for (const row of verifiedOfficialResults) {
+      if (!athleteName || !sameAthleteName(athleteName, row.athlete_name)) continue;
+      const key = [row.event_name, row.competition_date, row.result_text, historicEnvironment(row.competition_name)].join("|");
+      const current = unique.get(key);
+      if (!current || row.athlete_name.length > current.athlete_name.length) unique.set(key, row);
+    }
+    return [...unique.values()].sort((a, b) => String(b.competition_date).localeCompare(String(a.competition_date)));
+  }, [athleteName]);
 
   const load = async () => {
     const client = supabase; if (!client) return;
@@ -138,6 +166,7 @@ export function AthleteResults({ athleteId, canAddTraining = false, coachProfile
   };
 
   return <section className="results-workspace">
+    {historicResults.length > 0 && <article className="panel"><h2>Marcas oficiales vinculadas</h2><p>Resultados FAM/RFEA de 2024, 2025 y 2026 asociados automáticamente por coincidencia de nombre.</p><section className="result-event">{historicResults.map(row => <div className="result-row" key={row.id}><span><b>{row.event_name}</b><small>{row.result_text} · {row.competition_name}</small></span><span>{new Date(row.competition_date + "T00:00:00").toLocaleDateString("es-ES")}</span><span>{environmentLabel(historicEnvironment(row.competition_name))} · Oficial</span></div>)}</section></article>}
     <article className="panel"><h2>Mejores marcas</h2>{pbs.length ? <div className="results-best-grid">{pbs.map(pb => <div className="result-best" key={`${pb.athlete_id}-${pb.athletics_event_id}-${pb.competition_environment || "unknown"}`}><small>{pb.event_name}</small><b>{pb.result_text}</b><span>{pb.competition_name} · {new Date(pb.competition_date).toLocaleDateString("es-ES")}</span><em>{environmentLabel(pb.competition_environment)} · {sourceLabel(pb.source)}{pb.official ? " · Oficial" : ""}</em></div>)}</div> : <p>Aún no hay mejores marcas registradas.</p>}</article>
 
     <article className="panel"><div className="table-title"><div><h2>Histórico de resultados</h2><p>Resultados oficiales y marcas de entrenamiento registradas.</p></div><div className="result-tools"><label>Prueba<select value={resultEventId} onChange={event => setResultEventId(event.target.value)}><option value="">Todas las pruebas</option>{events.map(event => <option value={event.id} key={event.id}>{event.name}</option>)}</select></label><div className="result-sort" aria-label="Ordenar resultados"><span>Ordenar</span><button type="button" className={resultSort === "date" ? "selected" : "outline"} onClick={() => setResultSort("date")}>Fecha ↓</button><button type="button" className={resultSort === "best" ? "selected" : "outline"} onClick={() => setResultSort("best")}>Marca ↑</button></div></div></div>{visibleResults.length ? <section className="result-event">{visibleResults.map(row => <div className="result-row" key={row.id}><span><b>{row.athletics_events?.name || "Prueba"}</b><small>{row.result_text} · {row.competition_name}</small></span><span>{new Date(row.competition_date).toLocaleDateString("es-ES")}{row.venue ? ` · ${row.venue}` : ""}</span><span>{row.position ? `Puesto ${row.position} · ` : ""}{environmentLabel(row.competition_environment)} · {sourceLabel(row.source)}{row.official ? " · Oficial" : ""}</span></div>)}</section> : <p>Todavía no hay resultados asociados a este atleta.</p>}</article>
