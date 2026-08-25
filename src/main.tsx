@@ -155,7 +155,7 @@ function Root() {
         button.type = "button";
         button.dataset.sportsNav = "true";
         button.textContent = "Ranking del club";
-        button.addEventListener("click", () => window.location.assign("/deportivo"));
+        button.addEventListener("click", () => window.location.assign("/deportivo?view=ranking"));
         nav.appendChild(button);
       }
       if (role === "parent" && nav && !nav.querySelector("[data-self-athlete='true']")) {
