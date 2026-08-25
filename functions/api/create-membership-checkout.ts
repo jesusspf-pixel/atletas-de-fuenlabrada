@@ -3,12 +3,12 @@ const json = (body: unknown, status = 200) => Response.json(body, { status });
 const feeByCategory = (raw: string | null | undefined) => {
   const value = (raw || "").toLowerCase().replace(/[_-]/g, " ").replace(/\s+/g, " ").trim();
   if (!value) return null;
-  if (value.includes("sub 6") || value.includes("sub-6")) return 4000;
-  if (["sub 8","sub 10","sub 12","sub 14","sub 16"].some(x => value.includes(x) || value.includes(x.replace(" ", "-")))) return 6000;
-  if (["sub 18","sub 20"].some(x => value.includes(x) || value.includes(x.replace(" ", "-")))) return 7000;
-  if (["sub 23","absoluto"].some(x => value.includes(x) || value.includes(x.replace(" ", "-")))) return 9000;
-  if (value.includes("master") || value.includes("máster")) return value.includes("running") || value.includes("sin licencia") ? 4000 : 9000;
-  if (value.includes("running")) return 4000;
+  if (value.includes("sub 6") || value.includes("sub-6")) return 4500;
+  if (["sub 8","sub 10","sub 12","sub 14","sub 16"].some(x => value.includes(x) || value.includes(x.replace(" ", "-")))) return 6500;
+  if (["sub 18","sub 20"].some(x => value.includes(x) || value.includes(x.replace(" ", "-")))) return 7500;
+  if (["sub 23","absoluto"].some(x => value.includes(x) || value.includes(x.replace(" ", "-")))) return 9500;
+  if (value.includes("master") || value.includes("máster")) return value.includes("running") || value.includes("sin licencia") ? 4500 : 9500;
+  if (value.includes("running")) return 4500;
   return null;
 };
 
