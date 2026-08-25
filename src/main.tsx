@@ -10,6 +10,7 @@ import { supabase } from "./lib/supabase";
 import "./styles.css";
 import "./access.css";
 import "./components/family-registration.css";
+import "./components/registration-visibility.css";
 import "./components/sports-center.css";
 // El acceso de ranking abre siempre la vista de resultados del área deportiva.
 

@@ -12,8 +12,8 @@ export default function AdultRegistration({ email, onBack }: { email: string; on
   const [step, setStep] = useState(stored.step || 1); const [busy, setBusy] = useState(false); const [sent, setSent] = useState(false); const [error, setError] = useState("");
   const [data, setData] = useState<AdultData>(stored.data || { first_name: "", last_name: "", dni_nie: "", phone: "", birth_date: "", federative_sex: "M", training_group_id: "", nationality: "Española", birthplace: "", previous_license: "", previous_club: "", other_interest_info: "" });
   const [groups, setGroups] = useState<{ id: string; name: string; category_label: string; schedule_days: string | null; starts_at: string | null; ends_at: string | null }[]>([]);
-  const [plan, setPlan] = useState<"monthly" | "term">("monthly");
-  const [consents, setConsents] = useState<Record<string, boolean>>({ privacy: false, image_use: false, fam_data: false, club_rules: false, recurring_payment: false });
+  const [plan, setPlan] = useState<"monthly" | "term">(stored.plan || "monthly");
+  const [consents, setConsents] = useState<Record<string, boolean>>(stored.consents || { privacy: false, image_use: false, fam_data: false, club_rules: false, recurring_payment: false });
   const paymentReturned = new URLSearchParams(window.location.search).get("payment_method") === "updated";
   const checkoutSessionId = new URLSearchParams(window.location.search).get("checkout_session_id");
   const cardConfirmationAttempted = useRef(false);
