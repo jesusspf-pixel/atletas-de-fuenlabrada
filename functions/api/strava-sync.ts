@@ -36,7 +36,7 @@ export async function onRequestPost(context: any) {
   try {
     const accessToken = await validToken(env, integration.id, tokens as { access_token: string; refresh_token: string; expires_at: number }, headers);
     const after = Math.floor((Date.now() - 120 * 24 * 60 * 60 * 1000) / 1000);
-    const response = await fetch(`https://api-v3.strava.com/athlete/activities?after=${after}&page=1&per_page=100`, { headers: { authorization: `Bearer ${accessToken}` } });
+    const response = await fetch(`https://www.strava.com/api/v3/athlete/activities?after=${after}&page=1&per_page=100`, { headers: { authorization: `Bearer ${accessToken}` } });
     const activities = await response.json().catch(() => []) as any[];
     if (!response.ok || !Array.isArray(activities)) return json({ error: "Strava no devolvió las actividades." }, 502);
     const rows = activities.map(item => ({

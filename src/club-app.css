@@ -20,7 +20,7 @@ button:disabled{opacity:.6;cursor:not-allowed}
 .error-note{color:#a91d2c}
 .success-note{color:#087443;font-size:13px}
 .club-shell{min-height:100vh;display:flex;background:var(--bg);color:var(--ink)}
-.club-side{width:235px;min-height:100vh;background:var(--navy);padding:24px 14px;color:#fff;display:flex;flex-direction:column}
+.club-side{position:relative;width:235px;min-height:100vh;background:var(--navy);padding:24px 14px;color:#fff;display:flex;flex-direction:column}
 .club-side .portal-brand{color:#fff;margin:0 9px 14px}
 .club-side .portal-brand>b{background:#fff;color:var(--navy)}
 .side-role{margin:0 10px 15px;color:#b7c5dc}
@@ -84,7 +84,9 @@ button:disabled{opacity:.6;cursor:not-allowed}
 .live-session>span:last-child{color:#16805d;font-size:10px;font-weight:800}
 @media(max-width:820px){.club-shell{display:block}
 .club-side{min-height:auto;width:auto;padding:15px}
-.club-side nav{display:flex;overflow:auto}
+.club-side nav{display:flex;overflow:auto;padding-right:38px;scrollbar-width:none}
+.club-side nav::-webkit-scrollbar{display:none}
+.club-side nav::after{content:'›';position:absolute;right:12px;margin-top:4px;width:32px;height:34px;display:grid;place-items:center;border-radius:18px;background:linear-gradient(90deg,rgba(8,34,74,.3),#08224a 45%);color:#fff;font-size:27px;font-weight:900;pointer-events:none;box-shadow:-10px 0 15px #08224a}
 .club-side nav button{white-space:nowrap}
 .side-user{display:none}
 .metric-grid,.cards,.detail-grid{grid-template-columns:1fr 1fr}
@@ -93,6 +95,8 @@ button:disabled{opacity:.6;cursor:not-allowed}
 .page-head,.topbar{padding-left:18px;padding-right:18px}
 .metric-grid,.two-columns,.cards,.detail-grid,.table,.inline-form,.invite-form,.stacked-form,.live-attendance{margin-left:18px;margin-right:18px}
 }
+.sports-home-mark{width:46px;height:46px;margin:0 9px 14px;display:grid;place-items:center;border-radius:12px;background:#fff;color:var(--navy);font-weight:900;text-decoration:none}
+.challenge-join{margin:0 32px 18px;max-width:720px!important}
 @media(max-width:520px){.metric-grid,.cards,.detail-grid{grid-template-columns:1fr}
 .page-head{align-items:flex-start;flex-direction:column}
 .access-box{padding:25px}
