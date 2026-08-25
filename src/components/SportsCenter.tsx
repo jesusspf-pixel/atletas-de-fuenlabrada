@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
 import { AthleteResults } from "./AthleteResults";
+import HistoricalRanking from "./HistoricalRanking";
 import ClubChallenge from "./ClubChallenge";
 
 type Role = "owner" | "admin" | "coach" | "parent" | "adult_athlete" | "minor_athlete";
@@ -23,7 +24,7 @@ export default function SportsCenter() {
   const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState("");
   const [selectedAthleteId, setSelectedAthleteId] = useState("");
-  const [mode, setMode] = useState<"athletes" | "challenge">("athletes");
+  const [mode, setMode] = useState<"athletes" | "ranking" | "challenge">(requested().get("view") === "ranking" ? "ranking" : "athletes");
   const [challengeAthleteId, setChallengeAthleteId] = useState("");
 
   useEffect(() => {
@@ -53,6 +54,7 @@ export default function SportsCenter() {
       const athleteName = requested().get("athleteName")?.toLowerCase();
       const targetAthlete = athleteId ? ownAthletes.find(a => a.id === athleteId) : athleteName ? ownAthletes.find(a => `${a.first_name} ${a.last_name}`.toLowerCase() === athleteName) : null;
       if (targetAthlete) setSelectedAthleteId(targetAthlete.id);
+      if (requested().get("view") === "ranking") setMode("ranking");
       if (requested().get("view") === "challenge" && selectedChallengeAthleteId) setMode("challenge");
 
       if (profile.role === "coach") {
@@ -76,7 +78,7 @@ export default function SportsCenter() {
   const visibleAthletes = profile.role === "coach" && selectedGroupId ? athletes.filter(a => a.training_group_id === selectedGroupId) : athletes;
   const selected = athletes.find(a => a.id === selectedAthleteId) || null;
 
-  return <main className="club-shell sports-center-shell"><aside className="club-side"><div className="portal-brand"><b>AF</b><span>ÁREA<small>DEPORTIVA</small></span></div><small className="side-role">{profile.role === "coach" ? "Entrenador" : profile.role === "parent" ? "Familia" : profile.role === "owner" ? "Propietario" : profile.role === "admin" ? "Administrador" : "Atleta"}</small><nav><button className={mode === "athletes" ? "selected" : ""} onClick={() => setMode("athletes")}>{profile.role === "coach" ? "Mis grupos" : "Atletas y marcas"}</button>{challengeAthleteId && <button className={mode === "challenge" ? "selected" : ""} onClick={() => setMode("challenge")}>🏆 Club Challenge</button>}</nav><div className="side-user"><b>{profile.full_name || profile.email}</b><small>Resultados, marcas y seguimiento</small><a className="button-link outline" href="/">Volver a la aplicación</a><a className="button-link outline" href="/club">← Web del club</a></div></aside><section className="club-content"><header className="topbar"><span>Club Atletas de Fuenlabrada · Área deportiva</span></header>{mode === "challenge" && challengeAthleteId ? <><div className="page-head"><div><h1>Club Challenge</h1><p>Tu reto semanal y la clasificación del club.</p></div><button className="outline" onClick={() => setMode("athletes")}>Volver a atletas y marcas</button></div><ClubChallenge athleteId={challengeAthleteId} /></> : profile.role === "coach" ? <CoachSports profile={profile} groups={groups} athletes={visibleAthletes} selectedGroupId={selectedGroupId} setSelectedGroupId={id => { setSelectedGroupId(id); setSelectedAthleteId(""); }} selected={selected} selectAthlete={setSelectedAthleteId} /> : <MemberSports profile={profile} athletes={athletes} selected={selected} selectAthlete={setSelectedAthleteId} />}</section></main>;
+  return <main className="club-shell sports-center-shell"><aside className="club-side"><div className="portal-brand"><b>AF</b><span>ÁREA<small>DEPORTIVA</small></span></div><small className="side-role">{profile.role === "coach" ? "Entrenador" : profile.role === "parent" ? "Familia" : profile.role === "owner" ? "Propietario" : profile.role === "admin" ? "Administrador" : "Atleta"}</small><nav>{profile.role !== "coach" && <button className={mode === "ranking" ? "selected" : ""} onClick={() => setMode("ranking")}>Ranking del club</button>}<button className={mode === "athletes" ? "selected" : ""} onClick={() => setMode("athletes")}>{profile.role === "coach" ? "Mis grupos" : "Atletas y marcas"}</button>{challengeAthleteId && <button className={mode === "challenge" ? "selected" : ""} onClick={() => setMode("challenge")}>🏆 Club Challenge</button>}</nav><div className="side-user"><b>{profile.full_name || profile.email}</b><small>Resultados, marcas y seguimiento</small><a className="button-link outline" href="/">Volver a la aplicación</a><a className="button-link outline" href="/club">← Web del club</a></div></aside><section className="club-content"><header className="topbar"><span>Club Atletas de Fuenlabrada · Área deportiva</span></header>{mode === "ranking" && profile.role !== "coach" ? <HistoricalRanking /> : mode === "challenge" && challengeAthleteId ? <><div className="page-head"><div><h1>Club Challenge</h1><p>Tu reto semanal y la clasificación del club.</p></div><button className="outline" onClick={() => setMode("athletes")}>Volver a atletas y marcas</button></div><ClubChallenge athleteId={challengeAthleteId} /></> : profile.role === "coach" ? <CoachSports profile={profile} groups={groups} athletes={visibleAthletes} selectedGroupId={selectedGroupId} setSelectedGroupId={id => { setSelectedGroupId(id); setSelectedAthleteId(""); }} selected={selected} selectAthlete={setSelectedAthleteId} /> : <MemberSports profile={profile} athletes={athletes} selected={selected} selectAthlete={setSelectedAthleteId} />}</section></main>;
 }
 
 function AthleteParticipation({ athleteId }: { athleteId: string }) {
