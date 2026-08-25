@@ -40,8 +40,7 @@ function sameAthleteName(registeredName: string, historicName: string) {
 function historicEnvironment(competition: string) {
   const name = competition.toLocaleUpperCase("es-ES");
   if (/PISTA\s+CUBIERTA|\bP\.?\s*C\.?\b|\bPC\b|GALLUR/.test(name)) return "indoor";
-  if (/AIRE\s+LIBRE|\bA\.?\s*L\.?\b|\bAL\b/.test(name)) return "outdoor";
-  return "unknown";
+  return "outdoor";
 }
 
 function withoutDuplicateResults(rows: Result[]) {
