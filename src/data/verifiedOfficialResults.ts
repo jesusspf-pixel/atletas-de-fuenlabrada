@@ -5133,32 +5133,24 @@ export const verifiedOfficialResults: VerifiedOfficialResult[] = [
   },
   {
     "id": "fam-2024-12-14-carlos-cazallas-60m",
-    "athleteName": "CARLOS CAZALLAS NAVARRO",
-    "sex": "male",
-    "category": "U14M",
-    "season": "2024",
-    "event": "60m",
-    "performance": "9.02",
-    "value": 9.02,
-    "unit": "s",
-    "resultDate": "2024-12-14",
-    "competition": "Jornada de Menores 9 · Leganés",
-    "source": "FAM",
-    "verified": true
+    "athlete_name": "CARLOS CAZALLAS NAVARRO",
+    "event_name": "60m",
+    "category_label": "U14M",
+    "competition_date": "2024-12-14",
+    "result_value": 9.02,
+    "result_text": "9.02",
+    "result_unit": "s",
+    "competition_name": "Jornada de Menores 9 · Leganés"
   },
   {
     "id": "fam-2024-12-14-lara-morales-altura",
-    "athleteName": "LARA MARTINA MORALES GOMEZ",
-    "sex": "female",
-    "category": "U14F",
-    "season": "2024",
-    "event": "Altura",
-    "performance": "1.28",
-    "value": 1.28,
-    "unit": "m",
-    "resultDate": "2024-12-14",
-    "competition": "Jornada de Menores 9 · Leganés",
-    "source": "FAM",
-    "verified": true
+    "athlete_name": "LARA MARTINA MORALES GOMEZ",
+    "event_name": "Altura",
+    "category_label": "U14F",
+    "competition_date": "2024-12-14",
+    "result_value": 1.28,
+    "result_text": "1.28",
+    "result_unit": "m",
+    "competition_name": "Jornada de Menores 9 · Leganés"
   }
 ];
