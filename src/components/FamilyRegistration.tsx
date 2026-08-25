@@ -46,7 +46,7 @@ export default function FamilyRegistration({email,renewalToken: renewalTokenProp
   const [cardReady,setCardReady]=useState(()=>Boolean(stored.cardReady));
   const [cardChecking,setCardChecking]=useState(()=>Boolean(paymentReturned&&checkoutSessionId));
   const [guardian,setGuardian]=useState<Guardian>(stored.guardian||{relationship:"padre",first_name:"",last_name:"",dni_nie:"",phone:"",address_line:"",postal_code:"",locality:"",province:"Madrid",emergency_phone:""});
-  const [athletes,setAthletes]=useState<Athlete[]>(stored.athletes||[emptyAthlete()]); const [plan,setPlan]=useState<"monthly"|"term">(stored.plan||"monthly");
+  const [athletes,setAthletes]=useState<Athlete[]>(Array.isArray(stored.athletes)&&stored.athletes.length?stored.athletes.map((athlete:Partial<Athlete>)=>({...emptyAthlete(),...athlete})):[emptyAthlete()]); const [plan,setPlan]=useState<"monthly"|"term">(stored.plan||"monthly");
   const [groups,setGroups]=useState<TrainingGroup[]>([]);
   const [consents,setConsents]=useState<Record<string,boolean>>(stored.consents||{privacy:false,image_use:false,fam_data:false,club_rules:false,recurring_payment:false});
   useEffect(()=>{sessionStorage.setItem(key,JSON.stringify({step,guardian,athletes,plan,consents,cardReady,renewalToken}));},[key,step,guardian,athletes,plan,consents,cardReady]);

@@ -6,11 +6,12 @@ type AdultData = { first_name: string; last_name: string; dni_nie: string; phone
 const validSpanishId = (raw:string) => { const value=raw.toUpperCase().replace(/[\s-]/g,""); const normalized=/^[XYZ]/.test(value)?`${({X:"0",Y:"1",Z:"2"} as Record<string,string>)[value[0]]}${value.slice(1)}`:value; return /^\d{8}[A-Z]$/.test(normalized) && "TRWAGMYFPDXBNJZSQVHLCKE"[Number(normalized.slice(0,8))%23]===normalized[8]; };
 const validPhone = (raw:string) => /^(?:\+34)?[6789]\d{8}$/.test(raw.replace(/[\s.-]/g,""));
 const validBirthDate = (raw:string) => Boolean(raw) && !Number.isNaN(new Date(`${raw}T00:00:00`).getTime()) && new Date(`${raw}T00:00:00`) <= new Date();
+const emptyAdultData: AdultData = { first_name: "", last_name: "", dni_nie: "", phone: "", birth_date: "", federative_sex: "M", training_group_id: "", license_option: "with", nationality: "Española", birthplace: "", previous_license: "", previous_club: "", other_interest_info: "" };
 
 export default function AdultRegistration({ email, onBack }: { email: string; onBack: () => void }) {
   const storageKey = `club:adult-registration:${email}`; const stored = (() => { try { return JSON.parse(sessionStorage.getItem(storageKey) || "{}"); } catch { return {}; } })();
   const [step, setStep] = useState(stored.step || 1); const [busy, setBusy] = useState(false); const [sent, setSent] = useState(false); const [error, setError] = useState("");
-  const [data, setData] = useState<AdultData>(stored.data || { first_name: "", last_name: "", dni_nie: "", phone: "", birth_date: "", federative_sex: "M", training_group_id: "", license_option: "with", nationality: "Española", birthplace: "", previous_license: "", previous_club: "", other_interest_info: "" });
+  const [data, setData] = useState<AdultData>({ ...emptyAdultData, ...(stored.data || {}) });
   const [groups, setGroups] = useState<{ id: string; name: string; category_label: string; schedule_days: string | null; starts_at: string | null; ends_at: string | null }[]>([]);
   const [plan, setPlan] = useState<"monthly" | "term">(stored.plan || "monthly");
   const [consents, setConsents] = useState<Record<string, boolean>>(stored.consents || { privacy: false, image_use: false, fam_data: false, club_rules: false, recurring_payment: false });

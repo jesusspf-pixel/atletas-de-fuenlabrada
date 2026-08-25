@@ -47,7 +47,7 @@ begin
   if v_group_category is null then raise exception 'Selecciona un grupo de entrenamiento disponible.'; end if;
   v_training_category := public.category_for_year((payload->>'birth_date')::date,v_training_year);
   v_competition_category := public.category_for_year((payload->>'birth_date')::date,extract(year from current_date)::integer);
-  v_license_requested := case when v_training_category='Sub 6' then false when v_training_category='Absoluto / Máster' then coalesce(payload->>'license_option','with') <> 'without' else true end;
+  v_license_requested := case when v_training_category='Sub 6' then false when v_training_category='Absoluto / Máster' then coalesce(payload->>'license_option','without') <> 'without' else true end;
   insert into public.profiles(id,email,full_name,phone,role) values(v_profile_id,v_email,trim((payload->>'first_name') || ' ' || (payload->>'last_name')),payload->>'phone','adult_athlete')
   on conflict(id) do update set full_name=excluded.full_name,phone=excluded.phone,updated_at=now();
   insert into public.athletes(user_profile_id,first_name,last_name,birth_date,federative_sex,dni_nie,club_status,license_status,medical_notes,training_group_id,training_category,official_competition_category,federation_license_requested)
@@ -87,7 +87,7 @@ begin
     if v_group_category is null then raise exception 'Selecciona un grupo de entrenamiento disponible para cada atleta.'; end if;
     v_training_category := public.category_for_year((v_athlete->>'birth_date')::date,v_training_year);
     v_competition_category := public.category_for_year((v_athlete->>'birth_date')::date,extract(year from current_date)::integer);
-    v_license_requested := case when v_training_category='Sub 6' then false when v_training_category='Absoluto / Máster' then coalesce(v_athlete->>'license_option','with') <> 'without' else true end;
+    v_license_requested := case when v_training_category='Sub 6' then false when v_training_category='Absoluto / Máster' then coalesce(v_athlete->>'license_option','without') <> 'without' else true end;
     insert into public.athletes(family_id,first_name,last_name,birth_date,federative_sex,dni_nie,club_status,license_status,medical_notes,training_group_id,training_category,official_competition_category,federation_license_requested)
     values(v_family_id,v_athlete->>'first_name',v_athlete->>'last_name',(v_athlete->>'birth_date')::date,v_athlete->>'federative_sex',nullif(v_athlete->>'dni_nie',''),'pending_review','pending',nullif(v_athlete->>'health_notes',''),v_group_id,v_training_category,v_competition_category,v_license_requested) returning id into v_athlete_id;
     insert into public.health_declarations(athlete_id,relevant_condition,relevant_condition_detail,asthma_allergy_medication,injury_limitation,support_needs,additional_notes,declared_by)
