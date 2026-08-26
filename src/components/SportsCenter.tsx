@@ -60,6 +60,7 @@ export default function SportsCenter() {
       const athleteName = requested().get("athleteName")?.toLowerCase();
       const targetAthlete = athleteId ? ownAthletes.find(a => a.id === athleteId) : athleteName ? ownAthletes.find(a => `${a.first_name} ${a.last_name}`.toLowerCase() === athleteName) : null;
       if (targetAthlete) setSelectedAthleteId(targetAthlete.id);
+      else if (["adult_athlete", "minor_athlete"].includes(profile.role) && ownAthletes.length === 1) setSelectedAthleteId(ownAthletes[0].id);
       if (requested().get("view") === "ranking") setMode("ranking");
       if (requested().get("view") === "challenge" && selectedChallengeAthleteId) setMode("challenge");
 
