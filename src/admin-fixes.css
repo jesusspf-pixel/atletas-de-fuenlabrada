@@ -18,3 +18,74 @@
   position: relative;
   z-index: 1;
 }
+
+/* The administrator uses the same single track header as athlete and coach. */
+.admin-reference-page { padding-top: 0; background: #eef3f8; }
+.admin-reference-art { display: none; }
+.admin-reference-sheet { border-radius: 0; background: #eef3f8; }
+.admin-reference-sheet > .page-head,
+.admin-reference-sheet > * > .page-head {
+  min-height: 220px;
+  margin-bottom: 20px;
+  padding: 42px 48px 76px;
+  border-radius: 0 0 32px 32px;
+  background-image: var(--app-track), linear-gradient(135deg,#082a5d,#155db5 66%,#347fd2) !important;
+  background-position: center;
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+}
+.admin-reference-sheet > .page-head::after,
+.admin-reference-sheet > * > .page-head::after { display: none; }
+.admin-reference-sheet .page-head h1 { color: #fff !important; }
+.admin-reference-sheet .page-head p { color: #c9dcf5 !important; }
+.admin-reference-sheet .metric::after { display: none; }
+.admin-reference-sheet .metric { display: flex; min-width: 0; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+.admin-reference-sheet .metric small { max-width: 100%; color: #5c7088 !important; }
+.admin-reference-sheet .metric b { max-width: 100%; color: #10213b !important; line-height: 1.05; overflow-wrap: anywhere; }
+.admin-reference-sheet .metric em { color: #2368bb !important; }
+
+.admin-reference-page[data-admin-screen="Atletas"] .admin-reference-sheet > .table { display: grid; gap: 10px; overflow: visible; padding: 0 !important; background: transparent !important; box-shadow: none !important; }
+.admin-reference-page[data-admin-screen="Atletas"] .athlete-row { min-height: 82px; border: 0; border-radius: 20px; background: #fff; box-shadow: 0 10px 28px rgba(8,39,76,.07); }
+.admin-reference-page[data-admin-screen="Atletas"] .athlete-row:nth-child(3n+2) { background: linear-gradient(145deg,#f1edff,#fff); }
+.admin-reference-page[data-admin-screen="Atletas"] .athlete-row:nth-child(3n+3) { background: linear-gradient(145deg,#e9f8f2,#fff); }
+
+.admin-reference-page[data-admin-screen="Cuotas"] .billing-control > .metric-grid { grid-template-columns: repeat(4,minmax(0,1fr)); }
+.admin-reference-page[data-admin-screen="Cuotas"] .billing-control > .two-columns .stacked-form:first-child { background: linear-gradient(145deg,#102f65,#205fa9) !important; color: #fff; }
+.admin-reference-page[data-admin-screen="Cuotas"] .billing-control > .two-columns .stacked-form:first-child h2,
+.admin-reference-page[data-admin-screen="Cuotas"] .billing-control > .two-columns .stacked-form:first-child label { color: #fff !important; }
+.admin-reference-page[data-admin-screen="Cuotas"] .billing-control > .two-columns .stacked-form:last-child { background: linear-gradient(145deg,#f0eaff,#fff) !important; }
+.admin-reference-page[data-admin-screen="Cuotas"] .billing-control > .table { margin-top: 18px; padding: 0 !important; }
+.admin-reference-page[data-admin-screen="Cuotas"] .billing-control > .table > h2 { margin: 0; padding: 22px; color: #fff !important; background: linear-gradient(135deg,#143d78,#2368b8); }
+.admin-reference-page[data-admin-screen="Cuotas"] .billing-control > .table .row { padding: 17px 20px; }
+.admin-reference-page[data-admin-screen="Cuotas"] .billing-control > .table .row > span:last-child { display: flex; flex-wrap: wrap; gap: 7px; }
+.admin-reference-page[data-admin-screen="Cuotas"] .billing-control > .table .row > span:last-child button { margin: 0; }
+
+.admin-reference-page[data-admin-screen="Carreras"] .stacked-form { background: linear-gradient(145deg,#102f65,#205fa9) !important; color: #fff; }
+.admin-reference-page[data-admin-screen="Carreras"] .stacked-form h2,
+.admin-reference-page[data-admin-screen="Carreras"] .stacked-form label { color: #fff !important; }
+.admin-reference-page[data-admin-screen="Carreras"] .event-list { display: grid; grid-template-columns: repeat(auto-fit,minmax(250px,1fr)); gap: 15px; }
+.admin-reference-page[data-admin-screen="Carreras"] .event-card { min-height: 310px; display: flex; flex-direction: column; }
+.admin-reference-page[data-admin-screen="Carreras"] .event-card aside { margin-top: auto; }
+.admin-reference-page[data-admin-screen="Asistencia"] .inline-form { background: linear-gradient(145deg,#eaf4ff,#fff) !important; }
+.admin-reference-page[data-admin-screen="Avisos"] .stacked-form { background: linear-gradient(145deg,#f0eaff,#fff) !important; }
+.admin-reference-page[data-admin-screen="Avisos"] .table > .table-title { padding: 20px; background: linear-gradient(135deg,#143d78,#2368b8); }
+.admin-reference-page[data-admin-screen="Avisos"] .table > .table-title h2 { color: #fff !important; }
+.admin-reference-page[data-admin-screen="Invitaciones"] .invite-form { background: linear-gradient(145deg,#102f65,#205fa9) !important; color: #fff; }
+.admin-reference-page[data-admin-screen="Invitaciones"] .invite-form label,
+.admin-reference-page[data-admin-screen="Invitaciones"] .invite-form legend { color: #fff !important; }
+.admin-reference-page[data-admin-screen="Invitaciones"] .invite-form .muted { color: #d5e5f7 !important; }
+.admin-reference-page[data-admin-screen="Tienda"] .shop-workspace { gap: 16px; }
+.admin-reference-page[data-admin-screen="Tienda"] .catalog-list { background: linear-gradient(145deg,#102f65,#205fa9) !important; color: #fff; }
+.admin-reference-page[data-admin-screen="Tienda"] .catalog-list h2 { color: #fff !important; }
+.admin-reference-page[data-admin-screen="Tienda"] .product-editor { background: linear-gradient(145deg,#f0eaff,#fff) !important; }
+.admin-reference-page[data-admin-screen="Tienda"] .inventory-panel { background: linear-gradient(145deg,#e9f8f2,#fff) !important; }
+.admin-reference-page[data-admin-screen="Configuración"] .settings-workspace { display: grid; gap: 16px; }
+
+@media (max-width: 820px) {
+  .admin-reference-page { padding-top: 0; }
+  .admin-reference-sheet { padding-left: 13px; padding-right: 13px; }
+  .admin-reference-sheet > .page-head,
+  .admin-reference-sheet > * > .page-head { min-height: 205px; margin-left: -13px; margin-right: -13px; padding: 28px 18px 70px; border-radius: 0 0 29px 29px; background-size: auto 100%; background-position: 44% center; }
+  .admin-reference-page[data-admin-screen="Cuotas"] .billing-control > .metric-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .admin-reference-page[data-admin-screen="Cuotas"] .billing-control > .table .row > span:last-child { justify-content: flex-start; }
+}
