@@ -14,6 +14,7 @@ import "./components/registration-visibility.css";
 import "./components/sports-center.css";
 import "./app-redesign.css";
 import "./app-mobile-redesign.css";
+import "./app-boceto-fidelity.css";
 // El acceso de ranking abre siempre la vista de resultados del área deportiva.
 
 type Role = "owner" | "admin" | "coach" | "parent" | "adult_athlete" | "minor_athlete";

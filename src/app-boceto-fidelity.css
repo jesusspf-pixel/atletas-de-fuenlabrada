@@ -1,0 +1,25 @@
+.app-redesign .app-nav-icon{width:19px;height:19px;flex:0 0 auto;opacity:.92;transition:transform .18s ease}
+.app-redesign .club-side nav button:hover .app-nav-icon{transform:translateY(-1px)}
+.app-redesign .club-side nav button.selected .app-nav-icon{color:#1f61b8;stroke-width:2}
+.app-redesign .nav-marker{display:none!important}
+.app-redesign .page-head{position:relative}.app-redesign .page-head:after{content:"";position:absolute;left:34px;bottom:0;width:36px;height:3px;border-radius:99px;background:linear-gradient(90deg,#225fb7,#66a1e9)}
+.app-redesign[data-section="Inicio"] .page-head:after{display:none}
+.app-redesign[data-section="Inicio"] .screen-transition>.panel:first-of-type{position:relative;overflow:hidden;margin:8px 34px 18px;padding:28px 30px;min-height:145px;border:0;border-radius:22px;background:linear-gradient(125deg,#082859 0%,#1754a1 58%,#337ccf 100%);box-shadow:0 22px 50px rgba(16,67,133,.23);color:#fff}
+.app-redesign[data-section="Inicio"] .screen-transition>.panel:first-of-type:after{content:"";position:absolute;right:-40px;top:-75px;width:230px;height:230px;border:45px solid rgba(255,255,255,.08);border-radius:50%}
+.app-redesign[data-section="Inicio"] .screen-transition>.panel:first-of-type h2{position:relative;z-index:1;font-size:24px;color:#fff}.app-redesign[data-section="Inicio"] .screen-transition>.panel:first-of-type p,.app-redesign[data-section="Inicio"] .screen-transition>.panel:first-of-type small{position:relative;z-index:1;color:#d5e5fa}
+.app-redesign[data-section="Inicio"] .metric-grid{margin-top:0}.app-redesign[data-section="Inicio"] .metric{min-height:122px;border:0;box-shadow:0 10px 30px rgba(15,40,80,.07)}
+.app-redesign[data-section="Inicio"] .two-columns>.panel{border:0;box-shadow:0 10px 30px rgba(15,40,80,.065)}
+.app-redesign .coach-profile-editor,.app-redesign .athlete-profile-card{overflow:hidden;border:0;box-shadow:0 18px 46px rgba(10,38,78,.1)}
+.app-redesign .athlete-cover{min-height:210px;margin:-21px -21px 20px;border-radius:18px 18px 0 0;background:linear-gradient(120deg,#09285a,#2463b5 60%,#4b8bda)}
+.app-redesign .group-card{min-height:150px;padding:24px;border:0;box-shadow:0 10px 30px rgba(15,40,80,.065)}.app-redesign .group-card>i{left:0;right:auto;top:24px;width:5px;height:54px;border-radius:0 8px 8px 0}.app-redesign .group-card h2{font-size:20px;margin-top:8px}
+.app-redesign .event-card{border:0;box-shadow:0 10px 30px rgba(15,40,80,.065)}.app-redesign .event-date{border-radius:13px;background:#eaf2ff;color:#205aa7;padding:12px;text-align:center}
+.app-redesign .plan{border:0;box-shadow:0 10px 30px rgba(15,40,80,.065)}.app-redesign .plan:before{content:"PLAN SEMANAL";display:block;margin-bottom:10px;font-size:8px;font-weight:850;letter-spacing:.16em;color:#2b69bd}
+.app-redesign .club-challenge>.panel{border:0;box-shadow:0 12px 34px rgba(15,40,80,.07)}
+@media(max-width:820px){
+ .app-redesign .app-nav-icon{width:21px;height:21px}.app-redesign .club-side nav button{gap:5px}
+ .app-redesign .page-head:after{left:17px}.app-redesign .page-head{padding-top:25px;padding-bottom:18px}
+ .app-redesign[data-section="Inicio"] .screen-transition>.panel:first-of-type{margin:4px 16px 14px;padding:23px 21px;min-height:160px;border-radius:20px}.app-redesign[data-section="Inicio"] .screen-transition>.panel:first-of-type h2{font-size:22px;max-width:78%}
+ .app-redesign[data-section="Inicio"] .screen-transition>.panel:first-of-type p{max-width:78%}.app-redesign[data-section="Inicio"] .metric{min-height:106px;border-radius:16px}
+ .app-redesign .athlete-cover{min-height:170px;margin:-18px -18px 18px}.app-redesign .group-card{min-height:130px;padding:20px}.app-redesign .group-card h2{font-size:18px}
+ .app-redesign .table{border:0;box-shadow:0 10px 28px rgba(15,40,80,.06)}
+}
