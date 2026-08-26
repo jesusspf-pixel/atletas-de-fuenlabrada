@@ -85,6 +85,27 @@ export default function BillingControlCenter() {
     if (!error) await load(); else { setBusy(false); setMessage(error.message); }
   };
 
+  const retryDraft = async (draft: Draft) => {
+    if (!supabase) return;
+    setBusy(true); setMessage("");
+    const { data: { session } } = await supabase.auth.getSession();
+    const response = await fetch("/api/collect-approved-charge", {
+      method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${session?.access_token || ""}` },
+      body: JSON.stringify({ draftId: draft.id }),
+    });
+    const result = await response.json().catch(() => ({})) as { error?: string };
+    setMessage(response.ok ? "Cobro realizado correctamente y cuota regularizada." : result.error || "No se pudo completar el cobro.");
+    await load();
+  };
+
+  const actions = (draft: Draft) => <>
+    {draft.status === "awaiting_admin" && <><button disabled={busy} onClick={() => void updateDraft(draft, "approved")}>Revisar y aprobar</button> <button className="outline" disabled={busy} onClick={() => void updateDraft(draft, "waived")}>Eximir</button></>}
+    {["approved", "failed"].includes(draft.status) && <><button disabled={busy} onClick={() => void retryDraft(draft)}>Reintentar ahora</button> <button className="outline" disabled={busy} onClick={() => void updateDraft(draft, "approved")}>Modificar</button> <button className="outline" disabled={busy} onClick={() => void updateDraft(draft, "cancelled")}>Cancelar</button></>}
+    {draft.status === "collecting" && <small>Stripe está procesando el cobro.</small>}
+    {draft.status === "paid" && <small>Cobrado correctamente.</small>}
+    {["cancelled", "waived"].includes(draft.status) && <small>{draft.status === "waived" ? "Cuota exenta." : "Cuota cancelada."}</small>}
+  </>;
+
   const selectedDrafts = drafts.filter(draft => draft.membership_id === selectedMembershipId);
 
   if (!rules) return <section className="panel"><h2>Cuotas y cobros</h2><p>{busy ? "Cargando centro de control…" : message || "No se pudo cargar la configuración de cobros."}</p></section>;
@@ -125,6 +146,6 @@ export default function BillingControlCenter() {
     </section>
 
     {message && <p className={message.includes("guardadas") || message.includes("Borrador") || message.includes("preparado") ? "success-note panel" : "error-note panel"}>{message}</p>}
-    <section className="panel table"><h2>Control financiero de cuotas</h2>{drafts.map(draft => <div className="row" key={draft.id}><span><button className="plain" onClick={() => setSelectedMembershipId(draft.membership_id)}><b>{draft.athletes?.first_name} {draft.athletes?.last_name}</b><small>Ver sus cuotas →</small></button><small>{draft.charge_kind === "enrolment" ? "Matrícula" : "Cuota"} · {draft.memberships?.plan === "monthly" ? "Mensual" : "Trimestral"} · prevista {new Date(draft.scheduled_for).toLocaleDateString("es-ES")}</small></span><span><small>Calculado</small><b>{euro(draft.calculated_amount_cents)}</b>{draft.discount_cents > 0 && <small>Descuento: {euro(draft.discount_cents)}</small>}</span><span><small>Final</small><b>{euro(draft.approved_amount_cents ?? draft.calculated_amount_cents)}</b><small>{draft.status}</small></span><span>{draft.status === "awaiting_admin" && <><button disabled={busy} onClick={() => void updateDraft(draft, "approved")}>Revisar y aprobar</button> <button className="outline" disabled={busy} onClick={() => void updateDraft(draft, "waived")}>Eximir</button></>}{draft.status === "approved" && <small>Se cobrará automáticamente en la fecha prevista.</small>}{draft.status === "collecting" && <small>Stripe está procesando el cobro.</small>}{draft.status === "failed" && <small>Pago fallido: revisa la tarjeta o la excepción.</small>}</span></div>)}{!drafts.length && <p>Aún no hay cuotas preparadas. Crea el primer borrador arriba.</p>}</section>{selectedMembershipId && <section className="panel"><h2>Cuotas del atleta</h2><button className="outline" onClick={() => setSelectedMembershipId("")}>Cerrar</button>{selectedDrafts.map(draft => <div className="row" key={draft.id}><span><b>{draft.athletes?.first_name} {draft.athletes?.last_name}</b><small>{draft.charge_kind === "enrolment" ? "Matrícula" : "Cuota"} · {new Date(draft.scheduled_for).toLocaleDateString("es-ES")} · {draft.status}</small></span><span><b>{euro(draft.approved_amount_cents ?? draft.calculated_amount_cents)}</b><small>{draft.override_reason || "Sin ajuste"}</small></span><span>{draft.status === "awaiting_admin" && <><button disabled={busy} onClick={() => void updateDraft(draft, "approved")}>Aprobar</button> <button className="outline" disabled={busy} onClick={() => void updateDraft(draft, "cancelled")}>Cancelar</button></>}{draft.status === "approved" && <small>Cobro automático programado</small>}{draft.status === "collecting" && <small>Cobro en curso</small>}{draft.status === "failed" && <small>Pago fallido</small>}</span></div>)}</section>}
+    <section className="panel table"><h2>Control financiero de cuotas</h2>{drafts.map(draft => <div className="row" key={draft.id}><span><button className="plain" onClick={() => setSelectedMembershipId(draft.membership_id)}><b>{draft.athletes?.first_name} {draft.athletes?.last_name}</b><small>Ver sus cuotas →</small></button><small>{draft.charge_kind === "enrolment" ? "Matrícula" : "Cuota"} · {draft.memberships?.plan === "monthly" ? "Mensual" : "Trimestral"} · prevista {new Date(draft.scheduled_for).toLocaleDateString("es-ES")}</small></span><span><small>Calculado</small><b>{euro(draft.calculated_amount_cents)}</b>{draft.discount_cents > 0 && <small>Descuento: {euro(draft.discount_cents)}</small>}</span><span><small>Final</small><b>{euro(draft.approved_amount_cents ?? draft.calculated_amount_cents)}</b><small>{draft.status}</small></span><span>{actions(draft)}</span></div>)}{!drafts.length && <p>Aún no hay cuotas preparadas. Crea el primer borrador arriba.</p>}</section>{selectedMembershipId && <section className="panel"><h2>Cuotas del atleta</h2><button className="outline" onClick={() => setSelectedMembershipId("")}>Cerrar</button>{selectedDrafts.map(draft => <div className="row" key={draft.id}><span><b>{draft.athletes?.first_name} {draft.athletes?.last_name}</b><small>{draft.charge_kind === "enrolment" ? "Matrícula" : "Cuota"} · {new Date(draft.scheduled_for).toLocaleDateString("es-ES")} · {draft.status}</small></span><span><b>{euro(draft.approved_amount_cents ?? draft.calculated_amount_cents)}</b><small>{draft.override_reason || "Sin ajuste"}</small></span><span>{actions(draft)}</span></div>)}</section>}
   </section>;
 }
