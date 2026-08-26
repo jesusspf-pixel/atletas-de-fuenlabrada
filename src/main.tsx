@@ -220,6 +220,12 @@ function Root() {
         });
       }
 
+      if (role === "adult_athlete") {
+        document.querySelectorAll<HTMLButtonElement>(".event-card aside button").forEach(button => {
+          if (button.textContent?.trim().startsWith("Apuntar a ")) button.textContent = "Solicitar inscripción";
+        });
+      }
+
       if (role === "owner" || role === "admin") {
         document.querySelectorAll<HTMLElement>(".athlete-detail .page-head").forEach(head => {
           if (head.querySelector("[data-open-sports='true']")) return;
