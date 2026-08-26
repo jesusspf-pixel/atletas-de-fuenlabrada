@@ -78,7 +78,7 @@ function Root() {
       divider.className = "sports-nav-divider";
       nav.prepend(divider);
       const labels = role === "coach"
-        ? ["Inicio", "Mi grupo", "Carreras", "Avisos", "Tienda"]
+        ? ["Inicio", "Mi grupo", "Carreras", "Avisos"]
         : role === "owner" || role === "admin"
           ? ["Inicio", "Atletas", "Grupos", "Cuotas", "Carreras", "Avisos", "Tienda"]
           : ["Inicio", role === "parent" ? "Mis atletas" : "Mi perfil", "Carreras", "Cuotas", "Avisos", "Tienda"];
