@@ -1,6 +1,7 @@
 .sports-center-shortcut{position:fixed;right:18px;bottom:18px;z-index:60;background:#111827;color:#fff;text-decoration:none;padding:12px 16px;border-radius:999px;font-weight:800;box-shadow:0 12px 30px rgba(0,0,0,.2)}
 .sports-center-shell .club-content{min-width:0}
 .results-workspace{display:grid;gap:18px;margin-top:18px}
+.athlete-detail .results-workspace>.stacked-form{order:-1}
 .results-best-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
 .result-best{display:flex;flex-direction:column;gap:5px;padding:14px;border:1px solid #e5e7eb;border-radius:14px;background:#fff}
 .result-best b{font-size:1.55rem}.result-best span,.result-best em{font-size:.82rem;color:#6b7280;font-style:normal}
