@@ -92,7 +92,9 @@ function Root() {
         const button = document.createElement("button");
         button.type = "button";
         button.dataset.mainNav = "true";
-        button.textContent = label;
+        const icon = document.createElement("i"); icon.className = "dynamic-nav-icon"; icon.textContent = "·";
+        const text = document.createElement("span"); text.textContent = label;
+        button.replaceChildren(icon, text);
         button.addEventListener("click", () => window.location.assign(`/?section=${encodeURIComponent(label)}`));
         nav.prepend(button);
       });
@@ -162,7 +164,9 @@ function Root() {
         const button = document.createElement("button");
         button.type = "button";
         button.dataset.sportsNav = "true";
-        button.textContent = "Ranking del club";
+        const icon = document.createElement("i"); icon.className = "dynamic-nav-icon"; icon.textContent = "↗";
+        const text = document.createElement("span"); text.textContent = "Ranking del club";
+        button.replaceChildren(icon, text);
         button.addEventListener("click", () => window.location.assign("/deportivo?view=ranking"));
         nav.appendChild(button);
       }
@@ -170,7 +174,9 @@ function Root() {
         const button = document.createElement("button");
         button.type = "button";
         button.dataset.selfAthlete = "true";
-        button.textContent = "También soy atleta";
+        const icon = document.createElement("i"); icon.className = "dynamic-nav-icon"; icon.textContent = "+";
+        const text = document.createElement("span"); text.textContent = "También soy atleta";
+        button.replaceChildren(icon, text);
         button.addEventListener("click", () => window.location.assign("/alta-atleta"));
         nav.appendChild(button);
       }
