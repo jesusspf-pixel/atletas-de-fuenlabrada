@@ -10,7 +10,7 @@
 .app-redesign[data-section="Inicio"] .metric-grid{margin-top:0}.app-redesign[data-section="Inicio"] .metric{min-height:122px;border:0;box-shadow:0 10px 30px rgba(15,40,80,.07)}
 .app-redesign[data-section="Inicio"] .two-columns>.panel{border:0;box-shadow:0 10px 30px rgba(15,40,80,.065)}
 .app-redesign .coach-profile-editor,.app-redesign .athlete-profile-card{overflow:hidden;border:0;box-shadow:0 18px 46px rgba(10,38,78,.1)}
-.app-redesign .athlete-cover{min-height:210px;margin:-21px -21px 20px;border-radius:18px 18px 0 0;background:linear-gradient(120deg,#09285a,#2463b5 60%,#4b8bda)}
+.app-redesign .athlete-cover{min-height:210px;margin:0 0 20px;border-radius:18px;background:linear-gradient(120deg,#09285a,#2463b5 60%,#4b8bda)}
 .app-redesign .group-card{min-height:150px;padding:24px;border:0;box-shadow:0 10px 30px rgba(15,40,80,.065)}.app-redesign .group-card>i{left:0;right:auto;top:24px;width:5px;height:54px;border-radius:0 8px 8px 0}.app-redesign .group-card h2{font-size:20px;margin-top:8px}
 .app-redesign .event-card{border:0;box-shadow:0 10px 30px rgba(15,40,80,.065)}.app-redesign .event-date{border-radius:13px;background:#eaf2ff;color:#205aa7;padding:12px;text-align:center}
 .app-redesign .plan{border:0;box-shadow:0 10px 30px rgba(15,40,80,.065)}.app-redesign .plan:before{content:"PLAN SEMANAL";display:block;margin-bottom:10px;font-size:8px;font-weight:850;letter-spacing:.16em;color:#2b69bd}
@@ -20,6 +20,6 @@
  .app-redesign .page-head:after{left:17px}.app-redesign .page-head{padding-top:25px;padding-bottom:18px}
  .app-redesign[data-section="Inicio"] .screen-transition>.panel:first-of-type{margin:4px 16px 14px;padding:23px 21px;min-height:160px;border-radius:20px}.app-redesign[data-section="Inicio"] .screen-transition>.panel:first-of-type h2{font-size:22px;max-width:78%}
  .app-redesign[data-section="Inicio"] .screen-transition>.panel:first-of-type p{max-width:78%}.app-redesign[data-section="Inicio"] .metric{min-height:106px;border-radius:16px}
- .app-redesign .athlete-cover{min-height:170px;margin:-18px -18px 18px}.app-redesign .group-card{min-height:130px;padding:20px}.app-redesign .group-card h2{font-size:18px}
+ .app-redesign .athlete-cover{min-height:170px;margin:0 0 18px}.app-redesign .group-card{min-height:130px;padding:20px}.app-redesign .group-card h2{font-size:18px}
  .app-redesign .table{border:0;box-shadow:0 10px 28px rgba(15,40,80,.06)}
 }
