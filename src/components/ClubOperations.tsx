@@ -2,18 +2,107 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
 import "./club-operations.css";
 
-type Profile = { id: string; full_name: string | null; email: string; role: string };
-type Group = { id: string; name: string; category_label: string; colour: string; schedule_days?: string | null; starts_at?: string | null; ends_at?: string | null };
-type Recipient = { id: string; first_name: string; last_name: string; user_profile_id: string | null; families?: any };
-type Competition = { id: string; title: string; venue: string | null; starts_at: string; federation_deadline: string | null; internal_deadline: string | null; rules_summary: string | null; published: boolean; club_documents?: ClubDocument[] };
-type ClubDocument = { id: string; title: string; storage_path: string; document_type: string; competition_event_id?: string | null; training_group_id?: string | null; created_at: string };
-const mondayKey = (value = new Date()) => { const date = new Date(value); date.setHours(12, 0, 0, 0); const day = date.getDay() || 7; date.setDate(date.getDate() - day + 1); return date.toISOString().slice(0, 10); };
+type Profile = {
+  id: string;
+  full_name: string | null;
+  email: string;
+  role: string;
+};
+type Group = {
+  id: string;
+  name: string;
+  category_label: string;
+  colour: string;
+  schedule_days?: string | null;
+  starts_at?: string | null;
+  ends_at?: string | null;
+};
+type Recipient = {
+  id: string;
+  first_name: string;
+  last_name: string;
+  user_profile_id: string | null;
+  families?: any;
+};
+type Competition = {
+  id: string;
+  title: string;
+  venue: string | null;
+  starts_at: string;
+  federation_deadline: string | null;
+  internal_deadline: string | null;
+  rules_summary: string | null;
+  published: boolean;
+  club_documents?: ClubDocument[];
+};
+type ClubDocument = {
+  id: string;
+  title: string;
+  storage_path: string;
+  document_type: string;
+  competition_event_id?: string | null;
+  training_group_id?: string | null;
+  created_at: string;
+};
+const mondayKey = (value = new Date()) => {
+  const date = new Date(value);
+  date.setHours(12, 0, 0, 0);
+  const day = date.getDay() || 7;
+  date.setDate(date.getDate() - day + 1);
+  return date.toISOString().slice(0, 10);
+};
 
-function Heading({ title, text, children }: { title: string; text: string; children?: React.ReactNode }) { return <div className="page-head"><div><h1>{title}</h1><p>{text}</p></div>{children}</div>; }
-function Message({ text, error = false }: { text: string; error?: boolean }) { return <p className={error ? "error-note panel" : "success-note panel"}>{text}</p>; }
-function fileKey(file: File) { return `${Date.now()}-${file.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9._-]/g, "-")}`; }
-function formatDate(value: string | null) { return value ? new Date(value).toLocaleString("es-ES", { dateStyle: "medium", timeStyle: "short" }) : "No indicada"; }
-async function pushNotice(payload:Record<string,unknown>){if(!supabase)return;const{data}=await supabase.auth.getSession();if(!data.session)return;await fetch("/api/send-push",{method:"POST",headers:{"content-type":"application/json",authorization:`Bearer ${data.session.access_token}`},body:JSON.stringify(payload)}).catch(()=>undefined)}
+function Heading({
+  title,
+  text,
+  children,
+}: {
+  title: string;
+  text: string;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="page-head">
+      <div>
+        <h1>{title}</h1>
+        <p>{text}</p>
+      </div>
+      {children}
+    </div>
+  );
+}
+function Message({ text, error = false }: { text: string; error?: boolean }) {
+  return (
+    <p className={error ? "error-note panel" : "success-note panel"}>{text}</p>
+  );
+}
+function fileKey(file: File) {
+  return `${Date.now()}-${file.name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9._-]/g, "-")}`;
+}
+function formatDate(value: string | null) {
+  return value
+    ? new Date(value).toLocaleString("es-ES", {
+        dateStyle: "medium",
+        timeStyle: "short",
+      })
+    : "No indicada";
+}
+async function pushNotice(payload: Record<string, unknown>) {
+  if (!supabase) return;
+  const { data } = await supabase.auth.getSession();
+  if (!data.session) return;
+  await fetch("/api/send-push", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${data.session.access_token}`,
+    },
+    body: JSON.stringify(payload),
+  }).catch(() => undefined);
+}
 const quickPlanTemplate = `OBJETIVO DE LA SEMANA
 
 SESIÓN 1
@@ -28,72 +117,1408 @@ Vuelta a la calma:
 
 OBSERVACIONES
 Material, ritmos, descansos y adaptaciones:`;
-const escapeHtml = (value: string) => value.replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[char] || char));
-function printPlan(title: string, body: string, week: string, groupName: string) { const popup = window.open("", "_blank", "width=900,height=900"); if (!popup) return false; popup.document.write(`<!doctype html><html><head><title>${escapeHtml(title)}</title><style>@page{size:A4;margin:18mm}body{font-family:Arial,sans-serif;color:#0b2447;line-height:1.5}header{border-bottom:4px solid #2563eb;margin-bottom:28px;padding-bottom:16px}.brand{font-size:24px;font-weight:800;letter-spacing:.04em}h1{font-size:28px;margin:22px 0 4px}.meta{color:#52637a}.plan{white-space:pre-wrap;font-size:15px}footer{position:fixed;bottom:0;color:#728096;font-size:11px}</style></head><body><header><div class="brand">AF · ATLETAS DE FUENLABRADA</div><h1>${escapeHtml(title)}</h1><div class="meta">${escapeHtml(groupName)} · Semana del ${escapeHtml(new Date(`${week}T12:00:00`).toLocaleDateString("es-ES"))}</div></header><main class="plan">${escapeHtml(body)}</main><footer>Plan de entrenamiento · atletasdefuenlabrada.com</footer><script>window.onload=()=>window.print()<\/script></body></html>`); popup.document.close(); return true; }
+const escapeHtml = (value: string) =>
+  value.replace(
+    /[&<>"']/g,
+    (char) =>
+      ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#039;",
+      })[char] || char,
+  );
+function printPlan(
+  title: string,
+  body: string,
+  week: string,
+  groupName: string,
+) {
+  const popup = window.open("", "_blank", "width=900,height=900");
+  if (!popup) return false;
+  popup.document.write(
+    `<!doctype html><html><head><title>${escapeHtml(title)}</title><style>@page{size:A4;margin:18mm}body{font-family:Arial,sans-serif;color:#0b2447;line-height:1.5}header{border-bottom:4px solid #2563eb;margin-bottom:28px;padding-bottom:16px}.brand{font-size:24px;font-weight:800;letter-spacing:.04em}h1{font-size:28px;margin:22px 0 4px}.meta{color:#52637a}.plan{white-space:pre-wrap;font-size:15px}footer{position:fixed;bottom:0;color:#728096;font-size:11px}</style></head><body><header><div class="brand">AF · ATLETAS DE FUENLABRADA</div><h1>${escapeHtml(title)}</h1><div class="meta">${escapeHtml(groupName)} · Semana del ${escapeHtml(new Date(`${week}T12:00:00`).toLocaleDateString("es-ES"))}</div></header><main class="plan">${escapeHtml(body)}</main><footer>Plan de entrenamiento · atletasdefuenlabrada.com</footer><script>window.onload=()=>window.print()<\/script></body></html>`,
+  );
+  popup.document.close();
+  return true;
+}
 
-export function CompetitionManager({ profile, manager = false }: { profile: Profile; manager?: boolean }) {
-  const [events, setEvents] = useState<Competition[]>([]); const [availability, setAvailability] = useState<{ competition_event_id: string; coach_profile_id: string; available: boolean }[]>([]);
-  const [athletes, setAthletes] = useState<{ id: string; first_name: string; last_name: string; training_group_id: string | null }[]>([]); const [entries, setEntries] = useState<{ competition_event_id: string; athlete_id: string; status: string }[]>([]);
-  const [notice, setNotice] = useState(""); const [busy, setBusy] = useState(false); const [file, setFile] = useState<File | null>(null);
-  const [form, setForm] = useState({ title: "", venue: "", startsAt: "", famDeadline: "", clubDeadline: "", rules: "", published: true });
-  const load = async () => { if (!supabase) return; const [{ data: eventData, error }, { data: attendanceData }, { data: athleteData }, { data: entryData }] = await Promise.all([
-    supabase.from("competition_events").select("*,club_documents(*)").order("starts_at", { ascending: true }),
-    supabase.from("competition_coach_attendance").select("competition_event_id,coach_profile_id,available"),
-    supabase.from("athletes").select("id,first_name,last_name,training_group_id"),
-    supabase.from("competition_entries").select("competition_event_id,athlete_id,status")
-  ]); setEvents((eventData ?? []) as Competition[]); setAvailability((attendanceData ?? []) as { competition_event_id: string; coach_profile_id: string; available: boolean }[]); setAthletes((athleteData ?? []) as typeof athletes); setEntries((entryData ?? []) as typeof entries); if (error) setNotice(error.message); };
-  useEffect(() => { void load(); }, []);
-  const save = async (e: FormEvent) => { e.preventDefault(); if (!supabase) return; setBusy(true); setNotice(""); const { data, error } = await supabase.from("competition_events").insert({ title: form.title, venue: form.venue || null, starts_at: new Date(form.startsAt).toISOString(), federation_deadline: form.famDeadline ? new Date(form.famDeadline).toISOString() : null, internal_deadline: form.clubDeadline ? new Date(form.clubDeadline).toISOString() : null, rules_summary: form.rules || null, published: form.published, created_by: profile.id }).select().single(); if (error || !data) { setBusy(false); return setNotice(error?.message || "No se pudo crear la competición."); }
-    if (file) { const path = `competitions/${data.id}/${fileKey(file)}`; const { error: uploadError } = await supabase.storage.from("club-private-documents").upload(path, file); if (uploadError) setNotice(`Competición creada, pero el PDF no se pudo subir: ${uploadError.message}`); else { const { error: docError } = await supabase.from("club_documents").insert({ document_type: "competition_circular", title: file.name, storage_path: path, competition_event_id: data.id, uploaded_by: profile.id }); if (docError) setNotice(`Competición creada, pero no se registró el PDF: ${docError.message}`); } }
-    if(form.published)void pushNotice({kind:"competition",scope:"club",title:"Nueva competición",body:`${form.title} · ${new Date(form.startsAt).toLocaleString("es-ES")}`,url:"/?access=1"});setForm({ title: "", venue: "", startsAt: "", famDeadline: "", clubDeadline: "", rules: "", published: true }); setFile(null); setBusy(false); if (!notice) setNotice("Competición publicada en el calendario interno."); void load(); };
-  const respond = async (eventId: string, available: boolean) => { if (!supabase) return; setNotice(""); const { error } = await supabase.from("competition_coach_attendance").upsert({ competition_event_id: eventId, coach_profile_id: profile.id, available, responded_at: new Date().toISOString() }, { onConflict: "competition_event_id,coach_profile_id" }); if (error) setNotice(error.message); else { setNotice(available ? "Has indicado que puedes asistir." : "Has indicado que no puedes asistir."); void load(); } };
-  const requestEntry = async (eventId: string, athleteId: string) => { if (!supabase) return; setNotice(""); const { error } = await supabase.rpc("request_competition_entry", { target_event_id: eventId, target_athlete_id: athleteId }); if (error) setNotice(error.message); else { setNotice("Solicitud enviada al entrenador del grupo y al club."); void load(); } };
-  const openDocument = async (document: ClubDocument) => { if (!supabase) return; const { data, error } = await supabase.storage.from("club-private-documents").createSignedUrl(document.storage_path, 60); if (error || !data) return setNotice(error?.message || "No se pudo abrir el PDF."); window.open(data.signedUrl, "_blank", "noopener,noreferrer"); };
-  return <><Heading title="Carreras y competiciones" text="Pruebas del calendario del club, con circular y solicitud de participación."><a className="calendar-link" href="https://www.atletismomadrid.com/calendario" target="_blank" rel="noreferrer">Calendario FAM ↗</a></Heading>{manager && <form className="panel stacked-form" onSubmit={save}><h2>Publicar competición</h2><div className="ops-grid"><label>Nombre de la prueba<input required value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="Control de marcas Sub 14" /></label><label>Lugar<input value={form.venue} onChange={e => setForm({ ...form, venue: e.target.value })} placeholder="Polideportivo…" /></label><label>Fecha y hora<input required type="datetime-local" value={form.startsAt} onChange={e => setForm({ ...form, startsAt: e.target.value })} /></label><label>Fecha límite FAM<input type="datetime-local" value={form.famDeadline} onChange={e => setForm({ ...form, famDeadline: e.target.value })} /></label><label>Fecha límite interna<input type="datetime-local" value={form.clubDeadline} onChange={e => setForm({ ...form, clubDeadline: e.target.value })} /></label><label>Circular PDF<input type="file" accept="application/pdf" onChange={e => setFile(e.target.files?.[0] || null)} /></label></div><label>Indicaciones para las familias y entrenadores<textarea value={form.rules} onChange={e => setForm({ ...form, rules: e.target.value })} placeholder="Categorías, pruebas, punto de encuentro…" /></label><label className="check-line"><input type="checkbox" checked={form.published} onChange={e => setForm({ ...form, published: e.target.checked })} />Visible en la app</label><button disabled={busy}>{busy ? "Publicando…" : "Publicar en calendario"}</button></form>}{notice && <Message text={notice} error={!notice.includes("publicada") && !notice.includes("puedes") && !notice.includes("no puedes") && !notice.includes("enviada")} />}<section className="event-list">{events.map(event => { const mine = availability.find(a => a.competition_event_id === event.id && a.coach_profile_id === profile.id); const attending = availability.filter(a => a.competition_event_id === event.id && a.available).length; const requested = entries.filter(entry => entry.competition_event_id === event.id); return <article className="panel event-card" key={event.id}><div className="event-date">{new Date(event.starts_at).toLocaleDateString("es-ES", { day: "2-digit", month: "short" })}</div><div><h2>{event.title}</h2><p>{event.venue || "Lugar pendiente"} · {formatDate(event.starts_at)}</p>{event.internal_deadline && <small>Cierre interno: {formatDate(event.internal_deadline)}</small>}{event.federation_deadline && <small>Cierre FAM: {formatDate(event.federation_deadline)}</small>}{event.rules_summary && <p>{event.rules_summary}</p>}{event.club_documents?.map(doc => <button className="outline small-button" key={doc.id} onClick={() => void openDocument(doc)}>Abrir circular PDF</button>)}</div><aside>{profile.role === "coach" ? <><b>Asistencia del entrenador</b><small>{mine ? mine.available ? "Confirmada" : "No disponible" : "Sin responder"}</small><div className="answer-buttons"><button className={mine?.available ? "yes" : "outline"} onClick={() => void respond(event.id, true)}>Puedo asistir</button><button className={mine && !mine.available ? "no" : "outline"} onClick={() => void respond(event.id, false)}>No puedo</button></div></> : manager ? <><b>{requested.length}</b><small>solicitudes recibidas · {attending} entrenador(es) disponible(s)</small></> : <>{athletes.map(athlete => { const entry = requested.find(item => item.athlete_id === athlete.id); const ownAdult = profile.role === "adult_athlete" || profile.role === "minor_athlete"; return <button className="outline small-button" key={athlete.id} disabled={Boolean(entry)} onClick={() => void requestEntry(event.id, athlete.id)}>{entry ? "Solicitud enviada" : ownAdult ? "Solicitar inscripción" : `Apuntar a ${athlete.first_name}`}</button>; })}{!athletes.length && <small>No hay atletas asociados a esta cuenta.</small>}</>}</aside></article>; })}{!events.length && <article className="panel empty">No hay competiciones internas publicadas todavía.</article>}</section></>;
+export function CompetitionManager({
+  profile,
+  manager = false,
+}: {
+  profile: Profile;
+  manager?: boolean;
+}) {
+  const [events, setEvents] = useState<Competition[]>([]);
+  const [availability, setAvailability] = useState<
+    {
+      competition_event_id: string;
+      coach_profile_id: string;
+      available: boolean;
+    }[]
+  >([]);
+  const [athletes, setAthletes] = useState<
+    {
+      id: string;
+      first_name: string;
+      last_name: string;
+      training_group_id: string | null;
+    }[]
+  >([]);
+  const [entries, setEntries] = useState<
+    { competition_event_id: string; athlete_id: string; status: string }[]
+  >([]);
+  const [notice, setNotice] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
+  const [form, setForm] = useState({
+    title: "",
+    venue: "",
+    startsAt: "",
+    famDeadline: "",
+    clubDeadline: "",
+    rules: "",
+    published: true,
+  });
+  const load = async () => {
+    if (!supabase) return;
+    const [
+      { data: eventData, error },
+      { data: attendanceData },
+      { data: athleteData },
+      { data: entryData },
+    ] = await Promise.all([
+      supabase
+        .from("competition_events")
+        .select("*,club_documents(*)")
+        .order("starts_at", { ascending: true }),
+      supabase
+        .from("competition_coach_attendance")
+        .select("competition_event_id,coach_profile_id,available"),
+      supabase
+        .from("athletes")
+        .select("id,first_name,last_name,training_group_id"),
+      supabase
+        .from("competition_entries")
+        .select("competition_event_id,athlete_id,status"),
+    ]);
+    setEvents((eventData ?? []) as Competition[]);
+    setAvailability(
+      (attendanceData ?? []) as {
+        competition_event_id: string;
+        coach_profile_id: string;
+        available: boolean;
+      }[],
+    );
+    setAthletes((athleteData ?? []) as typeof athletes);
+    setEntries((entryData ?? []) as typeof entries);
+    if (error) setNotice(error.message);
+  };
+  useEffect(() => {
+    void load();
+  }, []);
+  const save = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!supabase) return;
+    setBusy(true);
+    setNotice("");
+    const { data, error } = await supabase
+      .from("competition_events")
+      .insert({
+        title: form.title,
+        venue: form.venue || null,
+        starts_at: new Date(form.startsAt).toISOString(),
+        federation_deadline: form.famDeadline
+          ? new Date(form.famDeadline).toISOString()
+          : null,
+        internal_deadline: form.clubDeadline
+          ? new Date(form.clubDeadline).toISOString()
+          : null,
+        rules_summary: form.rules || null,
+        published: form.published,
+        created_by: profile.id,
+      })
+      .select()
+      .single();
+    if (error || !data) {
+      setBusy(false);
+      return setNotice(error?.message || "No se pudo crear la competición.");
+    }
+    if (file) {
+      const path = `competitions/${data.id}/${fileKey(file)}`;
+      const { error: uploadError } = await supabase.storage
+        .from("club-private-documents")
+        .upload(path, file);
+      if (uploadError)
+        setNotice(
+          `Competición creada, pero el PDF no se pudo subir: ${uploadError.message}`,
+        );
+      else {
+        const { error: docError } = await supabase
+          .from("club_documents")
+          .insert({
+            document_type: "competition_circular",
+            title: file.name,
+            storage_path: path,
+            competition_event_id: data.id,
+            uploaded_by: profile.id,
+          });
+        if (docError)
+          setNotice(
+            `Competición creada, pero no se registró el PDF: ${docError.message}`,
+          );
+      }
+    }
+    if (form.published)
+      void pushNotice({
+        kind: "competition",
+        scope: "club",
+        title: "Nueva competición",
+        body: `${form.title} · ${new Date(form.startsAt).toLocaleString("es-ES")}`,
+        url: "/?access=1",
+      });
+    setForm({
+      title: "",
+      venue: "",
+      startsAt: "",
+      famDeadline: "",
+      clubDeadline: "",
+      rules: "",
+      published: true,
+    });
+    setFile(null);
+    setBusy(false);
+    if (!notice) setNotice("Competición publicada en el calendario interno.");
+    void load();
+  };
+  const respond = async (eventId: string, available: boolean) => {
+    if (!supabase) return;
+    setNotice("");
+    const { error } = await supabase
+      .from("competition_coach_attendance")
+      .upsert(
+        {
+          competition_event_id: eventId,
+          coach_profile_id: profile.id,
+          available,
+          responded_at: new Date().toISOString(),
+        },
+        { onConflict: "competition_event_id,coach_profile_id" },
+      );
+    if (error) setNotice(error.message);
+    else {
+      setNotice(
+        available
+          ? "Has indicado que puedes asistir."
+          : "Has indicado que no puedes asistir.",
+      );
+      void load();
+    }
+  };
+  const requestEntry = async (eventId: string, athleteId: string) => {
+    if (!supabase) return;
+    setNotice("");
+    const { error } = await supabase.rpc("request_competition_entry", {
+      target_event_id: eventId,
+      target_athlete_id: athleteId,
+    });
+    if (error) setNotice(error.message);
+    else {
+      setNotice("Solicitud enviada al entrenador del grupo y al club.");
+      void load();
+    }
+  };
+  const openDocument = async (document: ClubDocument) => {
+    if (!supabase) return;
+    const { data, error } = await supabase.storage
+      .from("club-private-documents")
+      .createSignedUrl(document.storage_path, 60);
+    if (error || !data)
+      return setNotice(error?.message || "No se pudo abrir el PDF.");
+    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+  };
+  return (
+    <>
+      <Heading
+        title="Carreras y competiciones"
+        text="Pruebas del calendario del club, con circular y solicitud de participación."
+      >
+        <a
+          className="calendar-link"
+          href="https://www.atletismomadrid.com/calendario"
+          target="_blank"
+          rel="noreferrer"
+        >
+          Calendario FAM ↗
+        </a>
+      </Heading>
+      {manager && (
+        <form className="panel stacked-form" onSubmit={save}>
+          <h2>Publicar competición</h2>
+          <div className="ops-grid">
+            <label>
+              Nombre de la prueba
+              <input
+                required
+                value={form.title}
+                onChange={(e) => setForm({ ...form, title: e.target.value })}
+                placeholder="Control de marcas Sub 14"
+              />
+            </label>
+            <label>
+              Lugar
+              <input
+                value={form.venue}
+                onChange={(e) => setForm({ ...form, venue: e.target.value })}
+                placeholder="Polideportivo…"
+              />
+            </label>
+            <label>
+              Fecha y hora
+              <input
+                required
+                type="datetime-local"
+                value={form.startsAt}
+                onChange={(e) => setForm({ ...form, startsAt: e.target.value })}
+              />
+            </label>
+            <label>
+              Fecha límite FAM
+              <input
+                type="datetime-local"
+                value={form.famDeadline}
+                onChange={(e) =>
+                  setForm({ ...form, famDeadline: e.target.value })
+                }
+              />
+            </label>
+            <label>
+              Fecha límite interna
+              <input
+                type="datetime-local"
+                value={form.clubDeadline}
+                onChange={(e) =>
+                  setForm({ ...form, clubDeadline: e.target.value })
+                }
+              />
+            </label>
+            <label>
+              Circular PDF
+              <input
+                type="file"
+                accept="application/pdf"
+                onChange={(e) => setFile(e.target.files?.[0] || null)}
+              />
+            </label>
+          </div>
+          <label>
+            Indicaciones para las familias y entrenadores
+            <textarea
+              value={form.rules}
+              onChange={(e) => setForm({ ...form, rules: e.target.value })}
+              placeholder="Categorías, pruebas, punto de encuentro…"
+            />
+          </label>
+          <label className="check-line">
+            <input
+              type="checkbox"
+              checked={form.published}
+              onChange={(e) =>
+                setForm({ ...form, published: e.target.checked })
+              }
+            />
+            Visible en la app
+          </label>
+          <button disabled={busy}>
+            {busy ? "Publicando…" : "Publicar en calendario"}
+          </button>
+        </form>
+      )}
+      {notice && (
+        <Message
+          text={notice}
+          error={
+            !notice.includes("publicada") &&
+            !notice.includes("puedes") &&
+            !notice.includes("no puedes") &&
+            !notice.includes("enviada")
+          }
+        />
+      )}
+      <section className="event-list">
+        {events.map((event) => {
+          const mine = availability.find(
+            (a) =>
+              a.competition_event_id === event.id &&
+              a.coach_profile_id === profile.id,
+          );
+          const attending = availability.filter(
+            (a) => a.competition_event_id === event.id && a.available,
+          ).length;
+          const requested = entries.filter(
+            (entry) => entry.competition_event_id === event.id,
+          );
+          return (
+            <article className="panel event-card" key={event.id}>
+              <div className="event-date">
+                {new Date(event.starts_at).toLocaleDateString("es-ES", {
+                  day: "2-digit",
+                  month: "short",
+                })}
+              </div>
+              <div>
+                <h2>{event.title}</h2>
+                <p>
+                  {event.venue || "Lugar pendiente"} ·{" "}
+                  {formatDate(event.starts_at)}
+                </p>
+                {event.internal_deadline && (
+                  <small>
+                    Cierre interno: {formatDate(event.internal_deadline)}
+                  </small>
+                )}
+                {event.federation_deadline && (
+                  <small>
+                    Cierre FAM: {formatDate(event.federation_deadline)}
+                  </small>
+                )}
+                {event.rules_summary && <p>{event.rules_summary}</p>}
+                {event.club_documents?.map((doc) => (
+                  <button
+                    className="outline small-button"
+                    key={doc.id}
+                    onClick={() => void openDocument(doc)}
+                  >
+                    Abrir circular PDF
+                  </button>
+                ))}
+              </div>
+              <aside>
+                {profile.role === "coach" ? (
+                  <>
+                    <b>Asistencia del entrenador</b>
+                    <small>
+                      {mine
+                        ? mine.available
+                          ? "Confirmada"
+                          : "No disponible"
+                        : "Sin responder"}
+                    </small>
+                    <div className="answer-buttons">
+                      <button
+                        className={mine?.available ? "yes" : "outline"}
+                        onClick={() => void respond(event.id, true)}
+                      >
+                        Puedo asistir
+                      </button>
+                      <button
+                        className={mine && !mine.available ? "no" : "outline"}
+                        onClick={() => void respond(event.id, false)}
+                      >
+                        No puedo
+                      </button>
+                    </div>
+                  </>
+                ) : manager ? (
+                  <>
+                    <b>{requested.length}</b>
+                    <small>
+                      solicitudes recibidas · {attending} entrenador(es)
+                      disponible(s)
+                    </small>
+                  </>
+                ) : (
+                  <>
+                    {athletes.map((athlete) => {
+                      const entry = requested.find(
+                        (item) => item.athlete_id === athlete.id,
+                      );
+                      const ownAdult =
+                        profile.role === "adult_athlete" ||
+                        profile.role === "minor_athlete";
+                      return (
+                        <button
+                          className="outline small-button"
+                          key={athlete.id}
+                          disabled={Boolean(entry)}
+                          onClick={() =>
+                            void requestEntry(event.id, athlete.id)
+                          }
+                        >
+                          {entry
+                            ? "Solicitud enviada"
+                            : ownAdult
+                              ? "Solicitar inscripción"
+                              : `Apuntar a ${athlete.first_name}`}
+                        </button>
+                      );
+                    })}
+                    {!athletes.length && (
+                      <small>No hay atletas asociados a esta cuenta.</small>
+                    )}
+                  </>
+                )}
+              </aside>
+            </article>
+          );
+        })}
+        {!events.length && (
+          <article className="panel empty">
+            No hay competiciones internas publicadas todavía.
+          </article>
+        )}
+      </section>
+    </>
+  );
 }
 
 export function PlanningWorkspace({ profile }: { profile: Profile }) {
-  const [groups, setGroups] = useState<Group[]>([]); const [plans, setPlans] = useState<{ id: string; title: string; body: string; week_starts_on: string; training_group_id: string }[]>([]); const [documents, setDocuments] = useState<ClubDocument[]>([]); const [form, setForm] = useState({ group: "", title: "", body: "", week: mondayKey() }); const [file, setFile] = useState<File | null>(null); const [notice, setNotice] = useState("");
-  const days = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
-  const emptySession = () => ({ objective: "", warmup: "", technique: "", main: "", cooldown: "", notes: "", duration: "60", rpe: "5", volume: "", intensity: "Media" });
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [plans, setPlans] = useState<
+    {
+      id: string;
+      title: string;
+      body: string;
+      week_starts_on: string;
+      training_group_id: string;
+      published_at: string | null;
+    }[]
+  >([]);
+  const [documents, setDocuments] = useState<ClubDocument[]>([]);
+  const [form, setForm] = useState({
+    group: "",
+    title: "",
+    body: "",
+    week: mondayKey(),
+  });
+  const [file, setFile] = useState<File | null>(null);
+  const [notice, setNotice] = useState("");
+  const days = [
+    "Lunes",
+    "Martes",
+    "Miércoles",
+    "Jueves",
+    "Viernes",
+    "Sábado",
+    "Domingo",
+  ];
+  const emptySession = () => ({
+    objective: "",
+    warmup: "",
+    technique: "",
+    main: "",
+    cooldown: "",
+    notes: "",
+    duration: "60",
+    rpe: "5",
+    volume: "",
+    intensity: "Media",
+  });
   const [activeDay, setActiveDay] = useState("Lunes");
-  const [weekPlan, setWeekPlan] = useState<Record<string, ReturnType<typeof emptySession>>>(() => Object.fromEntries(days.map(day => [day, emptySession()])));
+  const [weekPlan, setWeekPlan] = useState<
+    Record<string, ReturnType<typeof emptySession>>
+  >(() => Object.fromEntries(days.map((day) => [day, emptySession()])));
   const builder = weekPlan[activeDay];
-  const updateBuilder = (patch: Partial<typeof builder>) => setWeekPlan(current => ({ ...current, [activeDay]: { ...current[activeDay], ...patch } }));
-  const load = async () => { if (!supabase) return; const [{ data: assigned }, { data: planData }, { data: docData }] = await Promise.all([supabase.from("training_group_coaches").select("training_groups(id,name,category_label,colour,schedule_days,starts_at,ends_at)").eq("coach_profile_id", profile.id), supabase.from("training_plans").select("*").order("week_starts_on", { ascending: false }), supabase.from("club_documents").select("*").eq("document_type", "training_plan").order("created_at", { ascending: false })]); const own = ((assigned ?? []).map((row: any) => row.training_groups).filter(Boolean)) as Group[]; setGroups(own); setPlans((planData ?? []) as typeof plans); setDocuments((docData ?? []) as ClubDocument[]); };
-  useEffect(() => { void load(); }, []);
-  const preview = (title = form.title, body = form.body, week = form.week, groupId = form.group) => { const groupName = groups.find(group => group.id === groupId)?.name || "Grupo de entrenamiento"; if (!title.trim() || !body.trim()) return setNotice("Escribe el título y el plan antes de crear el PDF."); if (!printPlan(title, body, week, groupName)) setNotice("El navegador ha bloqueado la ventana del PDF. Permite ventanas emergentes y vuelve a intentarlo."); };
-  const save = async (e: FormEvent) => { e.preventDefault(); if (!supabase) return; if (!form.body.trim() && !file) return setNotice("Prepara el plan semanal o adjunta un PDF antes de publicar."); setNotice(""); const { error } = await supabase.from("training_plans").upsert({ training_group_id: form.group, title: form.title, body: form.body || "Plan disponible en el PDF adjunto.", week_starts_on: form.week, published_at: new Date().toISOString(), created_by: profile.id }, { onConflict: "training_group_id,week_starts_on" }); if (error) return setNotice(error.message); if (file) { const path = `plans/${form.group}/${fileKey(file)}`; const { error: uploadError } = await supabase.storage.from("club-private-documents").upload(path, file); if (uploadError) return setNotice(`Plan guardado, pero el PDF no se pudo subir: ${uploadError.message}`); const { error: docError } = await supabase.from("club_documents").insert({ document_type: "training_plan", title: file.name, storage_path: path, training_group_id: form.group, uploaded_by: profile.id }); if (docError) return setNotice(`Plan guardado, pero no se registró el PDF: ${docError.message}`); } void pushNotice({kind:"plan",scope:"group",groupId:form.group,title:"Nuevo plan de entrenamiento",body:form.title,url:"/?access=1"});setNotice("Plan y documento publicados para el grupo."); setForm({ group: "", title: "", body: "", week: mondayKey() }); setFile(null); void load(); };
-  const open = async (doc: ClubDocument) => { if (!supabase) return; const { data, error } = await supabase.storage.from("club-private-documents").createSignedUrl(doc.storage_path, 60); if (error || !data) return setNotice(error?.message || "No se pudo abrir el documento."); window.open(data.signedUrl, "_blank", "noopener,noreferrer"); };
-  const composePlan = () => { const sessions = days.map(day => { const item=weekPlan[day]; const sections=[["Objetivo",item.objective],["Calentamiento",item.warmup],["Técnica",item.technique],["Bloque principal",item.main],["Vuelta a la calma",item.cooldown],["Observaciones",item.notes]].filter(([,value])=>value.trim()).map(([title,value])=>`${title}: ${value.trim()}`); if(!sections.length)return ""; const load=Math.max(0,Number(item.duration)||0)*Math.max(0,Number(item.rpe)||0); return `${day.toUpperCase()}\nDuración: ${item.duration||"—"} min · RPE: ${item.rpe||"—"}/10 · Carga: ${load} UA · Intensidad: ${item.intensity}${item.volume?` · Volumen: ${item.volume}`:""}\n${sections.join("\n")}`; }).filter(Boolean); if(!sessions.length)return setNotice("Completa al menos un día del plan semanal."); setForm(current=>({...current,body:sessions.join("\n\n")})); setNotice("Semana preparada. Puedes revisarla, generar el PDF o publicarla."); };
-  return <><Heading title="Planificación" text="Crea la semana día a día o publica directamente un PDF preparado." />{!groups.length ? <Message text="Aún no tienes ningún grupo asignado. Un administrador debe asignártelo desde Invitaciones." error /> : <form className="panel coach-week-planner" onSubmit={save}><header><div><small>PLAN SEMANAL</small><h2>Organiza el entrenamiento del grupo</h2><p>Elige grupo y semana. Después abre cada día para desarrollar su sesión.</p></div><span>Diseña · Revisa · Publica</span></header><div className="coach-plan-meta"><label>Grupo<select required value={form.group} onChange={e=>setForm({...form,group:e.target.value})}><option value="">Selecciona un grupo</option>{groups.map(g=><option key={g.id} value={g.id}>{g.name} · {g.schedule_days}</option>)}</select></label><label>Inicio de semana<input required type="date" value={form.week} onChange={e=>setForm({...form,week:e.target.value})}/></label><label>Título del plan<input required value={form.title} onChange={e=>setForm({...form,title:e.target.value})} placeholder="Semana de velocidad y técnica"/></label></div><nav className="coach-day-tabs">{days.map(day=>{const filled=Object.values(weekPlan[day]).some(value=>value && !["60","5","Media"].includes(value));return <button type="button" key={day} className={activeDay===day?"active":""} onClick={()=>setActiveDay(day)}><b>{day.slice(0,3)}</b><small>{filled?"Preparado":"Vacío"}</small></button>})}</nav><section className="coach-day-editor"><div className="coach-day-title"><div><small>SESIÓN DEL {activeDay.toUpperCase()}</small><h3>{activeDay}</h3></div><div><small>CARGA ESTIMADA</small><b>{Math.max(0,Number(builder.duration)||0)*Math.max(0,Number(builder.rpe)||0)} UA</b></div></div><div className="coach-load-grid"><label>Duración (min)<input type="number" min="0" value={builder.duration} onChange={e=>updateBuilder({duration:e.target.value})}/></label><label>RPE (1–10)<input type="number" min="1" max="10" value={builder.rpe} onChange={e=>updateBuilder({rpe:e.target.value})}/></label><label>Intensidad<select value={builder.intensity} onChange={e=>updateBuilder({intensity:e.target.value})}><option>Baja</option><option>Media</option><option>Alta</option><option>Competición</option></select></label><label>Volumen<input value={builder.volume} onChange={e=>updateBuilder({volume:e.target.value})} placeholder="5 km · 12 series"/></label></div><div className="coach-builder-grid"><label>Objetivo de la sesión<textarea value={builder.objective} onChange={e=>updateBuilder({objective:e.target.value})}/></label><label>Calentamiento<textarea value={builder.warmup} onChange={e=>updateBuilder({warmup:e.target.value})}/></label><label>Técnica<textarea value={builder.technique} onChange={e=>updateBuilder({technique:e.target.value})}/></label><label>Bloque principal<textarea value={builder.main} onChange={e=>updateBuilder({main:e.target.value})}/></label><label>Vuelta a la calma<textarea value={builder.cooldown} onChange={e=>updateBuilder({cooldown:e.target.value})}/></label><label>Observaciones<textarea value={builder.notes} onChange={e=>updateBuilder({notes:e.target.value})}/></label></div></section><button type="button" className="coach-compose" onClick={composePlan}>Preparar semana completa</button><section className="coach-plan-output"><div><small>PLAN GENERADO</small><h3>Revisa antes de publicar</h3><textarea rows={14} value={form.body} onChange={e=>setForm({...form,body:e.target.value})} placeholder="Aquí aparecerá la semana preparada…"/><div className="inline-actions"><button type="button" className="outline" onClick={()=>preview()}>Vista PDF / guardar</button><button>Publicar plan</button></div></div><aside><small>YA TENGO EL PDF</small><h3>Publicar documento</h3><p>Si el plan ya está creado, adjúntalo y publícalo para el grupo seleccionado.</p><input type="file" accept="application/pdf" onChange={e=>setFile(e.target.files?.[0]||null)}/>{file&&<b>{file.name}</b>}</aside></section></form>}{notice&&<Message text={notice} error={!notice.includes("publicados")&&!notice.includes("preparada")}/>}<section className="cards">{plans.filter(plan=>groups.some(group=>group.id===plan.training_group_id)).map(plan=><article className="panel plan" key={plan.id}><small>Semana del {new Date(`${plan.week_starts_on}T12:00:00`).toLocaleDateString("es-ES")}</small><h2>{plan.title}</h2><p>{plan.body}</p><button className="outline small-button" onClick={()=>preview(plan.title,plan.body,plan.week_starts_on,plan.training_group_id)}>Imprimir / guardar PDF</button>{documents.filter(doc=>doc.training_group_id===plan.training_group_id).map(doc=><button key={doc.id} className="outline small-button" onClick={()=>void open(doc)}>Abrir PDF subido: {doc.title}</button>)}</article>)}</section></>;
+  const updateBuilder = (patch: Partial<typeof builder>) =>
+    setWeekPlan((current) => ({
+      ...current,
+      [activeDay]: { ...current[activeDay], ...patch },
+    }));
+  const load = async () => {
+    if (!supabase) return;
+    const [{ data: assigned }, { data: planData }, { data: docData }] =
+      await Promise.all([
+        supabase
+          .from("training_group_coaches")
+          .select(
+            "training_groups(id,name,category_label,colour,schedule_days,starts_at,ends_at)",
+          )
+          .eq("coach_profile_id", profile.id),
+        supabase
+          .from("training_plans")
+          .select("*")
+          .order("week_starts_on", { ascending: false }),
+        supabase
+          .from("club_documents")
+          .select("*")
+          .eq("document_type", "training_plan")
+          .order("created_at", { ascending: false }),
+      ]);
+    const own = (assigned ?? [])
+      .map((row: any) => row.training_groups)
+      .filter(Boolean) as Group[];
+    setGroups(own);
+    setPlans((planData ?? []) as typeof plans);
+    setDocuments((docData ?? []) as ClubDocument[]);
+  };
+  useEffect(() => {
+    void load();
+  }, []);
+  const preview = (
+    title = form.title,
+    body = form.body,
+    week = form.week,
+    groupId = form.group,
+  ) => {
+    const groupName =
+      groups.find((group) => group.id === groupId)?.name ||
+      "Grupo de entrenamiento";
+    if (!title.trim() || !body.trim())
+      return setNotice("Escribe el título y el plan antes de crear el PDF.");
+    if (!printPlan(title, body, week, groupName))
+      setNotice(
+        "El navegador ha bloqueado la ventana del PDF. Permite ventanas emergentes y vuelve a intentarlo.",
+      );
+  };
+  const save = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!supabase) return;
+    if (!form.body.trim() && !file)
+      return setNotice(
+        "Prepara el plan semanal o adjunta un PDF antes de publicar.",
+      );
+    setNotice("");
+    const { error } = await supabase
+      .from("training_plans")
+      .upsert(
+        {
+          training_group_id: form.group,
+          title: form.title,
+          body: form.body || "Plan disponible en el PDF adjunto.",
+          week_starts_on: form.week,
+          published_at: new Date().toISOString(),
+          created_by: profile.id,
+        },
+        { onConflict: "training_group_id,week_starts_on" },
+      );
+    if (error) return setNotice(error.message);
+    if (file) {
+      const path = `plans/${form.group}/${fileKey(file)}`;
+      const { error: uploadError } = await supabase.storage
+        .from("club-private-documents")
+        .upload(path, file);
+      if (uploadError)
+        return setNotice(
+          `Plan guardado, pero el PDF no se pudo subir: ${uploadError.message}`,
+        );
+      const { error: docError } = await supabase
+        .from("club_documents")
+        .insert({
+          document_type: "training_plan",
+          title: file.name,
+          storage_path: path,
+          training_group_id: form.group,
+          uploaded_by: profile.id,
+        });
+      if (docError)
+        return setNotice(
+          `Plan guardado, pero no se registró el PDF: ${docError.message}`,
+        );
+    }
+    void pushNotice({
+      kind: "plan",
+      scope: "group",
+      groupId: form.group,
+      title: "Nuevo plan de entrenamiento",
+      body: form.title,
+      url: "/?access=1",
+    });
+    setNotice("Plan y documento publicados para el grupo.");
+    setForm({ group: "", title: "", body: "", week: mondayKey() });
+    setFile(null);
+    void load();
+  };
+  const open = async (doc: ClubDocument) => {
+    if (!supabase) return;
+    const { data, error } = await supabase.storage
+      .from("club-private-documents")
+      .createSignedUrl(doc.storage_path, 60);
+    if (error || !data)
+      return setNotice(error?.message || "No se pudo abrir el documento.");
+    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+  };
+  const unpublish = async (plan: (typeof plans)[number]) => {
+    if (
+      !supabase ||
+      !window.confirm(
+        `¿Despublicar «${plan.title}»? Dejará de aparecer inmediatamente a los atletas, pero podrás volver a publicarlo.`,
+      )
+    )
+      return;
+    const { error } = await supabase
+      .from("training_plans")
+      .update({ published_at: null })
+      .eq("id", plan.id);
+    setNotice(
+      error
+        ? error.message
+        : "Plan despublicado. Ya no es visible para los atletas.",
+    );
+    if (!error) void load();
+  };
+  const republish = async (plan: (typeof plans)[number]) => {
+    if (!supabase) return;
+    const { error } = await supabase
+      .from("training_plans")
+      .update({ published_at: new Date().toISOString() })
+      .eq("id", plan.id);
+    setNotice(error ? error.message : "Plan publicado de nuevo para el grupo.");
+    if (!error) void load();
+  };
+  const remove = async (plan: (typeof plans)[number]) => {
+    if (!supabase) return;
+    const groupName =
+      groups.find((group) => group.id === plan.training_group_id)?.name ||
+      "el grupo";
+    const week = new Date(`${plan.week_starts_on}T12:00:00`).toLocaleDateString(
+      "es-ES",
+    );
+    if (
+      !window.confirm(
+        `Eliminar definitivamente «${plan.title}» de ${groupName}, semana del ${week}.\n\nEsta acción está pensada para pruebas, duplicados o planes erróneos y no se puede deshacer.`,
+      )
+    )
+      return;
+    const confirmation = window.prompt(
+      "Para confirmar la eliminación definitiva escribe ELIMINAR",
+    );
+    if (confirmation?.trim().toUpperCase() !== "ELIMINAR")
+      return setNotice("Eliminación cancelada.");
+    const { error } = await supabase
+      .from("training_plans")
+      .delete()
+      .eq("id", plan.id);
+    setNotice(
+      error
+        ? error.message
+        : "Plan eliminado definitivamente y retirado de los perfiles de atletas.",
+    );
+    if (!error) void load();
+  };
+  const composePlan = () => {
+    const sessions = days
+      .map((day) => {
+        const item = weekPlan[day];
+        const sections = [
+          ["Objetivo", item.objective],
+          ["Calentamiento", item.warmup],
+          ["Técnica", item.technique],
+          ["Bloque principal", item.main],
+          ["Vuelta a la calma", item.cooldown],
+          ["Observaciones", item.notes],
+        ]
+          .filter(([, value]) => value.trim())
+          .map(([title, value]) => `${title}: ${value.trim()}`);
+        if (!sections.length) return "";
+        const load =
+          Math.max(0, Number(item.duration) || 0) *
+          Math.max(0, Number(item.rpe) || 0);
+        return `${day.toUpperCase()}\nDuración: ${item.duration || "—"} min · RPE: ${item.rpe || "—"}/10 · Carga: ${load} UA · Intensidad: ${item.intensity}${item.volume ? ` · Volumen: ${item.volume}` : ""}\n${sections.join("\n")}`;
+      })
+      .filter(Boolean);
+    if (!sessions.length)
+      return setNotice("Completa al menos un día del plan semanal.");
+    setForm((current) => ({ ...current, body: sessions.join("\n\n") }));
+    setNotice(
+      "Semana preparada. Puedes revisarla, generar el PDF o publicarla.",
+    );
+  };
+  return (
+    <>
+      <Heading
+        title="Planificación"
+        text="Crea la semana día a día o publica directamente un PDF preparado."
+      />
+      {!groups.length ? (
+        <Message
+          text="Aún no tienes ningún grupo asignado. Un administrador debe asignártelo desde Invitaciones."
+          error
+        />
+      ) : (
+        <form className="panel coach-week-planner" onSubmit={save}>
+          <header>
+            <div>
+              <small>PLAN SEMANAL</small>
+              <h2>Organiza el entrenamiento del grupo</h2>
+              <p>
+                Elige grupo y semana. Después abre cada día para desarrollar su
+                sesión.
+              </p>
+            </div>
+            <span>Diseña · Revisa · Publica</span>
+          </header>
+          <div className="coach-plan-meta">
+            <label>
+              Grupo
+              <select
+                required
+                value={form.group}
+                onChange={(e) => setForm({ ...form, group: e.target.value })}
+              >
+                <option value="">Selecciona un grupo</option>
+                {groups.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.name} · {g.schedule_days}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Inicio de semana
+              <input
+                required
+                type="date"
+                value={form.week}
+                onChange={(e) => setForm({ ...form, week: e.target.value })}
+              />
+            </label>
+            <label>
+              Título del plan
+              <input
+                required
+                value={form.title}
+                onChange={(e) => setForm({ ...form, title: e.target.value })}
+                placeholder="Semana de velocidad y técnica"
+              />
+            </label>
+          </div>
+          <nav className="coach-day-tabs">
+            {days.map((day) => {
+              const filled = Object.values(weekPlan[day]).some(
+                (value) => value && !["60", "5", "Media"].includes(value),
+              );
+              return (
+                <button
+                  type="button"
+                  key={day}
+                  className={activeDay === day ? "active" : ""}
+                  onClick={() => setActiveDay(day)}
+                >
+                  <b>{day.slice(0, 3)}</b>
+                  <small>{filled ? "Preparado" : "Vacío"}</small>
+                </button>
+              );
+            })}
+          </nav>
+          <section className="coach-day-editor">
+            <div className="coach-day-title">
+              <div>
+                <small>SESIÓN DEL {activeDay.toUpperCase()}</small>
+                <h3>{activeDay}</h3>
+              </div>
+              <div>
+                <small>CARGA ESTIMADA</small>
+                <b>
+                  {Math.max(0, Number(builder.duration) || 0) *
+                    Math.max(0, Number(builder.rpe) || 0)}{" "}
+                  UA
+                </b>
+              </div>
+            </div>
+            <div className="coach-load-grid">
+              <label>
+                Duración (min)
+                <input
+                  type="number"
+                  min="0"
+                  value={builder.duration}
+                  onChange={(e) => updateBuilder({ duration: e.target.value })}
+                />
+              </label>
+              <label>
+                RPE (1–10)
+                <input
+                  type="number"
+                  min="1"
+                  max="10"
+                  value={builder.rpe}
+                  onChange={(e) => updateBuilder({ rpe: e.target.value })}
+                />
+              </label>
+              <label>
+                Intensidad
+                <select
+                  value={builder.intensity}
+                  onChange={(e) => updateBuilder({ intensity: e.target.value })}
+                >
+                  <option>Baja</option>
+                  <option>Media</option>
+                  <option>Alta</option>
+                  <option>Competición</option>
+                </select>
+              </label>
+              <label>
+                Volumen
+                <input
+                  value={builder.volume}
+                  onChange={(e) => updateBuilder({ volume: e.target.value })}
+                  placeholder="5 km · 12 series"
+                />
+              </label>
+            </div>
+            <div className="coach-builder-grid">
+              <label>
+                Objetivo de la sesión
+                <textarea
+                  value={builder.objective}
+                  onChange={(e) => updateBuilder({ objective: e.target.value })}
+                />
+              </label>
+              <label>
+                Calentamiento
+                <textarea
+                  value={builder.warmup}
+                  onChange={(e) => updateBuilder({ warmup: e.target.value })}
+                />
+              </label>
+              <label>
+                Técnica
+                <textarea
+                  value={builder.technique}
+                  onChange={(e) => updateBuilder({ technique: e.target.value })}
+                />
+              </label>
+              <label>
+                Bloque principal
+                <textarea
+                  value={builder.main}
+                  onChange={(e) => updateBuilder({ main: e.target.value })}
+                />
+              </label>
+              <label>
+                Vuelta a la calma
+                <textarea
+                  value={builder.cooldown}
+                  onChange={(e) => updateBuilder({ cooldown: e.target.value })}
+                />
+              </label>
+              <label>
+                Observaciones
+                <textarea
+                  value={builder.notes}
+                  onChange={(e) => updateBuilder({ notes: e.target.value })}
+                />
+              </label>
+            </div>
+          </section>
+          <button type="button" className="coach-compose" onClick={composePlan}>
+            Preparar semana completa
+          </button>
+          <section className="coach-plan-output">
+            <div>
+              <small>PLAN GENERADO</small>
+              <h3>Revisa antes de publicar</h3>
+              <textarea
+                rows={14}
+                value={form.body}
+                onChange={(e) => setForm({ ...form, body: e.target.value })}
+                placeholder="Aquí aparecerá la semana preparada…"
+              />
+              <div className="inline-actions">
+                <button
+                  type="button"
+                  className="outline"
+                  onClick={() => preview()}
+                >
+                  Vista PDF / guardar
+                </button>
+                <button>Publicar plan</button>
+              </div>
+            </div>
+            <aside>
+              <small>YA TENGO EL PDF</small>
+              <h3>Publicar documento</h3>
+              <p>
+                Si el plan ya está creado, adjúntalo y publícalo para el grupo
+                seleccionado.
+              </p>
+              <input
+                type="file"
+                accept="application/pdf"
+                onChange={(e) => setFile(e.target.files?.[0] || null)}
+              />
+              {file && <b>{file.name}</b>}
+            </aside>
+          </section>
+        </form>
+      )}
+      {notice && (
+        <Message
+          text={notice}
+          error={
+            !notice.includes("publicados") &&
+            !notice.includes("preparada") &&
+            !notice.includes("despublicado") &&
+            !notice.includes("publicado de nuevo") &&
+            !notice.includes("eliminado definitivamente") &&
+            !notice.includes("cancelada")
+          }
+        />
+      )}
+      <section className="cards">
+        {plans
+          .filter((plan) =>
+            groups.some((group) => group.id === plan.training_group_id),
+          )
+          .map((plan) => (
+            <article
+              className={`panel plan ${plan.published_at ? "" : "plan-unpublished"}`}
+              key={plan.id}
+            >
+              <small>
+                Semana del{" "}
+                {new Date(`${plan.week_starts_on}T12:00:00`).toLocaleDateString(
+                  "es-ES",
+                )}{" "}
+                · {plan.published_at ? "Publicado" : "Despublicado"}
+              </small>
+              <h2>{plan.title}</h2>
+              <p>{plan.body}</p>
+              <div className="plan-management-actions">
+                <button
+                  type="button"
+                  className="outline small-button"
+                  onClick={() =>
+                    preview(
+                      plan.title,
+                      plan.body,
+                      plan.week_starts_on,
+                      plan.training_group_id,
+                    )
+                  }
+                >
+                  Imprimir / guardar PDF
+                </button>
+                {plan.published_at ? (
+                  <button
+                    type="button"
+                    className="outline small-button"
+                    onClick={() => void unpublish(plan)}
+                  >
+                    Despublicar
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="small-button"
+                    onClick={() => void republish(plan)}
+                  >
+                    Volver a publicar
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="danger small-button"
+                  onClick={() => void remove(plan)}
+                >
+                  Eliminar definitivamente
+                </button>
+              </div>
+              {documents
+                .filter(
+                  (doc) => doc.training_group_id === plan.training_group_id,
+                )
+                .map((doc) => (
+                  <button
+                    type="button"
+                    key={doc.id}
+                    className="outline small-button"
+                    onClick={() => void open(doc)}
+                  >
+                    Abrir PDF subido: {doc.title}
+                  </button>
+                ))}
+            </article>
+          ))}
+      </section>
+    </>
+  );
 }
 
 export function AnnouncementManager({ profile }: { profile: Profile }) {
-  const [groups, setGroups] = useState<Group[]>([]); const [athletes, setAthletes] = useState<Recipient[]>([]); const [staff, setStaff] = useState<Profile[]>([]); const [scope, setScope] = useState<"club" | "group" | "athletes" | "athlete" | "staff">(profile.role === "coach" ? "group" : "club"); const [group, setGroup] = useState(""); const [athlete, setAthlete] = useState(""); const [search, setSearch] = useState(""); const [title, setTitle] = useState(""); const [body, setBody] = useState(""); const [inApp, setInApp] = useState(true); const [email, setEmail] = useState(false); const [notice, setNotice] = useState(""); const [sent, setSent] = useState<{ id: string; title: string; audience: string; created_at: string; delivery_channels: string[] }[]>([]);
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [athletes, setAthletes] = useState<Recipient[]>([]);
+  const [staff, setStaff] = useState<Profile[]>([]);
+  const [scope, setScope] = useState<
+    "club" | "group" | "athletes" | "athlete" | "staff"
+  >(profile.role === "coach" ? "group" : "club");
+  const [group, setGroup] = useState("");
+  const [athlete, setAthlete] = useState("");
+  const [search, setSearch] = useState("");
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
+  const [inApp, setInApp] = useState(true);
+  const [email, setEmail] = useState(false);
+  const [notice, setNotice] = useState("");
+  const [sent, setSent] = useState<
+    {
+      id: string;
+      title: string;
+      audience: string;
+      created_at: string;
+      delivery_channels: string[];
+    }[]
+  >([]);
   const isManager = profile.role === "owner" || profile.role === "admin";
-  const availableScopes = isManager ? ([['club','Todo el club'],['athletes','Todos los atletas'],['athlete','Un atleta'],['group','Un grupo'],['staff','Entrenadores y administración']] as const) : ([['athlete','Un atleta'],['group','Un grupo'],['staff','Entrenadores y administración']] as const);
-  const load = async () => { if (!supabase) return; const [{ data: groupData }, { data: athleteData }, { data: staffData }, { data: announcementData }, { data: archiveData }] = await Promise.all([supabase.from("training_groups").select("id,name,category_label,colour,schedule_days,starts_at,ends_at").eq("active", true).order("name"), supabase.from("athletes").select("id,first_name,last_name,user_profile_id,families(primary_profile_id,profiles(id,email,full_name))").order("last_name"), supabase.from("profiles").select("id,email,full_name,role").in("role", ["owner", "admin", "coach"]), supabase.from("announcements").select("id,title,audience,created_at,delivery_channels").eq("created_by", profile.id).order("created_at", { ascending: false }).limit(30), supabase.from("announcement_sender_archives").select("announcement_id").eq("profile_id", profile.id)]); const archived = new Set((archiveData ?? []).map(item => item.announcement_id)); setGroups((groupData ?? []) as Group[]); setAthletes((athleteData ?? []) as Recipient[]); setStaff((staffData ?? []) as Profile[]); setSent(((announcementData ?? []) as typeof sent).filter(item => !archived.has(item.id))); };
-  useEffect(() => { void load(); }, []);
-  const visibleAthletes = useMemo(() => athletes.filter(a => `${a.first_name} ${a.last_name}`.toLowerCase().includes(search.toLowerCase())), [athletes, search]);
-  const recipientsFor = () => { if (scope === "athlete") { const selected = athletes.find(a => a.id === athlete); const id = selected?.user_profile_id || selected?.families?.primary_profile_id; return id ? [id] : []; } if (scope === "athletes") return [...new Set(athletes.map(a => a.user_profile_id || a.families?.primary_profile_id).filter(Boolean))] as string[]; if (scope === "staff") return staff.map(person => person.id); return []; };
+  const availableScopes = isManager
+    ? ([
+        ["club", "Todo el club"],
+        ["athletes", "Todos los atletas"],
+        ["athlete", "Un atleta"],
+        ["group", "Un grupo"],
+        ["staff", "Entrenadores y administración"],
+      ] as const)
+    : ([
+        ["athlete", "Un atleta"],
+        ["group", "Un grupo"],
+        ["staff", "Entrenadores y administración"],
+      ] as const);
+  const load = async () => {
+    if (!supabase) return;
+    const [
+      { data: groupData },
+      { data: athleteData },
+      { data: staffData },
+      { data: announcementData },
+      { data: archiveData },
+    ] = await Promise.all([
+      supabase
+        .from("training_groups")
+        .select("id,name,category_label,colour,schedule_days,starts_at,ends_at")
+        .eq("active", true)
+        .order("name"),
+      supabase
+        .from("athletes")
+        .select(
+          "id,first_name,last_name,user_profile_id,families(primary_profile_id,profiles(id,email,full_name))",
+        )
+        .order("last_name"),
+      supabase
+        .from("profiles")
+        .select("id,email,full_name,role")
+        .in("role", ["owner", "admin", "coach"]),
+      supabase
+        .from("announcements")
+        .select("id,title,audience,created_at,delivery_channels")
+        .eq("created_by", profile.id)
+        .order("created_at", { ascending: false })
+        .limit(30),
+      supabase
+        .from("announcement_sender_archives")
+        .select("announcement_id")
+        .eq("profile_id", profile.id),
+    ]);
+    const archived = new Set(
+      (archiveData ?? []).map((item) => item.announcement_id),
+    );
+    setGroups((groupData ?? []) as Group[]);
+    setAthletes((athleteData ?? []) as Recipient[]);
+    setStaff((staffData ?? []) as Profile[]);
+    setSent(
+      ((announcementData ?? []) as typeof sent).filter(
+        (item) => !archived.has(item.id),
+      ),
+    );
+  };
+  useEffect(() => {
+    void load();
+  }, []);
+  const visibleAthletes = useMemo(
+    () =>
+      athletes.filter((a) =>
+        `${a.first_name} ${a.last_name}`
+          .toLowerCase()
+          .includes(search.toLowerCase()),
+      ),
+    [athletes, search],
+  );
+  const recipientsFor = () => {
+    if (scope === "athlete") {
+      const selected = athletes.find((a) => a.id === athlete);
+      const id =
+        selected?.user_profile_id || selected?.families?.primary_profile_id;
+      return id ? [id] : [];
+    }
+    if (scope === "athletes")
+      return [
+        ...new Set(
+          athletes
+            .map((a) => a.user_profile_id || a.families?.primary_profile_id)
+            .filter(Boolean),
+        ),
+      ] as string[];
+    if (scope === "staff") return staff.map((person) => person.id);
+    return [];
+  };
   const save = async (e: FormEvent) => {
-    e.preventDefault(); if (!supabase) return; setNotice("");
+    e.preventDefault();
+    if (!supabase) return;
+    setNotice("");
     const recipientIds = recipientsFor();
-    if ((scope === "athlete" || scope === "athletes" || scope === "staff") && !recipientIds.length) return setNotice("No hay destinatarios con cuenta activa para ese envío.");
-    if (!inApp && !email) return setNotice("Elige al menos un canal: aplicación o correo.");
-    const audience = scope === "athletes" || scope === "athlete" ? "individual" : scope;
-    const { data, error } = await supabase.from("announcements").insert({ title, body, audience, training_group_id: scope === "group" ? group || null : null, delivery_channels: [inApp ? "app" : null, email ? "email" : null].filter(Boolean), published_at: new Date().toISOString(), created_by: profile.id }).select().single();
-    if (error || !data) return setNotice(error?.message || "No se pudo guardar el aviso.");
+    if (
+      (scope === "athlete" || scope === "athletes" || scope === "staff") &&
+      !recipientIds.length
+    )
+      return setNotice(
+        "No hay destinatarios con cuenta activa para ese envío.",
+      );
+    if (!inApp && !email)
+      return setNotice("Elige al menos un canal: aplicación o correo.");
+    const audience =
+      scope === "athletes" || scope === "athlete" ? "individual" : scope;
+    const { data, error } = await supabase
+      .from("announcements")
+      .insert({
+        title,
+        body,
+        audience,
+        training_group_id: scope === "group" ? group || null : null,
+        delivery_channels: [
+          inApp ? "app" : null,
+          email ? "email" : null,
+        ].filter(Boolean),
+        published_at: new Date().toISOString(),
+        created_by: profile.id,
+      })
+      .select()
+      .single();
+    if (error || !data)
+      return setNotice(error?.message || "No se pudo guardar el aviso.");
     if (recipientIds.length) {
       const rows: any[] = [];
-      recipientIds.forEach(recipient_profile_id => { if (inApp) rows.push({ announcement_id: data.id, recipient_profile_id, channel: "app" }); if (email) rows.push({ announcement_id: data.id, recipient_profile_id, channel: "email", delivery_status: "pending" }); });
-      const { error: deliveryError } = await supabase.from("announcement_deliveries").insert(rows);
-      if (deliveryError) return setNotice(`Aviso guardado, pero hubo un problema con los destinatarios: ${deliveryError.message}`);
+      recipientIds.forEach((recipient_profile_id) => {
+        if (inApp)
+          rows.push({
+            announcement_id: data.id,
+            recipient_profile_id,
+            channel: "app",
+          });
+        if (email)
+          rows.push({
+            announcement_id: data.id,
+            recipient_profile_id,
+            channel: "email",
+            delivery_status: "pending",
+          });
+      });
+      const { error: deliveryError } = await supabase
+        .from("announcement_deliveries")
+        .insert(rows);
+      if (deliveryError)
+        return setNotice(
+          `Aviso guardado, pero hubo un problema con los destinatarios: ${deliveryError.message}`,
+        );
     }
-    void pushNotice({kind:"announcement",scope:scope==="group"?"group":scope==="club"?"club":"individual",groupId:scope==="group"?group:undefined,recipientIds,title,body,url:"/?access=1"});setTitle(""); setBody(""); setNotice(email ? "Aviso publicado en la aplicación y notificado a los dispositivos activos. Los correos quedan según la preferencia elegida." : "Aviso publicado y notificado a los dispositivos activos."); void load();
+    void pushNotice({
+      kind: "announcement",
+      scope:
+        scope === "group" ? "group" : scope === "club" ? "club" : "individual",
+      groupId: scope === "group" ? group : undefined,
+      recipientIds,
+      title,
+      body,
+      url: "/?access=1",
+    });
+    setTitle("");
+    setBody("");
+    setNotice(
+      email
+        ? "Aviso publicado en la aplicación y notificado a los dispositivos activos. Los correos quedan según la preferencia elegida."
+        : "Aviso publicado y notificado a los dispositivos activos.",
+    );
+    void load();
   };
-  const remove = async (id: string) => { if (!supabase || !window.confirm("¿Quitar este aviso solo de tu historial? Las familias que lo recibieron lo conservarán.")) return; const { error } = await supabase.from("announcement_sender_archives").upsert({ announcement_id: id, profile_id: profile.id }); setNotice(error ? error.message : "Aviso quitado de tu historial. No se ha borrado a ningún destinatario."); void load(); };
-  const clearHistory = async () => { if (!supabase || !sent.length || !window.confirm("¿Quitar todos estos avisos de tu historial? Las familias conservarán sus copias.")) return; const { error } = await supabase.from("announcement_sender_archives").upsert(sent.map(item => ({ announcement_id: item.id, profile_id: profile.id }))); setNotice(error ? error.message : "Historial de avisos limpiado solo para ti."); void load(); };
-  return <><Heading title="Comunicaciones" text="Envía información a un atleta, tus grupos o entrenadores y administración. Tus mensajes enviados no son notificaciones pendientes." /><form className="panel stacked-form" onSubmit={save}><div className="audience-tabs">{availableScopes.map(([value,label]) => <button type="button" className={scope === value ? "selected" : "outline"} key={value} onClick={() => setScope(value)}>{label}</button>)}</div>{scope === "group" && <label>Grupo<select required value={group} onChange={e => setGroup(e.target.value)}><option value="">Selecciona un grupo</option>{groups.map(item => <option key={item.id} value={item.id}>{item.name} · {item.schedule_days}</option>)}</select></label>}{scope === "athlete" && <div className="recipient-picker"><label>Buscar atleta<input value={search} onChange={e => setSearch(e.target.value)} placeholder="Nombre o apellidos" /></label><label>Destinatario<select required value={athlete} onChange={e => setAthlete(e.target.value)}><option value="">Selecciona un atleta</option>{visibleAthletes.map(item => <option key={item.id} value={item.id}>{item.first_name} {item.last_name} · {item.families?.profiles?.email || "sin correo"}</option>)}</select></label></div>}<label>Asunto<input required value={title} onChange={e => setTitle(e.target.value)} placeholder="Cambio de horario" /></label><label>Mensaje<textarea required value={body} onChange={e => setBody(e.target.value)} placeholder="Escribe el aviso…" /></label><fieldset className="delivery-options"><legend>Canales</legend><label><input type="checkbox" checked={inApp} onChange={e => setInApp(e.target.checked)} />Notificación en la aplicación</label><label><input type="checkbox" checked={email} onChange={e => setEmail(e.target.checked)} />Preparar envío por email</label><small>El correo quedará pendiente hasta conectar el proveedor; no se simula ningún envío.</small></fieldset><button>Enviar comunicación</button></form>{notice && <Message text={notice} error={notice.startsWith("No ") || notice.includes("problema")} />}<article className="panel table"><div className="table-title"><h2>Comunicaciones enviadas</h2>{isManager && sent.length > 0 && <button className="outline" onClick={() => void clearHistory()}>Limpiar mi historial</button>}</div>{sent.map(item => <div className="row" key={item.id}><span><b>{item.title}</b><small>{new Date(item.created_at).toLocaleString("es-ES")}</small></span><span>{item.audience === "individual" ? "Atleta/s seleccionado/s" : item.audience === "staff" ? "Entrenadores y equipo" : item.audience === "club" ? "Todo el club" : "Grupo"}</span><span>{item.delivery_channels?.join(" + ") || "app"}</span>{isManager && <button className="outline" onClick={() => void remove(item.id)}>Quitar de mi historial</button>}</div>)}{!sent.length && <p className="empty">Aún no hay comunicaciones en tu historial.</p>}</article></>;
+  const remove = async (id: string) => {
+    if (
+      !supabase ||
+      !window.confirm(
+        "¿Quitar este aviso solo de tu historial? Las familias que lo recibieron lo conservarán.",
+      )
+    )
+      return;
+    const { error } = await supabase
+      .from("announcement_sender_archives")
+      .upsert({ announcement_id: id, profile_id: profile.id });
+    setNotice(
+      error
+        ? error.message
+        : "Aviso quitado de tu historial. No se ha borrado a ningún destinatario.",
+    );
+    void load();
+  };
+  const clearHistory = async () => {
+    if (
+      !supabase ||
+      !sent.length ||
+      !window.confirm(
+        "¿Quitar todos estos avisos de tu historial? Las familias conservarán sus copias.",
+      )
+    )
+      return;
+    const { error } = await supabase
+      .from("announcement_sender_archives")
+      .upsert(
+        sent.map((item) => ({
+          announcement_id: item.id,
+          profile_id: profile.id,
+        })),
+      );
+    setNotice(
+      error ? error.message : "Historial de avisos limpiado solo para ti.",
+    );
+    void load();
+  };
+  return (
+    <>
+      <Heading
+        title="Comunicaciones"
+        text="Envía información a un atleta, tus grupos o entrenadores y administración. Tus mensajes enviados no son notificaciones pendientes."
+      />
+      <form className="panel stacked-form" onSubmit={save}>
+        <div className="audience-tabs">
+          {availableScopes.map(([value, label]) => (
+            <button
+              type="button"
+              className={scope === value ? "selected" : "outline"}
+              key={value}
+              onClick={() => setScope(value)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        {scope === "group" && (
+          <label>
+            Grupo
+            <select
+              required
+              value={group}
+              onChange={(e) => setGroup(e.target.value)}
+            >
+              <option value="">Selecciona un grupo</option>
+              {groups.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name} · {item.schedule_days}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        {scope === "athlete" && (
+          <div className="recipient-picker">
+            <label>
+              Buscar atleta
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Nombre o apellidos"
+              />
+            </label>
+            <label>
+              Destinatario
+              <select
+                required
+                value={athlete}
+                onChange={(e) => setAthlete(e.target.value)}
+              >
+                <option value="">Selecciona un atleta</option>
+                {visibleAthletes.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.first_name} {item.last_name} ·{" "}
+                    {item.families?.profiles?.email || "sin correo"}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        )}
+        <label>
+          Asunto
+          <input
+            required
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Cambio de horario"
+          />
+        </label>
+        <label>
+          Mensaje
+          <textarea
+            required
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            placeholder="Escribe el aviso…"
+          />
+        </label>
+        <fieldset className="delivery-options">
+          <legend>Canales</legend>
+          <label>
+            <input
+              type="checkbox"
+              checked={inApp}
+              onChange={(e) => setInApp(e.target.checked)}
+            />
+            Notificación en la aplicación
+          </label>
+          <label>
+            <input
+              type="checkbox"
+              checked={email}
+              onChange={(e) => setEmail(e.target.checked)}
+            />
+            Preparar envío por email
+          </label>
+          <small>
+            El correo quedará pendiente hasta conectar el proveedor; no se
+            simula ningún envío.
+          </small>
+        </fieldset>
+        <button>Enviar comunicación</button>
+      </form>
+      {notice && (
+        <Message
+          text={notice}
+          error={notice.startsWith("No ") || notice.includes("problema")}
+        />
+      )}
+      <article className="panel table">
+        <div className="table-title">
+          <h2>Comunicaciones enviadas</h2>
+          {isManager && sent.length > 0 && (
+            <button className="outline" onClick={() => void clearHistory()}>
+              Limpiar mi historial
+            </button>
+          )}
+        </div>
+        {sent.map((item) => (
+          <div className="row" key={item.id}>
+            <span>
+              <b>{item.title}</b>
+              <small>{new Date(item.created_at).toLocaleString("es-ES")}</small>
+            </span>
+            <span>
+              {item.audience === "individual"
+                ? "Atleta/s seleccionado/s"
+                : item.audience === "staff"
+                  ? "Entrenadores y equipo"
+                  : item.audience === "club"
+                    ? "Todo el club"
+                    : "Grupo"}
+            </span>
+            <span>{item.delivery_channels?.join(" + ") || "app"}</span>
+            {isManager && (
+              <button className="outline" onClick={() => void remove(item.id)}>
+                Quitar de mi historial
+              </button>
+            )}
+          </div>
+        ))}
+        {!sent.length && (
+          <p className="empty">Aún no hay comunicaciones en tu historial.</p>
+        )}
+      </article>
+    </>
+  );
 }
