@@ -15,5 +15,6 @@ const paths:Record<string,ReactNode>={
   "Challenge":<><path d="M8 4h8v4a4 4 0 0 1-8 0V4Z"/><path d="M8 6H4v2a4 4 0 0 0 4 4M16 6h4v2a4 4 0 0 1-4 4M12 12v5M8 21h8M9 17h6"/></>,
   "Club Challenge":<><path d="M8 4h8v4a4 4 0 0 1-8 0V4Z"/><path d="M8 6H4v2a4 4 0 0 0 4 4M16 6h4v2a4 4 0 0 1-4 4M12 12v5M8 21h8M9 17h6"/></>,
   "Ranking del club":<><path d="M4.5 20V10.5h3.5V20M10.25 20V4h3.5v16M16 20v-6.5h3.5V20"/></>
+  ,"Ranking":<><path d="M4.5 20V10.5h3.5V20M10.25 20V4h3.5v16M16 20v-6.5h3.5V20"/></>
 };
 export default function AppNavIcon({name}:{name:string}){return <svg className="app-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]||<circle cx="12" cy="12" r="7"/>}</svg>}

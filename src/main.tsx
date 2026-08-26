@@ -164,7 +164,9 @@ function Root() {
         const button = document.createElement("button");
         button.type = "button";
         button.dataset.sportsNav = "true";
-        const icon = document.createElement("i"); icon.className = "dynamic-nav-icon"; icon.textContent = "↗";
+        const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        icon.setAttribute("class", "app-nav-icon"); icon.setAttribute("viewBox", "0 0 24 24"); icon.setAttribute("fill", "none"); icon.setAttribute("stroke", "currentColor"); icon.setAttribute("stroke-width", "1.8"); icon.setAttribute("stroke-linecap", "round"); icon.setAttribute("stroke-linejoin", "round"); icon.setAttribute("aria-hidden", "true");
+        const bars = document.createElementNS("http://www.w3.org/2000/svg", "path"); bars.setAttribute("d", "M4.5 20V10.5h3.5V20M10.25 20V4h3.5v16M16 20v-6.5h3.5V20"); icon.appendChild(bars);
         const text = document.createElement("span"); text.textContent = "Ranking del club";
         button.replaceChildren(icon, text);
         button.addEventListener("click", () => window.location.assign("/deportivo?view=ranking"));
