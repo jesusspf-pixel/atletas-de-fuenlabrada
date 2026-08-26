@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
+import FinancialControlCenter from "./FinancialControlCenter";
 
 type RuleSet = {
   monthly_cents: number; term_autumn_cents: number; term_winter_cents: number; term_spring_cents: number;
@@ -27,6 +28,7 @@ export default function BillingControlCenter() {
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [selectedMembershipId, setSelectedMembershipId] = useState("");
+  const [workspace, setWorkspace] = useState<"fees" | "finance">("fees");
 
   const load = async () => {
     const client = supabase; if (!client) return;
@@ -112,7 +114,9 @@ export default function BillingControlCenter() {
   if (!rules) return <section className="panel"><h2>Cuotas y cobros</h2><p>{busy ? "Cargando centro de control…" : message || "No se pudo cargar la configuración de cobros."}</p></section>;
 
   return <section className="billing-control">
-    <div className="page-head"><div><small>ADMINISTRACIÓN</small><h1>Centro de cuotas y cobros</h1><p>Al validar un alta se aprueba y programa todo su calendario. Stripe cobra automáticamente cada cuota en su fecha; este panel queda para reglas y excepciones.</p></div><button className="outline" disabled={busy} onClick={() => void load()}>Actualizar</button></div>
+    <div className="page-head"><div><small>ADMINISTRACIÓN</small><h1>{workspace === "fees" ? "Centro de cuotas y cobros" : "Control financiero del club"}</h1><p>{workspace === "fees" ? "Al validar un alta se aprueba y programa todo su calendario. Stripe cobra automáticamente cada cuota en su fecha; este panel queda para reglas y excepciones." : "Ingresos, subvenciones, ventas, gastos, previsiones y resultado real en un único lugar."}</p></div><button className="outline" disabled={busy} onClick={() => void load()}>Actualizar</button></div>
+    <nav className="billing-workspace-tabs"><button className={workspace === "fees" ? "selected" : ""} onClick={() => setWorkspace("fees")}>Cuotas y cobros</button><button className={workspace === "finance" ? "selected" : ""} onClick={() => setWorkspace("finance")}>Control financiero</button></nav>
+    {workspace === "finance" ? <FinancialControlCenter drafts={drafts} /> : <>
     <section className="metric-grid">
       <article className="metric"><small>Previsión pendiente</small><b>{euro(totals.forecast)}</b></article>
       <article className="metric"><small>Listo para aprobar</small><b>{totals.review}</b></article>
@@ -147,6 +151,6 @@ export default function BillingControlCenter() {
     </section>
 
     {message && <p className={message.includes("guardadas") || message.includes("Borrador") || message.includes("preparado") ? "success-note panel" : "error-note panel"}>{message}</p>}
-    <section className="panel table"><h2>Control financiero de cuotas</h2>{drafts.map(draft => <div className="row" key={draft.id}><span><button className="plain" onClick={() => setSelectedMembershipId(draft.membership_id)}><b>{draft.athletes?.first_name} {draft.athletes?.last_name}</b><small>Ver sus cuotas →</small></button><small>{draft.charge_kind === "enrolment" ? "Matrícula" : "Cuota"} · {draft.memberships?.plan === "monthly" ? "Mensual" : "Trimestral"} · prevista {new Date(draft.scheduled_for).toLocaleDateString("es-ES")}</small></span><span><small>Calculado</small><b>{euro(draft.calculated_amount_cents)}</b>{draft.discount_cents > 0 && <small>Descuento: {euro(draft.discount_cents)}</small>}</span><span><small>Final</small><b>{euro(draft.approved_amount_cents ?? draft.calculated_amount_cents)}</b><small>{draft.status}</small></span><span>{actions(draft)}</span></div>)}{!drafts.length && <p>Aún no hay cuotas preparadas. Crea el primer borrador arriba.</p>}</section>{selectedMembershipId && <section className="panel"><h2>Cuotas del atleta</h2><button className="outline" onClick={() => setSelectedMembershipId("")}>Cerrar</button>{selectedDrafts.map(draft => <div className="row" key={draft.id}><span><b>{draft.athletes?.first_name} {draft.athletes?.last_name}</b><small>{draft.charge_kind === "enrolment" ? "Matrícula" : "Cuota"} · {new Date(draft.scheduled_for).toLocaleDateString("es-ES")} · {draft.status}</small></span><span><b>{euro(draft.approved_amount_cents ?? draft.calculated_amount_cents)}</b><small>{draft.override_reason || "Sin ajuste"}</small></span><span>{actions(draft)}</span></div>)}</section>}
+    <section className="panel table"><h2>Control financiero de cuotas</h2>{drafts.map(draft => <div className="row" key={draft.id}><span><button className="plain" onClick={() => setSelectedMembershipId(draft.membership_id)}><b>{draft.athletes?.first_name} {draft.athletes?.last_name}</b><small>Ver sus cuotas →</small></button><small>{draft.charge_kind === "enrolment" ? "Matrícula" : "Cuota"} · {draft.memberships?.plan === "monthly" ? "Mensual" : "Trimestral"} · prevista {new Date(draft.scheduled_for).toLocaleDateString("es-ES")}</small></span><span><small>Calculado</small><b>{euro(draft.calculated_amount_cents)}</b>{draft.discount_cents > 0 && <small>Descuento: {euro(draft.discount_cents)}</small>}</span><span><small>Final</small><b>{euro(draft.approved_amount_cents ?? draft.calculated_amount_cents)}</b><small>{draft.status}</small></span><span>{actions(draft)}</span></div>)}{!drafts.length && <p>Aún no hay cuotas preparadas. Crea el primer borrador arriba.</p>}</section>{selectedMembershipId && <section className="panel"><h2>Cuotas del atleta</h2><button className="outline" onClick={() => setSelectedMembershipId("")}>Cerrar</button>{selectedDrafts.map(draft => <div className="row" key={draft.id}><span><b>{draft.athletes?.first_name} {draft.athletes?.last_name}</b><small>{draft.charge_kind === "enrolment" ? "Matrícula" : "Cuota"} · {new Date(draft.scheduled_for).toLocaleDateString("es-ES")} · {draft.status}</small></span><span><b>{euro(draft.approved_amount_cents ?? draft.calculated_amount_cents)}</b><small>{draft.override_reason || "Sin ajuste"}</small></span><span>{actions(draft)}</span></div>)}</section>}</>}
   </section>;
 }
