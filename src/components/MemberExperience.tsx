@@ -20,6 +20,7 @@ type TrainingDocument = { id: string; title: string; storage_path: string; train
 type ProfileSettings = { athlete_id: string; avatar_url: string | null; cover_url: string | null; bio: string | null; challenge_opt_in: boolean; show_activity_to_club: boolean };
 type GroupMate = { id: string; first_name: string; last_name: string; avatar_url?: string | null };
 type GroupCoach = { coach_profile_id: string; full_name: string; avatar_url?: string | null };
+type PlanDay = { day: string; load: string; sections: { label: string; value: string }[] };
 
 const euro = (cents: number) => new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(cents / 100);
 const licenseText = (athlete: Athlete) => athlete.federation_license || athlete.license_number || (athlete.license_status === "active" ? "Activa" : "Pendiente");
@@ -30,6 +31,7 @@ const mondayKey = (value = new Date()) => {
   date.setDate(date.getDate() - day + 1);
   return date.toISOString().slice(0, 10);
 };
+const parseWeeklyPlan = (body: string): PlanDay[] => body.split(/\n\n(?=(?:LUNES|MARTES|MIÉRCOLES|JUEVES|VIERNES|SÁBADO|DOMINGO)\n)/).map(block => { const lines=block.split("\n").filter(Boolean); const day=lines.shift()||""; if(!/^(LUNES|MARTES|MIÉRCOLES|JUEVES|VIERNES|SÁBADO|DOMINGO)$/.test(day))return null; const load=lines.shift()||""; const sections=lines.map(line=>{const separator=line.indexOf(":");return separator>0?{label:line.slice(0,separator),value:line.slice(separator+1).trim()}:{label:"Detalle",value:line}}); return {day:day.charAt(0)+day.slice(1).toLowerCase(),load,sections}; }).filter((item):item is PlanDay=>Boolean(item));
 
 export default function MemberExperience({ profileId }: { profileId: string }) {
   const [mode, setMode] = useState<"home" | "profile" | "group" | null>(null);
@@ -44,6 +46,7 @@ export default function MemberExperience({ profileId }: { profileId: string }) {
   const [refreshVersion, setRefreshVersion] = useState(0);
   const [groupMates, setGroupMates] = useState<GroupMate[]>([]);
   const [groupCoaches, setGroupCoaches] = useState<GroupCoach[]>([]);
+  const [activePlanDay, setActivePlanDay] = useState(0);
 
   useEffect(() => {
     const detect = () => {
@@ -119,6 +122,8 @@ export default function MemberExperience({ profileId }: { profileId: string }) {
   const upcomingFee = useMemo(() => ledger.find(item => ["awaiting_admin", "approved", "checkout_pending"].includes(item.status) && (!item.scheduled_for || new Date(item.scheduled_for).getTime() >= Date.now() - 86400000)) || null, [ledger]);
   const upcomingCompetition = useMemo(() => entries.map(entry => ({ entry, event: entry.competition_events?.[0] })).filter(item => item.event && new Date(item.event.starts_at).getTime() >= Date.now()).sort((a, b) => new Date(a.event!.starts_at).getTime() - new Date(b.event!.starts_at).getTime())[0] || null, [entries]);
   const currentPlan = useMemo(() => athlete?.training_group_id ? plans.find(plan => plan.training_group_id === athlete.training_group_id) || null : null, [athlete, plans]);
+  const planDays = useMemo(() => currentPlan ? parseWeeklyPlan(currentPlan.body) : [], [currentPlan]);
+  useEffect(() => { setActivePlanDay(0); }, [currentPlan?.id]);
   const currentPlanDocument = useMemo(() => {
     if (!athlete?.training_group_id || !currentPlan) return null;
     const weekStart = new Date(`${currentPlan.week_starts_on}T00:00:00`);
@@ -151,7 +156,7 @@ export default function MemberExperience({ profileId }: { profileId: string }) {
 
   if (mode === "home") return <section className="design-v2-stage member-live-home"><header className="design-v2-hero"><div><small>INICIO · MI TEMPORADA</small><h1>Todo empieza<br/>aquí.</h1><p>{athlete.training_groups?.name || "Grupo pendiente"} · Licencia {licenseText(athlete)}</p></div></header><section className="design-v2-float">
     <div className="design-v2-title"><div><small>ESTA SEMANA</small><h2>Tu entrenamiento</h2></div><button onClick={() => [...document.querySelectorAll<HTMLButtonElement>(".club-side nav button")].find(item => item.textContent?.trim().startsWith("Mi perfil"))?.click()}>Mi perfil →</button></div>
-    <article className="member-live-plan"><div><small>PLAN DE ENTRENAMIENTO</small>{currentPlan?<><h2>{currentPlan.title}</h2><p style={{whiteSpace:"pre-wrap"}}>{currentPlan.body}</p><span>Semana del {new Date(`${currentPlan.week_starts_on}T12:00:00`).toLocaleDateString("es-ES")}</span></>:<><h2>Sin plan publicado todavía</h2><p>Cuando tu entrenador publique el plan aparecerá aquí automáticamente.</p></>}</div>{currentPlanDocument&&<button type="button" onClick={()=>void openPlanPdf()}>Abrir plan&nbsp; ›</button>}{planNotice&&<p className="error-note">{planNotice}</p>}</article>
+    <article className="member-live-plan member-week-plan"><div><small>PLAN DE ENTRENAMIENTO</small>{currentPlan?<><h2>{currentPlan.title}</h2><span>Semana del {new Date(`${currentPlan.week_starts_on}T12:00:00`).toLocaleDateString("es-ES")}</span>{planDays.length?<><nav className="member-plan-days">{planDays.map((item,index)=><button type="button" key={item.day} className={activePlanDay===index?"active":""} onClick={()=>setActivePlanDay(index)}><b>{item.day.slice(0,3)}</b><small>{item.day}</small></button>)}</nav><section className="member-plan-session"><header><div><small>SESIÓN</small><h3>{planDays[activePlanDay]?.day}</h3></div><span>{planDays[activePlanDay]?.load}</span></header><div>{planDays[activePlanDay]?.sections.map(section=><article key={section.label}><small>{section.label.toUpperCase()}</small><p>{section.value}</p></article>)}</div></section></>:<p className="member-plan-legacy">{currentPlan.body}</p>}</>:<><h2>Sin plan publicado todavía</h2><p>Cuando tu entrenador publique el plan aparecerá aquí automáticamente.</p></>}</div>{currentPlanDocument&&<button type="button" className="member-plan-pdf" onClick={()=>void openPlanPdf()}>Abrir PDF adjunto&nbsp; ›</button>}{planNotice&&<p className="error-note">{planNotice}</p>}</article>
     <header className="design-v2-section-head"><div><small>RESUMEN</small><h2>Tu actividad en el club</h2></div></header><section className="member-live-cards"><article><i>✓</i><small>ESTADO</small><b>{athlete.club_status==="active"?"Activo":"En revisión"}</b><span>Alta en el club</span></article><article><i>◎</i><small>LICENCIA</small><b>{licenseText(athlete)}</b><span>{athlete.license_status==="active"?"Licencia activa":"Pendiente de tramitar"}</span></article><button className="member-summary-action" onClick={() => setMode("group")}><i>↗</i><small>GRUPO</small><b>{athlete.training_groups?.name||"Pendiente"}</b><span>{athlete.training_groups?.category_label||"Sin asignar"} · Ver grupo</span></button></section>
     <section className="design-v2-bottom member-live-bottom"><button className="member-bottom-action" onClick={() => goTo("Cuotas")}><header><div><small>PRÓXIMA CUOTA</small><h3>{upcomingFee?upcomingFee.charge_kind==="enrolment"?"Matrícula":"Cuota del club":"Sin cuotas programadas"}</h3></div></header>{upcomingFee?<div><i>€</i><span><b>{euro(upcomingFee.approved_amount_cents??upcomingFee.calculated_amount_cents)}</b><small>{upcomingFee.scheduled_for?new Date(upcomingFee.scheduled_for).toLocaleDateString("es-ES"):"Fecha pendiente"}</small></span><em>›</em></div>:<p>Las próximas cuotas aparecerán aquí.</p>}</button><article><header><div><small>PRÓXIMA COMPETICIÓN</small><h3>{upcomingCompetition?.event?.title||"Sin próxima competición"}</h3></div></header>{upcomingCompetition?.event?<div><i>↗</i><span><b>{upcomingCompetition.event.venue||"Ubicación pendiente"}</b><small>{new Date(upcomingCompetition.event.starts_at).toLocaleDateString("es-ES")}</small></span><em/></div>:<p>Las competiciones confirmadas aparecerán aquí.</p>}</article></section>
   </section></section>;
