@@ -139,9 +139,7 @@ export default function MemberExperience({ profileId }: { profileId: string }) {
       header.className = "topbar athlete-global-header";
       topbar.insertAdjacentElement("afterend", header);
     }
-    header.style.backgroundImage = profileSettings?.cover_url
-      ? `linear-gradient(90deg,rgba(5,20,45,.48),rgba(5,20,45,.05)), url("${profileSettings.cover_url.replace(/"/g, "%22")}")`
-      : "linear-gradient(135deg,#173f7c,#2464c8)";
+    header.style.backgroundImage = "var(--app-track), linear-gradient(135deg,#082a5d,#155db5 66%,#347fd2)";
     header.replaceChildren();
 
     if (profileSettings?.avatar_url) {
@@ -164,7 +162,7 @@ export default function MemberExperience({ profileId }: { profileId: string }) {
     copy.append(name, meta); header.appendChild(copy);
 
     return () => { header?.remove(); style?.remove(); };
-  }, [athlete?.id, athlete?.first_name, athlete?.last_name, athlete?.training_groups?.name, athlete?.license_status, athlete?.license_number, athlete?.federation_license, profileSettings?.avatar_url, profileSettings?.cover_url]);
+  }, [athlete?.id, athlete?.first_name, athlete?.last_name, athlete?.training_groups?.name, athlete?.license_status, athlete?.license_number, athlete?.federation_license, profileSettings?.avatar_url]);
 
   const upcomingFee = useMemo(() => ledger.find(item => ["awaiting_admin", "approved", "checkout_pending"].includes(item.status) && (!item.scheduled_for || new Date(item.scheduled_for).getTime() >= Date.now() - 86400000)) || null, [ledger]);
   const upcomingCompetition = useMemo(() => entries.map(entry => ({ entry, event: entry.competition_events?.[0] })).filter(item => item.event && new Date(item.event.starts_at).getTime() >= Date.now()).sort((a, b) => new Date(a.event!.starts_at).getTime() - new Date(b.event!.starts_at).getTime())[0] || null, [entries]);
