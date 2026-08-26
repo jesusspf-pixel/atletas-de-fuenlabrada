@@ -1,0 +1,20 @@
+.admin-reference-sheet > .page-head,
+.admin-reference-sheet > * > .page-head {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(118deg, #0b2f65, #236ebd) !important;
+}
+
+.admin-reference-sheet > .page-head::after,
+.admin-reference-sheet > * > .page-head::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-radial-gradient(ellipse at 105% 110%, transparent 0 48px, rgba(255,255,255,.13) 50px 52px, transparent 54px 79px);
+  pointer-events: none;
+}
+
+.admin-reference-sheet .page-head > * {
+  position: relative;
+  z-index: 1;
+}
