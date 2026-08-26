@@ -169,16 +169,18 @@ function Portal({ profile, signOut }: { profile: Profile; signOut: () => void })
 }
 
 function Admin({ section, profile, go }: { section: string; profile: Profile; go: (section: string) => void }) {
-  if (section === "Atletas") return <AthletesAdmin />;
-  if (section === "Grupos") return <GroupManager />;
-  if (section === "Invitaciones") return <Invitations />;
-  if (section === "Cuotas") return <Fees profile={profile} />;
-  if (section === "Tienda") return <Shop profile={profile} />;
-  if (section === "Carreras") return <CompetitionManager profile={profile} manager />;
-  if (section === "Asistencia") return <Attendance profile={profile} />;
-  if (section === "Avisos") return <AnnouncementManager profile={profile} />;
-  if (section === "Configuración") return <Settings />;
-  return <AdminHome profile={profile} go={go} />;
+  let content: ReactNode;
+  if (section === "Atletas") content = <AthletesAdmin />;
+  else if (section === "Grupos") content = <GroupManager />;
+  else if (section === "Invitaciones") content = <Invitations />;
+  else if (section === "Cuotas") content = <Fees profile={profile} />;
+  else if (section === "Tienda") content = <Shop profile={profile} />;
+  else if (section === "Carreras") content = <CompetitionManager profile={profile} manager />;
+  else if (section === "Asistencia") content = <Attendance profile={profile} />;
+  else if (section === "Avisos") content = <AnnouncementManager profile={profile} />;
+  else if (section === "Configuración") content = <Settings />;
+  else content = <AdminHome profile={profile} go={go} />;
+  return <section className="admin-reference-page" data-admin-screen={section}><div className="admin-reference-art" aria-hidden="true"><i/><i/><i/></div><div className="admin-reference-sheet">{content}</div></section>;
 }
 function AdminHome({ profile, go }: { profile: Profile; go: (section: string) => void }) {
   const athletes = useRows<Athlete>("athletes", "id,first_name,last_name,club_status");
