@@ -6,6 +6,7 @@ import SelfAthleteRegistration from "./components/SelfAthleteRegistration";
 import MemberExperience from "./components/MemberExperience";
 import PublicClubSite from "./components/PublicClubSite";
 import PublicGroupsPage from "./components/PublicGroupsPage";
+import CoachDesignPreview from "./components/CoachDesignPreview";
 import { supabase } from "./lib/supabase";
 import "./styles.css";
 import "./access.css";
@@ -28,6 +29,9 @@ function Root() {
   const selfAthlete = window.location.pathname === "/alta-atleta";
   const publicGroups = window.location.pathname === "/grupos-precios";
   const publicClub = window.location.pathname === "/club";
+  const coachDesignPreview = window.location.pathname === "/preview-entrenador";
+
+  if (coachDesignPreview) return <CoachDesignPreview />;
 
   useEffect(() => {
     const client = supabase;
