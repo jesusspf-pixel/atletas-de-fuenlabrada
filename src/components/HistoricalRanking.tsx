@@ -224,6 +224,7 @@ export default function HistoricalRanking() {
   const [sex, setSex] = useState<"M" | "F" | "">("");
   const [environment, setEnvironment] = useState<CompetitionEnvironment | "">("");
   const [season, setSeason] = useState("");
+  const [appliedFilters, setAppliedFilters] = useState({ discipline: "", category: "", sex: "" as "M" | "F" | "", environment: "" as CompetitionEnvironment | "", season: "" });
 
   useEffect(() => {
     let alive = true;
@@ -265,13 +266,13 @@ export default function HistoricalRanking() {
   const categories = useMemo(() => [...new Set([...categoryOrder, ...(rows.map(row => row.category).filter(Boolean) as string[])])], [rows]);
   const seasons = useMemo(() => [...new Set(["2026", "2025", "2024", ...(rows.map(row => row.season).filter(Boolean) as string[])])].sort().reverse(), [rows]);
 
-  const matchingRows = useMemo(() => rows.filter(row => (!discipline || row.discipline === discipline) && (!category || row.category === category) && (!sex || row.sex === sex) && (!environment || row.competition_environment === environment) && (!season || row.season === season)), [rows, discipline, category, sex, environment, season]);
+  const matchingRows = useMemo(() => rows.filter(row => (!appliedFilters.discipline || row.discipline === appliedFilters.discipline) && (!appliedFilters.category || row.category === appliedFilters.category) && (!appliedFilters.sex || row.sex === appliedFilters.sex) && (!appliedFilters.environment || row.competition_environment === appliedFilters.environment) && (!appliedFilters.season || row.season === appliedFilters.season)), [rows, appliedFilters]);
   const coverage = useMemo(() => ["2024", "2025", "2026"].map(year => `${year}: ${rows.filter(row => row.season === year).length}`).join(" · "), [rows]);
 
   const displayedRows = useMemo(() => {
     // Sin prueba seleccionada se muestra el archivo completo: es una consulta,
     // no un ranking. Conservamos cada resultado y lo ordenamos por fecha.
-    if (!discipline) return [...matchingRows].sort(compareGeneral);
+    if (!appliedFilters.discipline) return [...matchingRows].sort(compareGeneral);
 
     // Con una prueba sí se convierte en ranking: mejor marca por atleta y Top 20.
     const bestByAthlete = new Map<string, Performance>();
@@ -283,10 +284,16 @@ export default function HistoricalRanking() {
     return [...bestByAthlete.values()].sort((left, right) => {
       return compareMarks(left, right);
     }).slice(0, 20);
-  }, [matchingRows, discipline]);
+  }, [matchingRows, appliedFilters.discipline]);
+
+  const applyFilters = () => setAppliedFilters({ discipline, category, sex, environment, season });
+  const clearFilters = () => {
+    setDiscipline(""); setCategory(""); setSex(""); setEnvironment(""); setSeason("");
+    setAppliedFilters({ discipline: "", category: "", sex: "", environment: "", season: "" });
+  };
 
   return <section>
-    <div className="page-head"><div><h1>Ranking del club</h1><p>{discipline ? "Top 20 por prueba, categoría y temporada; cada atleta figura con su mejor marca oficial verificada." : "Todos los resultados oficiales encontrados, ordenados por prueba y por marca. Elige una prueba para ver su Top 20 histórico."}</p></div></div>
+    <div className="page-head"><div><h1>Ranking del club</h1><p>{appliedFilters.discipline ? "Top 20 por prueba, categoría y temporada; cada atleta figura con su mejor marca oficial verificada." : "Todos los resultados oficiales encontrados, ordenados por prueba y por marca. Elige los filtros y pulsa Aplicar filtros."}</p></div></div>
     <p className="muted">Resultados disponibles por temporada: {coverage}. La consulta general conserva todos los resultados; al elegir una prueba se aplica su Top 20.</p>
     <article className="panel inline-form">
       <label>Categoría<select value={category} onChange={event => { const next = event.target.value; setCategory(next); const valid = rows.filter(row => (!next || row.category === next) && (!sex || row.sex === sex)).map(row => row.discipline); if (discipline && !valid.includes(discipline)) setDiscipline(valid.sort((a, b) => eventOrder(a) - eventOrder(b))[0] || ""); }}><option value="">Todas las categorías</option>{categories.map(value => <option value={value} key={value}>{value}</option>)}</select></label>
@@ -294,10 +301,11 @@ export default function HistoricalRanking() {
       <label>Superficie<select value={environment} onChange={event => { setEnvironment(event.target.value as CompetitionEnvironment | ""); setDiscipline(""); }}><option value="">Pista cubierta y aire libre</option><option value="indoor">Pista cubierta</option><option value="outdoor">Aire libre</option><option value="unknown">Sin identificar</option></select></label>
       <label>Prueba<select value={discipline} onChange={event => setDiscipline(event.target.value)}><option value="">Todas las pruebas</option>{disciplines.map(value => <option value={value} key={value}>{value}</option>)}</select></label>
       <label>Temporada<select value={season} onChange={event => setSeason(event.target.value)}><option value="">Todas las temporadas</option>{seasons.map(value => <option value={value} key={value}>{value}</option>)}</select></label>
+      <div className="ranking-filter-actions"><button type="button" onClick={applyFilters}>Aplicar filtros</button><button type="button" className="outline" onClick={clearFilters}>Limpiar</button></div>
     </article>
-    <article className="panel table historical-top">{displayedRows.map((row, index) => <div className={"row historical-rank " + (discipline && index < 8 ? "top-eight" : "")} key={row.id}>
-      <span><b>{discipline ? `${index < 8 ? "★ " : "#"}${index + 1} · ` : ""}{row.athlete_name}</b><small>{row.discipline} · {row.category || "Categoría sin indicar"} · {row.sex === "M" ? "Masculino" : row.sex === "F" ? "Femenino" : "Sexo sin indicar"} · {row.season || "Temporada"} · {environmentLabel(row.competition_environment)}</small></span>
-      <span><b>{row.performance_display}</b><small>{discipline ? (index < 8 ? "TOP 8 HISTÓRICO" : "Top 20 histórico") : "Resultado oficial"}</small></span>
+    <article className="panel table historical-top">{displayedRows.map((row, index) => <div className={"row historical-rank " + (appliedFilters.discipline && index < 8 ? "top-eight" : "")} key={row.id}>
+      <span><b>{appliedFilters.discipline ? `${index < 8 ? "★ " : "#"}${index + 1} · ` : ""}{row.athlete_name}</b><small>{row.discipline} · {row.category || "Categoría sin indicar"} · {row.sex === "M" ? "Masculino" : row.sex === "F" ? "Femenino" : "Sexo sin indicar"} · {row.season || "Temporada"} · {environmentLabel(row.competition_environment)}</small></span>
+      <span><b>{row.performance_display}</b><small>{appliedFilters.discipline ? (index < 8 ? "TOP 8 HISTÓRICO" : "Top 20 histórico") : "Resultado oficial"}</small></span>
       <span>{row.competition_name || "Resultado oficial"}<small>{row.result_date ? new Date(row.result_date + "T00:00:00").toLocaleDateString("es-ES") : ""}</small></span>
     </div>)}{!displayedRows.length && <div className="empty">Aún no hay resultados oficiales verificados para este filtro.</div>}</article>
   </section>;
