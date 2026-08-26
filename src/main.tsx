@@ -149,7 +149,7 @@ function Root() {
         mount.dataset.reactMounted = "true";
       }
       const selected = document.querySelector<HTMLButtonElement>(".club-side nav button.selected")?.textContent?.replace(/\d+/g, "").trim() || "";
-      const custom = selected.startsWith("Inicio") || selected.startsWith("Mi perfil");
+      const custom = selected.startsWith("Inicio") || selected.startsWith("Mi perfil") || selected.startsWith("Mi grupo");
       [...content.children].forEach(child => {
         const element = child as HTMLElement;
         if (element.classList.contains("topbar") || element.id === "member-experience-root") return;

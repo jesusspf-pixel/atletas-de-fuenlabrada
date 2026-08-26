@@ -32,7 +32,7 @@ const mondayKey = (value = new Date()) => {
 };
 
 export default function MemberExperience({ profileId }: { profileId: string }) {
-  const [mode, setMode] = useState<"home" | "profile" | null>(null);
+  const [mode, setMode] = useState<"home" | "profile" | "group" | null>(null);
   const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [ledger, setLedger] = useState<Ledger[]>([]);
   const [entries, setEntries] = useState<Entry[]>([]);
@@ -42,14 +42,13 @@ export default function MemberExperience({ profileId }: { profileId: string }) {
   const [planNotice, setPlanNotice] = useState("");
   const [loading, setLoading] = useState(true);
   const [refreshVersion, setRefreshVersion] = useState(0);
-  const [showGroup, setShowGroup] = useState(false);
   const [groupMates, setGroupMates] = useState<GroupMate[]>([]);
   const [groupCoaches, setGroupCoaches] = useState<GroupCoach[]>([]);
 
   useEffect(() => {
     const detect = () => {
       const selected = document.querySelector<HTMLButtonElement>(".club-side nav button.selected")?.textContent?.replace(/\d+/g, "").trim() || "";
-      setMode(selected.startsWith("Inicio") ? "home" : selected.startsWith("Mi perfil") ? "profile" : null);
+      setMode(selected.startsWith("Inicio") ? "home" : selected.startsWith("Mi perfil") ? "profile" : selected.startsWith("Mi grupo") ? "group" : null);
     };
     detect();
     const observer = new MutationObserver(detect);
@@ -137,7 +136,6 @@ export default function MemberExperience({ profileId }: { profileId: string }) {
 
   const openGroup = async () => {
     if (!supabase || !athlete?.training_group_id) return;
-    setShowGroup(true);
     const { data } = await supabase.rpc("get_member_group_roster", { target_group_id: athlete.training_group_id });
     const roster = (data ?? []) as { person_type: string; person_id: string; display_name: string; avatar_url: string | null }[];
     setGroupCoaches(roster.filter(person => person.person_type === "coach").map(person => ({ coach_profile_id: person.person_id, full_name: person.display_name, avatar_url: person.avatar_url })));
@@ -145,6 +143,7 @@ export default function MemberExperience({ profileId }: { profileId: string }) {
   };
 
   const goTo = (label: string) => [...document.querySelectorAll<HTMLButtonElement>(".club-side nav button")].find(item => item.textContent?.trim().startsWith(label))?.click();
+  useEffect(() => { if (mode === "group") void openGroup(); }, [mode, athlete?.training_group_id]);
 
   if (!mode) return null;
   if (loading) return <section className="member-experience"><article className="panel">Cargando tu información…</article></section>;
@@ -153,10 +152,11 @@ export default function MemberExperience({ profileId }: { profileId: string }) {
   if (mode === "home") return <section className="design-v2-stage member-live-home"><header className="design-v2-hero"><div><small>INICIO · MI TEMPORADA</small><h1>Todo empieza<br/>aquí.</h1><p>{athlete.training_groups?.name || "Grupo pendiente"} · Licencia {licenseText(athlete)}</p></div></header><section className="design-v2-float">
     <div className="design-v2-title"><div><small>ESTA SEMANA</small><h2>Tu entrenamiento</h2></div><button onClick={() => [...document.querySelectorAll<HTMLButtonElement>(".club-side nav button")].find(item => item.textContent?.trim().startsWith("Mi perfil"))?.click()}>Mi perfil →</button></div>
     <article className="member-live-plan"><div><small>PLAN DE ENTRENAMIENTO</small>{currentPlan?<><h2>{currentPlan.title}</h2><p style={{whiteSpace:"pre-wrap"}}>{currentPlan.body}</p><span>Semana del {new Date(`${currentPlan.week_starts_on}T12:00:00`).toLocaleDateString("es-ES")}</span></>:<><h2>Sin plan publicado todavía</h2><p>Cuando tu entrenador publique el plan aparecerá aquí automáticamente.</p></>}</div>{currentPlanDocument&&<button type="button" onClick={()=>void openPlanPdf()}>Abrir plan&nbsp; ›</button>}{planNotice&&<p className="error-note">{planNotice}</p>}</article>
-    <header className="design-v2-section-head"><div><small>RESUMEN</small><h2>Tu actividad en el club</h2></div></header><section className="member-live-cards"><article><i>✓</i><small>ESTADO</small><b>{athlete.club_status==="active"?"Activo":"En revisión"}</b><span>Alta en el club</span></article><article><i>◎</i><small>LICENCIA</small><b>{licenseText(athlete)}</b><span>{athlete.license_status==="active"?"Licencia activa":"Pendiente de tramitar"}</span></article><button className="member-summary-action" onClick={() => void openGroup()}><i>↗</i><small>GRUPO</small><b>{athlete.training_groups?.name||"Pendiente"}</b><span>{athlete.training_groups?.category_label||"Sin asignar"} · Ver grupo</span></button></section>
+    <header className="design-v2-section-head"><div><small>RESUMEN</small><h2>Tu actividad en el club</h2></div></header><section className="member-live-cards"><article><i>✓</i><small>ESTADO</small><b>{athlete.club_status==="active"?"Activo":"En revisión"}</b><span>Alta en el club</span></article><article><i>◎</i><small>LICENCIA</small><b>{licenseText(athlete)}</b><span>{athlete.license_status==="active"?"Licencia activa":"Pendiente de tramitar"}</span></article><button className="member-summary-action" onClick={() => goTo("Mi grupo")}><i>↗</i><small>GRUPO</small><b>{athlete.training_groups?.name||"Pendiente"}</b><span>{athlete.training_groups?.category_label||"Sin asignar"} · Ver grupo</span></button></section>
     <section className="design-v2-bottom member-live-bottom"><button className="member-bottom-action" onClick={() => goTo("Cuotas")}><header><div><small>PRÓXIMA CUOTA</small><h3>{upcomingFee?upcomingFee.charge_kind==="enrolment"?"Matrícula":"Cuota del club":"Sin cuotas programadas"}</h3></div></header>{upcomingFee?<div><i>€</i><span><b>{euro(upcomingFee.approved_amount_cents??upcomingFee.calculated_amount_cents)}</b><small>{upcomingFee.scheduled_for?new Date(upcomingFee.scheduled_for).toLocaleDateString("es-ES"):"Fecha pendiente"}</small></span><em>›</em></div>:<p>Las próximas cuotas aparecerán aquí.</p>}</button><article><header><div><small>PRÓXIMA COMPETICIÓN</small><h3>{upcomingCompetition?.event?.title||"Sin próxima competición"}</h3></div></header>{upcomingCompetition?.event?<div><i>↗</i><span><b>{upcomingCompetition.event.venue||"Ubicación pendiente"}</b><small>{new Date(upcomingCompetition.event.starts_at).toLocaleDateString("es-ES")}</small></span><em/></div>:<p>Las competiciones confirmadas aparecerán aquí.</p>}</article></section>
-    {showGroup && <div className="member-group-overlay" role="dialog" aria-modal="true"><section><header><div><small>TU EQUIPO</small><h2>{athlete.training_groups?.name}</h2><p>Entrenadores y atletas que forman tu grupo.</p></div><button aria-label="Cerrar" onClick={() => setShowGroup(false)}>×</button></header><div className="member-group-content"><div><h3>Entrenadores</h3><div className="member-roster">{groupCoaches.map(coach => <article key={coach.coach_profile_id}>{coach.avatar_url ? <img src={coach.avatar_url} alt="" /> : <span className="roster-avatar">{coach.full_name.split(" ").map(word => word[0]).slice(0,2).join("")}</span>}<b>{coach.full_name}</b><small>Entrenador</small></article>)}{!groupCoaches.length && <p>No hay entrenador asignado todavía.</p>}</div></div><div><h3>Atletas</h3><div className="member-roster">{groupMates.map(mate => { const avatar = mate.id === athlete.id ? profileSettings?.avatar_url : mate.avatar_url; return <article key={mate.id}>{avatar ? <img src={avatar} alt="" /> : <span className="roster-avatar">{mate.first_name[0]}{mate.last_name[0]}</span>}<b>{mate.first_name} {mate.last_name}</b><small>{mate.id === athlete.id ? "Tú" : athlete.training_groups?.name}</small></article>})}{!groupMates.length && <p>No hay atletas activos en este grupo.</p>}</div></div></div></section></div>}
   </section></section>;
+
+  if (mode === "group") return <section className="member-group-page"><header><div><small>TU EQUIPO</small><h1>{athlete.training_groups?.name}</h1><p>Entrenadores y atletas que forman tu grupo.</p></div></header><div className="member-group-content"><div><h2>Entrenadores</h2><div className="member-roster">{groupCoaches.map(coach => <article key={coach.coach_profile_id}>{coach.avatar_url ? <img src={coach.avatar_url} alt="" /> : <span className="roster-avatar">{coach.full_name.split(" ").map(word => word[0]).slice(0,2).join("")}</span>}<b>{coach.full_name}</b><small>Entrenador</small></article>)}{!groupCoaches.length && <p>No hay entrenador asignado todavía.</p>}</div></div><div><h2>Atletas</h2><div className="member-roster">{groupMates.map(mate => { const avatar = mate.id === athlete.id ? profileSettings?.avatar_url : mate.avatar_url; return <article key={mate.id}>{avatar ? <img src={avatar} alt="" /> : <span className="roster-avatar">{mate.first_name[0]}{mate.last_name[0]}</span>}<b>{mate.first_name} {mate.last_name}</b><small>{mate.id === athlete.id ? "Tú" : athlete.training_groups?.name}</small></article>})}{!groupMates.length && <p>No hay atletas activos en este grupo.</p>}</div></div></div></section>;
 
   return <section className="member-experience member-profile-page design-v2-stage">
     <header className="design-v2-hero member-profile-hero"><div><small>MI PERFIL</small><h1>{athlete.first_name}<br/>{athlete.last_name}</h1><p>{athlete.training_groups?.name || "Grupo pendiente"} · Licencia {licenseText(athlete)}</p></div></header>
