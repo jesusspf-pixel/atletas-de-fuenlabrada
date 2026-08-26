@@ -110,59 +110,7 @@ export default function MemberExperience({ profileId }: { profileId: string }) {
     return () => window.removeEventListener("athlete-profile-updated", onUpdated);
   }, [athlete?.id]);
 
-  useEffect(() => {
-    if (!athlete) return;
-    const content = document.querySelector<HTMLElement>(".club-content");
-    const topbar = content?.querySelector<HTMLElement>(".topbar");
-    if (!content || !topbar) return;
-
-    let style = document.getElementById("athlete-global-header-styles") as HTMLStyleElement | null;
-    if (!style) {
-      style = document.createElement("style");
-      style.id = "athlete-global-header-styles";
-      style.textContent = `
-        .athlete-global-header{position:relative!important;display:block!important;min-height:170px;margin:18px 24px 8px;padding:0;border-radius:22px;overflow:hidden;background:linear-gradient(135deg,#173f7c,#2464c8);background-size:cover;background-position:center;box-shadow:0 10px 30px rgba(15,35,70,.12)}
-        .athlete-global-header::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(5,20,45,.62),rgba(5,20,45,.08) 70%);pointer-events:none}
-        .athlete-global-avatar{position:absolute;left:24px;bottom:20px;width:78px;height:78px;border-radius:50%;object-fit:cover;border:4px solid #fff;background:#fff;z-index:1;box-shadow:0 5px 16px rgba(0,0,0,.18)}
-        .athlete-global-avatar-placeholder{display:grid;place-items:center;color:#2563eb;font-weight:900;font-size:22px}
-        .athlete-global-copy{position:absolute;left:120px;right:24px;bottom:24px;color:#fff;z-index:1;text-shadow:0 1px 3px rgba(0,0,0,.28)}
-        .athlete-global-copy h2{margin:0 0 4px;font-size:28px;color:#fff}.athlete-global-copy p{margin:0;color:#fff;font-weight:700}
-        @media(max-width:700px){.athlete-global-header{min-height:145px;margin:12px 14px 6px;border-radius:18px}.athlete-global-avatar{width:64px;height:64px;left:16px;bottom:16px}.athlete-global-copy{left:94px;bottom:19px}.athlete-global-copy h2{font-size:20px}}
-      `;
-      document.head.appendChild(style);
-    }
-
-    let header = document.getElementById("global-athlete-header") as HTMLElement | null;
-    if (!header) {
-      header = document.createElement("section");
-      header.id = "global-athlete-header";
-      header.className = "topbar athlete-global-header";
-      topbar.insertAdjacentElement("afterend", header);
-    }
-    header.style.backgroundImage = "var(--app-track), linear-gradient(135deg,#082a5d,#155db5 66%,#347fd2)";
-    header.replaceChildren();
-
-    if (profileSettings?.avatar_url) {
-      const image = document.createElement("img");
-      image.className = "athlete-global-avatar";
-      image.src = profileSettings.avatar_url;
-      image.alt = `Foto de ${athlete.first_name} ${athlete.last_name}`;
-      header.appendChild(image);
-    } else {
-      const placeholder = document.createElement("div");
-      placeholder.className = "athlete-global-avatar athlete-global-avatar-placeholder";
-      placeholder.textContent = `${athlete.first_name.charAt(0)}${athlete.last_name.charAt(0)}`.toUpperCase();
-      header.appendChild(placeholder);
-    }
-
-    const copy = document.createElement("div");
-    copy.className = "athlete-global-copy";
-    const name = document.createElement("h2"); name.textContent = `${athlete.first_name} ${athlete.last_name}`;
-    const meta = document.createElement("p"); meta.textContent = `${athlete.training_groups?.name || "Grupo pendiente"} · Licencia ${licenseText(athlete)}`;
-    copy.append(name, meta); header.appendChild(copy);
-
-    return () => { header?.remove(); style?.remove(); };
-  }, [athlete?.id, athlete?.first_name, athlete?.last_name, athlete?.training_groups?.name, athlete?.license_status, athlete?.license_number, athlete?.federation_license, profileSettings?.avatar_url]);
+  useEffect(() => { document.getElementById("global-athlete-header")?.remove(); document.getElementById("athlete-global-header-styles")?.remove(); }, [mode]);
 
   const upcomingFee = useMemo(() => ledger.find(item => ["awaiting_admin", "approved", "checkout_pending"].includes(item.status) && (!item.scheduled_for || new Date(item.scheduled_for).getTime() >= Date.now() - 86400000)) || null, [ledger]);
   const upcomingCompetition = useMemo(() => entries.map(entry => ({ entry, event: entry.competition_events?.[0] })).filter(item => item.event && new Date(item.event.starts_at).getTime() >= Date.now()).sort((a, b) => new Date(a.event!.starts_at).getTime() - new Date(b.event!.starts_at).getTime())[0] || null, [entries]);
@@ -186,23 +134,12 @@ export default function MemberExperience({ profileId }: { profileId: string }) {
   if (loading) return <section className="member-experience"><article className="panel">Cargando tu información…</article></section>;
   if (!athlete) return <section className="member-experience"><div className="page-head"><div><h1>Mi perfil</h1><p>Tu inscripción deportiva todavía no está vinculada a esta cuenta.</p></div></div></section>;
 
-  if (mode === "home") return <section className="member-experience">
-    <div className="page-head"><div><small>MI TEMPORADA</small><h1>{athlete.first_name} {athlete.last_name}</h1><p>Resumen de tu situación en el club.</p></div><button onClick={() => [...document.querySelectorAll<HTMLButtonElement>(".club-side nav button")].find(item => item.textContent?.trim().startsWith("Mi perfil"))?.click()}>Abrir mi perfil →</button></div>
-    <section className="metric-grid member-home-grid">
-      <article className="metric"><small>Estado</small><b>{athlete.club_status === "active" ? "Activo" : "En revisión"}</b><small>Alta en el club</small></article>
-      <article className="metric"><small>Licencia</small><b>{licenseText(athlete)}</b><small>{athlete.license_status === "active" ? "Licencia activa" : "Pendiente de tramitar"}</small></article>
-      <article className="metric"><small>Grupo</small><b>{athlete.training_groups?.name || "Pendiente"}</b><small>{athlete.training_groups?.category_label || "Sin asignar"}</small></article>
-    </section>
-    <article className="panel member-week-plan">
-      <small>PLAN DE ENTRENAMIENTO · ESTA SEMANA</small>
-      {currentPlan ? <><h2>{currentPlan.title}</h2><p style={{ whiteSpace: "pre-wrap" }}>{currentPlan.body}</p><small>Semana del {new Date(`${currentPlan.week_starts_on}T12:00:00`).toLocaleDateString("es-ES")}</small>{currentPlanDocument && <div><button type="button" className="outline" onClick={() => void openPlanPdf()}>Abrir PDF del plan</button></div>}</> : <><h2>Sin plan publicado todavía</h2><p>Cuando tu entrenador publique el plan de esta semana aparecerá aquí automáticamente.</p></>}
-      {planNotice && <p className="error-note">{planNotice}</p>}
-    </article>
-    <section className="two-columns member-next-grid">
-      <article className="panel"><small>PRÓXIMA CUOTA</small>{upcomingFee ? <><h2>{upcomingFee.charge_kind === "enrolment" ? "Matrícula" : "Cuota del club"}</h2><p><b>{euro(upcomingFee.approved_amount_cents ?? upcomingFee.calculated_amount_cents)}</b></p><small>{upcomingFee.scheduled_for ? new Date(upcomingFee.scheduled_for).toLocaleDateString("es-ES") : "Fecha pendiente"} · {upcomingFee.status === "awaiting_admin" ? "Pendiente de revisión" : upcomingFee.status === "approved" ? "Aprobada" : "Pendiente de pago"}</small></> : <><h2>Sin cuotas programadas</h2><p>Las próximas cuotas aprobadas aparecerán aquí.</p></>}</article>
-      <article className="panel"><small>PRÓXIMA COMPETICIÓN</small>{upcomingCompetition?.event ? <><h2>{upcomingCompetition.event.title}</h2><p>{upcomingCompetition.event.venue || "Ubicación pendiente"}</p><small>{new Date(upcomingCompetition.event.starts_at).toLocaleDateString("es-ES")} · {upcomingCompetition.entry.status}</small></> : <><h2>Sin próxima competición</h2><p>Las competiciones en las que estés inscrito aparecerán aquí.</p></>}</article>
-    </section>
-  </section>;
+  if (mode === "home") return <section className="design-v2-stage member-live-home"><header className="design-v2-hero"><div><small>MI TEMPORADA</small><h1>Hola, {athlete.first_name}.<br/>Todo empieza aquí.</h1><p>{athlete.training_groups?.name || "Grupo pendiente"} · Licencia {licenseText(athlete)}</p></div><div className="member-live-avatar">{profileSettings?.avatar_url?<img src={profileSettings.avatar_url} alt={`Foto de ${athlete.first_name}`}/>:<span>{`${athlete.first_name[0]}${athlete.last_name[0]}`}</span>}</div></header><section className="design-v2-float">
+    <div className="design-v2-title"><div><small>ESTA SEMANA</small><h2>Tu entrenamiento</h2></div><button onClick={() => [...document.querySelectorAll<HTMLButtonElement>(".club-side nav button")].find(item => item.textContent?.trim().startsWith("Mi perfil"))?.click()}>Mi perfil →</button></div>
+    <article className="member-live-plan"><div><small>PLAN DE ENTRENAMIENTO</small>{currentPlan?<><h2>{currentPlan.title}</h2><p style={{whiteSpace:"pre-wrap"}}>{currentPlan.body}</p><span>Semana del {new Date(`${currentPlan.week_starts_on}T12:00:00`).toLocaleDateString("es-ES")}</span></>:<><h2>Sin plan publicado todavía</h2><p>Cuando tu entrenador publique el plan aparecerá aquí automáticamente.</p></>}</div>{currentPlanDocument&&<button type="button" onClick={()=>void openPlanPdf()}>Abrir plan&nbsp; ›</button>}{planNotice&&<p className="error-note">{planNotice}</p>}</article>
+    <header className="design-v2-section-head"><div><small>RESUMEN</small><h2>Tu actividad en el club</h2></div></header><section className="member-live-cards"><article><i>✓</i><small>ESTADO</small><b>{athlete.club_status==="active"?"Activo":"En revisión"}</b><span>Alta en el club</span></article><article><i>◎</i><small>LICENCIA</small><b>{licenseText(athlete)}</b><span>{athlete.license_status==="active"?"Licencia activa":"Pendiente de tramitar"}</span></article><article><i>↗</i><small>GRUPO</small><b>{athlete.training_groups?.name||"Pendiente"}</b><span>{athlete.training_groups?.category_label||"Sin asignar"}</span></article></section>
+    <section className="design-v2-bottom member-live-bottom"><article><header><div><small>PRÓXIMA CUOTA</small><h3>{upcomingFee?upcomingFee.charge_kind==="enrolment"?"Matrícula":"Cuota del club":"Sin cuotas programadas"}</h3></div></header>{upcomingFee?<div><i>€</i><span><b>{euro(upcomingFee.approved_amount_cents??upcomingFee.calculated_amount_cents)}</b><small>{upcomingFee.scheduled_for?new Date(upcomingFee.scheduled_for).toLocaleDateString("es-ES"):"Fecha pendiente"}</small></span><em/></div>:<p>Las próximas cuotas aparecerán aquí.</p>}</article><article><header><div><small>PRÓXIMA COMPETICIÓN</small><h3>{upcomingCompetition?.event?.title||"Sin próxima competición"}</h3></div></header>{upcomingCompetition?.event?<div><i>↗</i><span><b>{upcomingCompetition.event.venue||"Ubicación pendiente"}</b><small>{new Date(upcomingCompetition.event.starts_at).toLocaleDateString("es-ES")}</small></span><em/></div>:<p>Las competiciones confirmadas aparecerán aquí.</p>}</article></section>
+  </section></section>;
 
   return <section className="member-experience member-profile-page">
     <div className="page-head"><div><small>PERFIL DEPORTIVO</small><h1>{athlete.first_name} {athlete.last_name}</h1><p>{athlete.training_groups?.name || "Grupo pendiente"} · Licencia {licenseText(athlete)}</p></div></div>
