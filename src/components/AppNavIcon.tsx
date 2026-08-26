@@ -14,6 +14,6 @@ const paths:Record<string,ReactNode>={
   "Marcas":<><path d="M5 20V7M5 8h10l-2 3 2 3H5"/><circle cx="18" cy="18" r="3"/><path d="m18 16.5.7 1.5 1.3.2-1 1 .2 1.3-1.2-.6-1.2.6.2-1.3-1-1 1.3-.2.7-1.5Z"/></>,
   "Challenge":<><path d="M8 4h8v4a4 4 0 0 1-8 0V4Z"/><path d="M8 6H4v2a4 4 0 0 0 4 4M16 6h4v2a4 4 0 0 1-4 4M12 12v5M8 21h8M9 17h6"/></>,
   "Club Challenge":<><path d="M8 4h8v4a4 4 0 0 1-8 0V4Z"/><path d="M8 6H4v2a4 4 0 0 0 4 4M16 6h4v2a4 4 0 0 1-4 4M12 12v5M8 21h8M9 17h6"/></>,
-  "Ranking del club":<><rect x="4.5" y="12" width="4" height="8" rx="1" fill="currentColor" stroke="none"/><rect x="10" y="8" width="4" height="12" rx="1" fill="currentColor" stroke="none"/><rect x="15.5" y="4" width="4" height="16" rx="1" fill="currentColor" stroke="none"/></>
+  "Ranking del club":<><path d="M4.5 20V10.5h3.5V20M10.25 20V4h3.5v16M16 20v-6.5h3.5V20"/></>
 };
 export default function AppNavIcon({name}:{name:string}){return <svg className="app-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]||<circle cx="12" cy="12" r="7"/>}</svg>}
