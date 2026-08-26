@@ -14,8 +14,17 @@
     <div id="root"></div>
     <script>
       if ("serviceWorker" in navigator) {
-        navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" })
-          .then((registration) => registration.update())
+        let reloadingForUpdate = false;
+        navigator.serviceWorker.addEventListener("controllerchange", () => {
+          if (reloadingForUpdate) return;
+          reloadingForUpdate = true;
+          window.location.reload();
+        });
+        navigator.serviceWorker.register("/sw.js?v=20260826-2", { updateViaCache: "none" })
+          .then((registration) => {
+            registration.update();
+            window.setInterval(() => registration.update(), 15 * 60 * 1000);
+          })
           .catch(() => undefined);
       }
     </script>
