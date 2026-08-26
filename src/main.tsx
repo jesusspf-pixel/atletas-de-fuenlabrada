@@ -17,6 +17,7 @@ import "./coach-next.css";
 import "./app-visual-v2.css";
 import "./admin-next.css";
 import "./admin-fixes.css";
+import "./responsive-guardrails.css";
 // El acceso de ranking abre siempre la vista de resultados del área deportiva.
 
 type Role = "owner" | "admin" | "coach" | "parent" | "adult_athlete" | "minor_athlete";

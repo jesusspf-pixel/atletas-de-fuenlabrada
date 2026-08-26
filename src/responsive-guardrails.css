@@ -1,0 +1,59 @@
+/* Shared responsive contract for member, family, coach and administration portals. */
+.visual-next-shell,.visual-next-shell .club-content,.visual-next-shell .visual-page-body,.visual-next-shell .admin-reference-page,.visual-next-shell .admin-reference-sheet,.visual-next-shell .coach-reference-page,.visual-next-shell .coach-reference-sheet{min-width:0;max-width:100%}
+.visual-next-shell :where(.panel,.metric,.row,.cards,.metric-grid,.two-columns,.detail-grid,.ops-grid,.table,.inline-form,.stacked-form,.invite-form,.event-list,.event-card,.shop-workspace,.product-editor,.product-image-picker,.billing-control,.financial-control,.finance-workspace,.results-workspace,.coach-week-planner,.coach-plan-output,.coach-plan-meta,.coach-load-grid,.coach-builder-grid,.group-detail-layout,.group-editor,.settings-workspace,.athlete-detail,.admin-athlete-dossier,.dossier-grid,.dossier-charges){min-width:0;max-width:100%}
+.visual-next-shell :where(img,svg,video,canvas){max-width:100%}
+.visual-next-shell :where(input,select,textarea){min-width:0;max-width:100%}
+.visual-next-shell input[type="file"]{display:block;width:100%;min-width:0;max-width:100%;box-sizing:border-box;overflow:hidden;font-size:11px}
+.visual-next-shell input[type="file"]::file-selector-button,.visual-next-shell input[type="file"]::-webkit-file-upload-button{max-width:100%;white-space:normal}
+.visual-next-shell :where(h1,h2,h3,p,b,strong,small,span,dd,dt,label){overflow-wrap:anywhere}
+.visual-next-shell .page-head>*,.visual-next-shell .editor-title>*,.visual-next-shell .table-title>*,.visual-next-shell .event-card>*,.visual-next-shell .row>*{min-width:0}
+
+@media(max-width:1100px){
+  .visual-next-shell .metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .visual-next-shell :where(.detail-grid,.two-columns,.group-detail-layout,.finance-workspace,.shop-workspace,.coach-plan-output,.dossier-grid){grid-template-columns:1fr}
+  .visual-next-shell :where(.ops-grid,.coach-plan-meta,.coach-load-grid,.coach-builder-grid){grid-template-columns:repeat(2,minmax(0,1fr))}
+  .visual-next-shell .product-image-picker{grid-template-columns:minmax(120px,180px) minmax(0,1fr)}
+  .visual-next-shell .event-card{grid-template-columns:minmax(72px,.28fr) minmax(0,1fr)}
+  .visual-next-shell .event-card>aside{grid-column:1/-1}
+  .visual-next-shell .finance-coverage>div{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .visual-next-shell .dossier-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+
+@media(max-width:820px){
+  .visual-next-shell .page-head{display:grid;grid-template-columns:minmax(0,1fr);align-items:start}
+  .visual-next-shell .page-head>:where(button,.button-link){width:max-content;max-width:100%}
+  .visual-next-shell :where(.ops-grid,.coach-plan-meta,.coach-load-grid,.coach-builder-grid,.invite-field-grid,.invite-groups-grid,.settings-grid,.shop-admin-grid){grid-template-columns:1fr}
+  .visual-next-shell :where(.inline-form,.invite-form,.editor-title,.table-title,.finance-ledger>header,.finance-entry>header,.dossier-charges>header){align-items:stretch;flex-direction:column}
+  .visual-next-shell :where(.inline-actions,.answer-buttons,.shop-buy-actions){display:grid;grid-template-columns:1fr;width:100%}
+  .visual-next-shell :where(.inline-actions,.answer-buttons,.shop-buy-actions)>button{width:100%;min-width:0}
+  .visual-next-shell .product-image-picker{grid-template-columns:1fr}
+  .visual-next-shell .product-image-picker>img,.visual-next-shell .product-image-picker>div{width:min(100%,280px);justify-self:center}
+  .visual-next-shell .row,.visual-next-shell .result-row,.visual-next-shell .stock-row,.visual-next-shell .cart-line{grid-template-columns:1fr}
+  .visual-next-shell .event-card{grid-template-columns:1fr}
+  .visual-next-shell .event-card>aside{grid-column:auto}
+  .visual-next-shell .finance-coverage>div{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .visual-next-shell .finance-coverage article:last-child{grid-column:1/-1}
+  .visual-next-shell .dossier-charge{grid-template-columns:38px minmax(0,1fr) auto}
+  .visual-next-shell .dossier-charge em{grid-column:2/-1;justify-self:start}
+  .visual-next-shell .settings-brand{align-items:flex-start;flex-direction:column}
+  .visual-next-shell .global-visible-signout{right:14px!important;max-width:calc(100vw - 28px)}
+}
+
+@media(max-width:520px){
+  .visual-next-shell .metric-grid,.visual-next-shell .dossier-metrics,.visual-next-shell .finance-coverage>div{grid-template-columns:1fr}
+  .visual-next-shell .finance-coverage article:last-child{grid-column:auto}
+  .visual-next-shell .metric{min-height:108px}
+  .visual-next-shell .page-head h1{font-size:clamp(26px,9vw,31px)}
+  .visual-next-shell :where(.panel,.admin-product){padding:17px}
+  .visual-next-shell .club-side nav{grid-auto-columns:minmax(56px,1fr)}
+  .visual-next-shell .dossier-charge{grid-template-columns:36px minmax(0,1fr)}
+  .visual-next-shell .dossier-charge strong,.visual-next-shell .dossier-charge em{grid-column:2;justify-self:start}
+}
+
+@media(orientation:landscape) and (max-height:520px) and (max-width:950px){
+  .visual-next-shell{padding-bottom:76px}
+  .visual-next-shell .club-side{height:60px;bottom:7px}
+  .visual-next-shell .club-side nav button{height:45px}
+  .visual-next-shell .visual-page-body>.page-head,.visual-next-shell .visual-page-body>*>.page-head{min-height:175px;padding-top:22px}
+}
+
