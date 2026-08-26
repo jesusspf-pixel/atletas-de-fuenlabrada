@@ -106,7 +106,7 @@ function CoachAthlete({ profile, athlete, back }: { profile: Profile; athlete: A
 function AthleteMessage({ profile, athlete }: { profile: Profile; athlete: Athlete }) {
   const [subject, setSubject] = useState(""); const [body, setBody] = useState(""); const [notice, setNotice] = useState("");
   const send = async (e: FormEvent) => { e.preventDefault(); const client = supabase; if (!client) return; const { error } = await client.from("coach_athlete_messages").insert({ coach_profile_id: profile.id, athlete_id: athlete.id, training_group_id: athlete.training_group_id, subject, body }); if (error) return setNotice(error.message); setSubject(""); setBody(""); setNotice("Mensaje enviado a la familia del atleta."); };
-  return <form className="panel stacked-form" onSubmit={send}><h2>Mensaje sobre {athlete.first_name}</h2><label>Asunto<input required value={subject} onChange={e => setSubject(e.target.value)} /></label><label>Mensaje<textarea required value={body} onChange={e => setBody(e.target.value)} /></label><button>Enviar mensaje</button>{notice && <p>{notice}</p>}</form>;
+  return <form className="panel stacked-form" onSubmit={send}><h2>Mensaje a {athlete.first_name}</h2><label>Asunto<input required value={subject} onChange={e => setSubject(e.target.value)} /></label><label>Mensaje<textarea required value={body} onChange={e => setBody(e.target.value)} /></label><button>Enviar mensaje</button>{notice && <p>{notice}</p>}</form>;
 }
 
 function GroupMessage({ profile, group }: { profile: Profile; group: Group }) {
