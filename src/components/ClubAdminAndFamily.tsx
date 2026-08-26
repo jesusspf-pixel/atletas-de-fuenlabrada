@@ -2,71 +2,1458 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
 import "./club-admin-family.css";
 
-type Role = "owner" | "admin" | "coach" | "parent" | "adult_athlete" | "minor_athlete";
-type Profile = { id: string; email: string; full_name: string | null; role: Role };
-type Group = { id: string; name: string; category_label: string; colour: string; active: boolean; schedule_days?: string | null; starts_at?: string | null; ends_at?: string | null; season?: string | null };
-type Athlete = { id: string; first_name: string; last_name: string; club_status: string; license_status: string; license_number: string | null; training_group_id: string | null; family_id: string | null; training_groups?: Group | null };
-type Attendance = { athlete_id: string; attended: boolean | null; marked_at: string | null; attendance_sessions?: { starts_at: string }[] | null };
-type TrainingSession = { id: string; training_group_id: string; starts_at: string; ends_at: string; training_groups?: { name: string } | null };
-type Product = { id: string; name: string; description: string | null; price_cents: number; sizes: string[]; active: boolean };
-type ProductVariant = { id: string; product_id: string; size: string; stock_on_hand: number; allow_backorder: boolean; backorder_message: string | null };
-type ShopOrder = { id: string; status: string; payment_method: string; payment_status: string; total_cents: number; created_at: string; club_order_items?: { product_name: string; size: string | null; quantity: number }[] };
+type Role =
+  | "owner"
+  | "admin"
+  | "coach"
+  | "parent"
+  | "adult_athlete"
+  | "minor_athlete";
+type Profile = {
+  id: string;
+  email: string;
+  full_name: string | null;
+  role: Role;
+};
+type Group = {
+  id: string;
+  name: string;
+  category_label: string;
+  colour: string;
+  active: boolean;
+  schedule_days?: string | null;
+  starts_at?: string | null;
+  ends_at?: string | null;
+  season?: string | null;
+};
+type Athlete = {
+  id: string;
+  first_name: string;
+  last_name: string;
+  club_status: string;
+  license_status: string;
+  license_number: string | null;
+  training_group_id: string | null;
+  family_id: string | null;
+  training_groups?: Group | null;
+};
+type Attendance = {
+  athlete_id: string;
+  attended: boolean | null;
+  marked_at: string | null;
+  attendance_sessions?: { starts_at: string }[] | null;
+};
+type TrainingSession = {
+  id: string;
+  training_group_id: string;
+  starts_at: string;
+  ends_at: string;
+  training_groups?: { name: string } | null;
+};
+type Product = {
+  id: string;
+  name: string;
+  description: string | null;
+  price_cents: number;
+  sizes: string[];
+  active: boolean;
+};
+type ProductVariant = {
+  id: string;
+  product_id: string;
+  size: string;
+  stock_on_hand: number;
+  allow_backorder: boolean;
+  backorder_message: string | null;
+};
+type ShopOrder = {
+  id: string;
+  status: string;
+  payment_method: string;
+  payment_status: string;
+  total_cents: number;
+  created_at: string;
+  club_order_items?: {
+    product_name: string;
+    size: string | null;
+    quantity: number;
+  }[];
+};
 
-const euro = (cents: number) => new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(cents / 100);
-const date = (value: string | null | undefined) => value ? new Date(value).toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "numeric" }) : "Pendiente";
+const euro = (cents: number) =>
+  new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(
+    cents / 100,
+  );
+const date = (value: string | null | undefined) =>
+  value
+    ? new Date(value).toLocaleDateString("es-ES", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      })
+    : "Pendiente";
 
-export function GroupManager() {
-  const [groups, setGroups] = useState<Group[]>([]); const [coaches, setCoaches] = useState<Profile[]>([]); const [links, setLinks] = useState<{ training_group_id: string; coach_profile_id: string }[]>([]); const [athletes, setAthletes] = useState<Athlete[]>([]);
-  const [athleteAvatars,setAthleteAvatars]=useState<Record<string,string>>({}); const [coachAvatars,setCoachAvatars]=useState<Record<string,string>>({});
-  const [selectedId, setSelectedId] = useState(""); const [notice, setNotice] = useState(""); const [saving, setSaving] = useState(false);
-  const blank = { name: "", category_label: "", colour: "#2563eb", schedule_days: "", starts_at: "", ends_at: "", season: "2026", active: true };
-  const [form, setForm] = useState(blank); const [coachIds, setCoachIds] = useState<string[]>([]);
-  const selected = groups.find(item => item.id === selectedId);
-  const load = async () => { if (!supabase) return; const [{ data: groupData }, { data: coachData }, { data: linkData }, { data: athleteData },{data:athleteAvatarData},{data:coachAvatarData}] = await Promise.all([supabase.from("training_groups").select("*").order("name"), supabase.from("profiles").select("id,email,full_name,role").eq("role", "coach").order("full_name"), supabase.from("training_group_coaches").select("training_group_id,coach_profile_id"), supabase.from("athletes").select("id,first_name,last_name,club_status,license_status,license_number,training_group_id,family_id").order("last_name"),supabase.from("athlete_profile_settings").select("athlete_id,avatar_url"),supabase.from("coach_profile_settings").select("profile_id,avatar_url")]); setGroups((groupData ?? []) as Group[]); setCoaches((coachData ?? []) as Profile[]); setLinks((linkData ?? []) as typeof links); setAthletes((athleteData ?? []) as Athlete[]);setAthleteAvatars(Object.fromEntries((athleteAvatarData||[]).filter(item=>item.avatar_url).map(item=>[item.athlete_id,item.avatar_url])));setCoachAvatars(Object.fromEntries((coachAvatarData||[]).filter(item=>item.avatar_url).map(item=>[item.profile_id,item.avatar_url]))); };
-  useEffect(() => { void load(); }, []);
-  useEffect(() => { if (!selected) return; setForm({ name: selected.name, category_label: selected.category_label, colour: selected.colour, schedule_days: selected.schedule_days || "", starts_at: selected.starts_at?.slice(0, 5) || "", ends_at: selected.ends_at?.slice(0, 5) || "", season: selected.season || "2026", active: selected.active }); setCoachIds(links.filter(link => link.training_group_id === selected.id).map(link => link.coach_profile_id)); setNotice(""); }, [selectedId, groups.length, links.length]);
-  const newGroup = () => { setSelectedId("new"); setForm(blank); setCoachIds([]); setNotice(""); };
+export function GroupManager({ onOpenAthlete }: { onOpenAthlete?: (id: string) => void }) {
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [coaches, setCoaches] = useState<Profile[]>([]);
+  const [links, setLinks] = useState<
+    { training_group_id: string; coach_profile_id: string }[]
+  >([]);
+  const [athletes, setAthletes] = useState<Athlete[]>([]);
+  const [athleteAvatars, setAthleteAvatars] = useState<Record<string, string>>(
+    {},
+  );
+  const [coachAvatars, setCoachAvatars] = useState<Record<string, string>>({});
+  const [selectedId, setSelectedId] = useState("");
+  const [notice, setNotice] = useState("");
+  const [saving, setSaving] = useState(false);
+  const blank = {
+    name: "",
+    category_label: "",
+    colour: "#2563eb",
+    schedule_days: "",
+    starts_at: "",
+    ends_at: "",
+    season: "2026",
+    active: true,
+  };
+  const [form, setForm] = useState(blank);
+  const [coachIds, setCoachIds] = useState<string[]>([]);
+  const selected = groups.find((item) => item.id === selectedId);
+  const load = async () => {
+    if (!supabase) return;
+    const [
+      { data: groupData },
+      { data: coachData },
+      { data: linkData },
+      { data: athleteData },
+      { data: athleteAvatarData },
+      { data: coachAvatarData },
+    ] = await Promise.all([
+      supabase.from("training_groups").select("*").order("name"),
+      supabase
+        .from("profiles")
+        .select("id,email,full_name,role")
+        .eq("role", "coach")
+        .order("full_name"),
+      supabase
+        .from("training_group_coaches")
+        .select("training_group_id,coach_profile_id"),
+      supabase
+        .from("athletes")
+        .select(
+          "id,first_name,last_name,club_status,license_status,license_number,training_group_id,family_id",
+        )
+        .order("last_name"),
+      supabase.from("athlete_profile_settings").select("athlete_id,avatar_url"),
+      supabase.from("coach_profile_settings").select("profile_id,avatar_url"),
+    ]);
+    setGroups((groupData ?? []) as Group[]);
+    setCoaches((coachData ?? []) as Profile[]);
+    setLinks((linkData ?? []) as typeof links);
+    setAthletes((athleteData ?? []) as Athlete[]);
+    setAthleteAvatars(
+      Object.fromEntries(
+        (athleteAvatarData || [])
+          .filter((item) => item.avatar_url)
+          .map((item) => [item.athlete_id, item.avatar_url]),
+      ),
+    );
+    setCoachAvatars(
+      Object.fromEntries(
+        (coachAvatarData || [])
+          .filter((item) => item.avatar_url)
+          .map((item) => [item.profile_id, item.avatar_url]),
+      ),
+    );
+  };
+  useEffect(() => {
+    void load();
+  }, []);
+  useEffect(() => {
+    if (!selected) return;
+    setForm({
+      name: selected.name,
+      category_label: selected.category_label,
+      colour: selected.colour,
+      schedule_days: selected.schedule_days || "",
+      starts_at: selected.starts_at?.slice(0, 5) || "",
+      ends_at: selected.ends_at?.slice(0, 5) || "",
+      season: selected.season || "2026",
+      active: selected.active,
+    });
+    setCoachIds(
+      links
+        .filter((link) => link.training_group_id === selected.id)
+        .map((link) => link.coach_profile_id),
+    );
+    setNotice("");
+  }, [selectedId, groups.length, links.length]);
+  const newGroup = () => {
+    setSelectedId("new");
+    setForm(blank);
+    setCoachIds([]);
+    setNotice("");
+  };
   const openGroup = (id: string) => setSelectedId(id);
-  const save = async (e: FormEvent) => { e.preventDefault(); if (!supabase) return; setSaving(true); setNotice(""); const payload = { ...form, schedule_days: form.schedule_days || null, starts_at: form.starts_at || null, ends_at: form.ends_at || null }; const result = selectedId && selectedId !== "new" ? await supabase.from("training_groups").update(payload).eq("id", selectedId).select("id").single() : await supabase.from("training_groups").insert(payload).select("id").single(); if (result.error || !result.data) { setSaving(false); return setNotice(result.error?.message || "No se pudo guardar el grupo."); } const groupId = result.data.id; const { error: clearError } = await supabase.from("training_group_coaches").delete().eq("training_group_id", groupId); if (clearError) { setSaving(false); return setNotice(clearError.message); } if (coachIds.length) { const { error } = await supabase.from("training_group_coaches").insert(coachIds.map(coach_profile_id => ({ training_group_id: groupId, coach_profile_id }))); if (error) { setSaving(false); return setNotice(error.message); } } const { error: calendarError } = await supabase.rpc("regenerate_training_calendar", { target_from: new Date().toISOString().slice(0, 10), target_to: "2027-06-18" }); setSelectedId(groupId); setSaving(false); setNotice(calendarError ? `Grupo guardado, pero no se pudo actualizar su calendario: ${calendarError.message}` : "Grupo, entrenadores y calendario guardados."); void load(); };
-  const roster = athletes.filter(athlete => athlete.training_group_id === selectedId);
+  const save = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!supabase) return;
+    setSaving(true);
+    setNotice("");
+    const payload = {
+      ...form,
+      schedule_days: form.schedule_days || null,
+      starts_at: form.starts_at || null,
+      ends_at: form.ends_at || null,
+    };
+    const result =
+      selectedId && selectedId !== "new"
+        ? await supabase
+            .from("training_groups")
+            .update(payload)
+            .eq("id", selectedId)
+            .select("id")
+            .single()
+        : await supabase
+            .from("training_groups")
+            .insert(payload)
+            .select("id")
+            .single();
+    if (result.error || !result.data) {
+      setSaving(false);
+      return setNotice(result.error?.message || "No se pudo guardar el grupo.");
+    }
+    const groupId = result.data.id;
+    const { error: clearError } = await supabase
+      .from("training_group_coaches")
+      .delete()
+      .eq("training_group_id", groupId);
+    if (clearError) {
+      setSaving(false);
+      return setNotice(clearError.message);
+    }
+    if (coachIds.length) {
+      const { error } = await supabase
+        .from("training_group_coaches")
+        .insert(
+          coachIds.map((coach_profile_id) => ({
+            training_group_id: groupId,
+            coach_profile_id,
+          })),
+        );
+      if (error) {
+        setSaving(false);
+        return setNotice(error.message);
+      }
+    }
+    const { error: calendarError } = await supabase.rpc(
+      "regenerate_training_calendar",
+      {
+        target_from: new Date().toISOString().slice(0, 10),
+        target_to: "2027-06-18",
+      },
+    );
+    setSelectedId(groupId);
+    setSaving(false);
+    setNotice(
+      calendarError
+        ? `Grupo guardado, pero no se pudo actualizar su calendario: ${calendarError.message}`
+        : "Grupo, entrenadores y calendario guardados.",
+    );
+    void load();
+  };
+  const roster = athletes.filter(
+    (athlete) => athlete.training_group_id === selectedId,
+  );
   const groupOrder = (group: Group) => {
-    const label = `${group.category_label} ${group.name}`.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-    const age = Number(label.match(/sub\s*(\d+)/)?.[1] || (label.includes("master") ? 90 : label.includes("running") ? 91 : 80));
+    const label = `${group.category_label} ${group.name}`
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase();
+    const age = Number(
+      label.match(/sub\s*(\d+)/)?.[1] ||
+        (label.includes("master") ? 90 : label.includes("running") ? 91 : 80),
+    );
     const days = (group.schedule_days || group.name).toLowerCase();
-    const schedule = /lunes|l-x/.test(days) ? 0 : /martes|m-j/.test(days) ? 1 : 2;
+    const schedule = /lunes|l-x/.test(days)
+      ? 0
+      : /martes|m-j/.test(days)
+        ? 1
+        : 2;
     return age * 10 + schedule;
   };
-  const sortedGroups = [...groups].sort((a,b) => groupOrder(a) - groupOrder(b) || a.name.localeCompare(b.name, "es"));
-  if (!selectedId) return <><div className="page-head"><div><h1>Grupos</h1><p>Abre un grupo para ver su equipo, horario y entrenadores en una página independiente.</p></div><button onClick={newGroup}>Nuevo grupo</button></div><section className="cards">{sortedGroups.filter(group=>group.active).map(group => <button key={group.id} className="panel group-card group-button" onClick={() => openGroup(group.id)}><i style={{ background: group.colour }} /><h2>{group.name}</h2><p>{group.category_label}</p><small>{group.schedule_days ? `${group.schedule_days} · ${group.starts_at?.slice(0, 5)}–${group.ends_at?.slice(0, 5)}` : "Horario pendiente"}</small><small>{athletes.filter(athlete => athlete.training_group_id === group.id).length} atleta(s) · {links.filter(link => link.training_group_id === group.id).length} entrenador(es)</small><em>Abrir grupo →</em></button>)}</section></>;
-  return <section className="admin-group-detail"><div className="page-head"><div><small>GESTIÓN DE GRUPO</small><h1>{selected?.name || "Nuevo grupo"}</h1><p>{selected ? `${selected.schedule_days || "Horario pendiente"} · ${roster.length} atleta(s)` : "Configura el nuevo grupo deportivo."}</p></div><button className="outline" onClick={() => setSelectedId("")}>← Volver a grupos</button></div><section className="group-detail-layout"><article className="panel group-team-panel"><header><div><small>EQUIPO</small><h2>Atletas del grupo</h2></div><b>{roster.length}</b></header><div className="group-roster-new">{roster.length ? roster.map(athlete => <span key={athlete.id}>{athleteAvatars[athlete.id]?<img src={athleteAvatars[athlete.id]} alt={`Foto de ${athlete.first_name}`}/>:<i>{athlete.first_name[0]}{athlete.last_name[0]}</i>}<span><b>{athlete.first_name} {athlete.last_name}</b><small>{athlete.license_status === "active" ? "Licencia activa" : "Licencia pendiente"}</small></span><em className={athlete.club_status === "active" ? "active" : ""}>{athlete.club_status === "active" ? "Activo" : "En revisión"}</em></span>) : <p>No hay atletas asignados todavía.</p>}</div></article><form className="panel group-editor group-detail-editor" onSubmit={save}><header><small>CONFIGURACIÓN</small><h2>Datos y responsables</h2></header><div className="ops-grid"><label>Nombre<input required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} /></label><label>Categoría<input required value={form.category_label} onChange={e => setForm({ ...form, category_label: e.target.value })} /></label><label>Días de entrenamiento<input value={form.schedule_days} onChange={e => setForm({ ...form, schedule_days: e.target.value })} placeholder="Lunes y miércoles" /></label><label>Inicio<input type="time" value={form.starts_at} onChange={e => setForm({ ...form, starts_at: e.target.value })} /></label><label>Fin<input type="time" value={form.ends_at} onChange={e => setForm({ ...form, ends_at: e.target.value })} /></label><label>Temporada<input value={form.season} onChange={e => setForm({ ...form, season: e.target.value })} /></label><label>Color<input type="color" value={form.colour} onChange={e => setForm({ ...form, colour: e.target.value })} /></label><label className="check-line"><input type="checkbox" checked={form.active} onChange={e => setForm({ ...form, active: e.target.checked })} />Grupo activo</label></div><fieldset className="coach-picker group-coach-picker"><legend>Entrenadores asignados</legend>{coaches.length ? coaches.map(coach => <label key={coach.id}><input type="checkbox" checked={coachIds.includes(coach.id)} onChange={e => setCoachIds(e.target.checked ? [...coachIds, coach.id] : coachIds.filter(id => id !== coach.id))} />{coachAvatars[coach.id]?<img className="coach-picker-avatar" src={coachAvatars[coach.id]} alt=""/>:<i className="coach-picker-avatar">{(coach.full_name||coach.email).slice(0,2).toUpperCase()}</i>}<span><b>{coach.full_name || "Entrenador sin nombre"}</b><small>{coach.email}</small></span></label>) : <p>No hay entrenadores registrados. Créales una invitación primero.</p>}</fieldset><button disabled={saving}>{saving ? "Guardando…" : "Guardar grupo y entrenadores"}</button>{notice && <p className={notice.startsWith("Grupo") ? "success-note" : "error-note"}>{notice}</p>}</form></section></section>;
+  const sortedGroups = [...groups].sort(
+    (a, b) =>
+      groupOrder(a) - groupOrder(b) || a.name.localeCompare(b.name, "es"),
+  );
+  if (!selectedId)
+    return (
+      <>
+        <div className="page-head">
+          <div>
+            <h1>Grupos</h1>
+            <p>
+              Abre un grupo para ver su equipo, horario y entrenadores en una
+              página independiente.
+            </p>
+          </div>
+          <button onClick={newGroup}>Nuevo grupo</button>
+        </div>
+        <section className="cards">
+          {sortedGroups
+            .filter((group) => group.active)
+            .map((group) => (
+              <button
+                key={group.id}
+                className="panel group-card group-button"
+                onClick={() => openGroup(group.id)}
+              >
+                <i style={{ background: group.colour }} />
+                <h2>{group.name}</h2>
+                <p>{group.category_label}</p>
+                <small>
+                  {group.schedule_days
+                    ? `${group.schedule_days} · ${group.starts_at?.slice(0, 5)}–${group.ends_at?.slice(0, 5)}`
+                    : "Horario pendiente"}
+                </small>
+                <small>
+                  {
+                    athletes.filter(
+                      (athlete) => athlete.training_group_id === group.id,
+                    ).length
+                  }{" "}
+                  atleta(s) ·{" "}
+                  {
+                    links.filter((link) => link.training_group_id === group.id)
+                      .length
+                  }{" "}
+                  entrenador(es)
+                </small>
+                <em>Abrir grupo →</em>
+              </button>
+            ))}
+        </section>
+      </>
+    );
+  return (
+    <section className="admin-group-detail">
+      <div className="page-head">
+        <div>
+          <small>GESTIÓN DE GRUPO</small>
+          <h1>{selected?.name || "Nuevo grupo"}</h1>
+          <p>
+            {selected
+              ? `${selected.schedule_days || "Horario pendiente"} · ${roster.length} atleta(s)`
+              : "Configura el nuevo grupo deportivo."}
+          </p>
+        </div>
+        <button className="outline" onClick={() => setSelectedId("")}>
+          ← Volver a grupos
+        </button>
+      </div>
+      <section className="group-detail-layout">
+        <article className="panel group-team-panel">
+          <header>
+            <div>
+              <small>EQUIPO</small>
+              <h2>Atletas del grupo</h2>
+            </div>
+            <b>{roster.length}</b>
+          </header>
+          <div className="group-roster-new">
+            {roster.length ? (
+              roster.map((athlete) => (
+                <button type="button" key={athlete.id} onClick={() => onOpenAthlete?.(athlete.id)} aria-label={`Abrir expediente de ${athlete.first_name} ${athlete.last_name}`}>
+                  {athleteAvatars[athlete.id] ? (
+                    <img
+                      src={athleteAvatars[athlete.id]}
+                      alt={`Foto de ${athlete.first_name}`}
+                    />
+                  ) : (
+                    <i>
+                      {athlete.first_name[0]}
+                      {athlete.last_name[0]}
+                    </i>
+                  )}
+                  <span>
+                    <b>
+                      {athlete.first_name} {athlete.last_name}
+                    </b>
+                    <small>
+                      {athlete.license_status === "active"
+                        ? "Licencia activa"
+                        : "Licencia pendiente"}
+                    </small>
+                  </span>
+                  <em
+                    className={athlete.club_status === "active" ? "active" : ""}
+                  >
+                    {athlete.club_status === "active"
+                      ? "Activo"
+                      : "En revisión"}
+                  </em>
+                  <strong aria-hidden="true">→</strong>
+                </button>
+              ))
+            ) : (
+              <p>No hay atletas asignados todavía.</p>
+            )}
+          </div>
+        </article>
+        <form
+          className="panel group-editor group-detail-editor"
+          onSubmit={save}
+        >
+          <header>
+            <small>CONFIGURACIÓN</small>
+            <h2>Datos y responsables</h2>
+          </header>
+          <div className="ops-grid">
+            <label>
+              Nombre
+              <input
+                required
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+              />
+            </label>
+            <label>
+              Categoría
+              <input
+                required
+                value={form.category_label}
+                onChange={(e) =>
+                  setForm({ ...form, category_label: e.target.value })
+                }
+              />
+            </label>
+            <label>
+              Días de entrenamiento
+              <input
+                value={form.schedule_days}
+                onChange={(e) =>
+                  setForm({ ...form, schedule_days: e.target.value })
+                }
+                placeholder="Lunes y miércoles"
+              />
+            </label>
+            <label>
+              Inicio
+              <input
+                type="time"
+                value={form.starts_at}
+                onChange={(e) =>
+                  setForm({ ...form, starts_at: e.target.value })
+                }
+              />
+            </label>
+            <label>
+              Fin
+              <input
+                type="time"
+                value={form.ends_at}
+                onChange={(e) => setForm({ ...form, ends_at: e.target.value })}
+              />
+            </label>
+            <label>
+              Temporada
+              <input
+                value={form.season}
+                onChange={(e) => setForm({ ...form, season: e.target.value })}
+              />
+            </label>
+            <label>
+              Color
+              <input
+                type="color"
+                value={form.colour}
+                onChange={(e) => setForm({ ...form, colour: e.target.value })}
+              />
+            </label>
+            <label className="check-line">
+              <input
+                type="checkbox"
+                checked={form.active}
+                onChange={(e) => setForm({ ...form, active: e.target.checked })}
+              />
+              Grupo activo
+            </label>
+          </div>
+          <fieldset className="coach-picker group-coach-picker">
+            <legend>Entrenadores asignados</legend>
+            {coaches.length ? (
+              coaches.map((coach) => (
+                <label key={coach.id}>
+                  <input
+                    type="checkbox"
+                    checked={coachIds.includes(coach.id)}
+                    onChange={(e) =>
+                      setCoachIds(
+                        e.target.checked
+                          ? [...coachIds, coach.id]
+                          : coachIds.filter((id) => id !== coach.id),
+                      )
+                    }
+                  />
+                  {coachAvatars[coach.id] ? (
+                    <img
+                      className="coach-picker-avatar"
+                      src={coachAvatars[coach.id]}
+                      alt=""
+                    />
+                  ) : (
+                    <i className="coach-picker-avatar">
+                      {(coach.full_name || coach.email)
+                        .slice(0, 2)
+                        .toUpperCase()}
+                    </i>
+                  )}
+                  <span>
+                    <b>{coach.full_name || "Entrenador sin nombre"}</b>
+                    <small>{coach.email}</small>
+                  </span>
+                </label>
+              ))
+            ) : (
+              <p>
+                No hay entrenadores registrados. Créales una invitación primero.
+              </p>
+            )}
+          </fieldset>
+          <button disabled={saving}>
+            {saving ? "Guardando…" : "Guardar grupo y entrenadores"}
+          </button>
+          {notice && (
+            <p
+              className={
+                notice.startsWith("Grupo") ? "success-note" : "error-note"
+              }
+            >
+              {notice}
+            </p>
+          )}
+        </form>
+      </section>
+    </section>
+  );
 }
 
-export function FamilyHome({ profile, go, openAthlete }: { profile: Profile; go: (section: string) => void; openAthlete: (id: string) => void }) {
-  const [athletes, setAthletes] = useState<Athlete[]>([]); const [records, setRecords] = useState<Attendance[]>([]); const [sessions, setSessions] = useState<TrainingSession[]>([]); const [payments, setPayments] = useState<{ id: string; amount_cents: number; approved_amount_cents: number | null; calculated_amount_cents: number; scheduled_for: string | null; status: string }[]>([]); const [pref, setPref] = useState({ enabled: false, app: true, email: false }); const [familyId, setFamilyId] = useState(""); const [notice, setNotice] = useState("");
-  const load = async () => { if (!supabase) return; const [{ data: athleteData }, { data: recordData }, { data: paymentData }, { data: sessionData }] = await Promise.all([supabase.from("athletes").select("*,training_groups(*)"), supabase.from("attendance_records").select("athlete_id,attended,marked_at,attendance_sessions(starts_at)").order("marked_at", { ascending: false }).limit(30), supabase.from("billing_charge_drafts").select("id,approved_amount_cents,calculated_amount_cents,scheduled_for,status").order("scheduled_for", { ascending: true }), supabase.from("attendance_sessions").select("id,training_group_id,starts_at,ends_at,training_groups(name)").gte("starts_at", new Date().toISOString()).order("starts_at").limit(40)]); const own = (athleteData ?? []) as Athlete[]; const ownGroupIds = new Set(own.map(item => item.training_group_id).filter(Boolean)); setAthletes(own); setRecords((recordData ?? []) as Attendance[]); setSessions(((sessionData ?? []) as unknown as TrainingSession[]).filter(item => ownGroupIds.has(item.training_group_id))); setPayments((paymentData ?? []).map(item => ({ ...item, amount_cents: item.approved_amount_cents ?? item.calculated_amount_cents })) as typeof payments); const family = own.find(item => item.family_id)?.family_id; if (family) { setFamilyId(family); const { data } = await supabase.from("family_notification_preferences").select("enabled,channels").eq("family_id", family).maybeSingle(); if (data) setPref({ enabled: data.enabled, app: data.channels.includes("app"), email: data.channels.includes("email") }); } };
-  useEffect(() => { void load(); }, []);
-  const savePreference = async () => { if (!supabase || !familyId) return; const channels = [pref.app ? "app" : null, pref.email ? "email" : null].filter(Boolean); const { error } = await supabase.from("family_notification_preferences").upsert({ family_id: familyId, enabled: pref.enabled, channels, updated_at: new Date().toISOString() }); setNotice(error ? error.message : "Preferencias de asistencia guardadas."); };
-  const nextPayment = payments.find(item => ["awaiting_admin", "approved", "checkout_pending"].includes(item.status)); const upcoming = sessions.slice(0, 4); const todayKey = new Date().toLocaleDateString("en-CA"); const todaySessions = sessions.filter(item => new Date(item.starts_at).toLocaleDateString("en-CA") === todayKey);
-  return <><div className="page-head"><div><h1>Hola, {profile.full_name?.split(" ")[0] || "familia"}</h1><p>Resumen de tus atletas, asistencias y próximos pagos.</p></div></div><article className={`panel ${todaySessions.length ? "success-note" : ""}`}><h2>{todaySessions.length ? "Hoy hay entrenamiento" : "Hoy no hay actividad"}</h2>{todaySessions.map(item => <p key={item.id}><b>{item.training_groups?.name || "Grupo"}</b> · {new Date(item.starts_at).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}–{new Date(item.ends_at).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}</p>)}{!todaySessions.length && <p>Según el calendario escolar de los colegios de Fuenlabrada y el horario de tu grupo.</p>}</article><section className="metric-grid family-metrics"><button className="metric metric-action" onClick={() => athletes[0] && openAthlete(athletes[0].id)}><small>Atletas inscritos</small><b>{athletes.length}</b><em>Ver fichas →</em></button><button className="metric metric-action" onClick={() => athletes[0] && openAthlete(athletes[0].id)}><small>Asistencias recientes</small><b>{records.filter(record => record.attended).length}</b><em>Ver asistencia →</em></button><button className="metric metric-action" onClick={() => go("Cuotas")}><small>Próximo pago</small><b>{nextPayment ? euro(nextPayment.amount_cents) : "—"}</b><small>{nextPayment ? date(nextPayment.scheduled_for) : "No hay pagos pendientes"}</small><em>Ver cuotas →</em></button></section><section className="two-columns"><article className="panel"><h2>Mis atletas</h2>{athletes.map(athlete => <button className="summary-line summary-button" key={athlete.id} onClick={() => openAthlete(athlete.id)}><span><b>{athlete.first_name} {athlete.last_name}</b><small>{athlete.training_groups?.name || "Grupo pendiente"}</small></span><span>{athlete.club_status === "active" ? "Activo" : "En revisión"} · Ver ficha →</span></button>)}{!athletes.length && <p>No hay atletas asociados a esta cuenta.</p>}</article><article className="panel"><h2>Próximos entrenamientos</h2>{upcoming.length ? upcoming.map(item => <div className="summary-line" key={item.id}><span><b>{item.training_groups?.name || "Grupo"}</b><small>{new Date(item.starts_at).toLocaleDateString("es-ES", { weekday: "long", day: "2-digit", month: "short" })}</small></span><span>{new Date(item.starts_at).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}</span></div>) : <p>No hay entrenamientos lectivos próximos.</p>}</article></section>{familyId && <article className="panel family-preferences"><h2>Avisos de asistencia</h2><p>Elige si quieres que el club te avise cuando el entrenador pase lista de tu hijo/a.</p><label className="check-line"><input type="checkbox" checked={pref.enabled} onChange={e => setPref({ ...pref, enabled: e.target.checked })} />Quiero recibir avisos de asistencia</label><fieldset disabled={!pref.enabled}><legend>Canal preferido</legend><label><input type="checkbox" checked={pref.app} onChange={e => setPref({ ...pref, app: e.target.checked })} />En la aplicación</label><label><input type="checkbox" checked={pref.email} onChange={e => setPref({ ...pref, email: e.target.checked })} />Preparar por email</label></fieldset><small>Los emails quedarán preparados hasta conectar el proveedor de correo del club.</small><button onClick={() => void savePreference()}>Guardar preferencias</button>{notice && <p className={notice.includes("guardadas") ? "success-note" : "error-note"}>{notice}</p>}</article>}</>;
+export function FamilyHome({
+  profile,
+  go,
+  openAthlete,
+}: {
+  profile: Profile;
+  go: (section: string) => void;
+  openAthlete: (id: string) => void;
+}) {
+  const [athletes, setAthletes] = useState<Athlete[]>([]);
+  const [records, setRecords] = useState<Attendance[]>([]);
+  const [sessions, setSessions] = useState<TrainingSession[]>([]);
+  const [payments, setPayments] = useState<
+    {
+      id: string;
+      amount_cents: number;
+      approved_amount_cents: number | null;
+      calculated_amount_cents: number;
+      scheduled_for: string | null;
+      status: string;
+    }[]
+  >([]);
+  const [pref, setPref] = useState({ enabled: false, app: true, email: false });
+  const [familyId, setFamilyId] = useState("");
+  const [notice, setNotice] = useState("");
+  const load = async () => {
+    if (!supabase) return;
+    const [
+      { data: athleteData },
+      { data: recordData },
+      { data: paymentData },
+      { data: sessionData },
+    ] = await Promise.all([
+      supabase.from("athletes").select("*,training_groups(*)"),
+      supabase
+        .from("attendance_records")
+        .select("athlete_id,attended,marked_at,attendance_sessions(starts_at)")
+        .order("marked_at", { ascending: false })
+        .limit(30),
+      supabase
+        .from("billing_charge_drafts")
+        .select(
+          "id,approved_amount_cents,calculated_amount_cents,scheduled_for,status",
+        )
+        .order("scheduled_for", { ascending: true }),
+      supabase
+        .from("attendance_sessions")
+        .select("id,training_group_id,starts_at,ends_at,training_groups(name)")
+        .gte("starts_at", new Date().toISOString())
+        .order("starts_at")
+        .limit(40),
+    ]);
+    const own = (athleteData ?? []) as Athlete[];
+    const ownGroupIds = new Set(
+      own.map((item) => item.training_group_id).filter(Boolean),
+    );
+    setAthletes(own);
+    setRecords((recordData ?? []) as Attendance[]);
+    setSessions(
+      ((sessionData ?? []) as unknown as TrainingSession[]).filter((item) =>
+        ownGroupIds.has(item.training_group_id),
+      ),
+    );
+    setPayments(
+      (paymentData ?? []).map((item) => ({
+        ...item,
+        amount_cents:
+          item.approved_amount_cents ?? item.calculated_amount_cents,
+      })) as typeof payments,
+    );
+    const family = own.find((item) => item.family_id)?.family_id;
+    if (family) {
+      setFamilyId(family);
+      const { data } = await supabase
+        .from("family_notification_preferences")
+        .select("enabled,channels")
+        .eq("family_id", family)
+        .maybeSingle();
+      if (data)
+        setPref({
+          enabled: data.enabled,
+          app: data.channels.includes("app"),
+          email: data.channels.includes("email"),
+        });
+    }
+  };
+  useEffect(() => {
+    void load();
+  }, []);
+  const savePreference = async () => {
+    if (!supabase || !familyId) return;
+    const channels = [
+      pref.app ? "app" : null,
+      pref.email ? "email" : null,
+    ].filter(Boolean);
+    const { error } = await supabase
+      .from("family_notification_preferences")
+      .upsert({
+        family_id: familyId,
+        enabled: pref.enabled,
+        channels,
+        updated_at: new Date().toISOString(),
+      });
+    setNotice(error ? error.message : "Preferencias de asistencia guardadas.");
+  };
+  const nextPayment = payments.find((item) =>
+    ["awaiting_admin", "approved", "checkout_pending"].includes(item.status),
+  );
+  const upcoming = sessions.slice(0, 4);
+  const todayKey = new Date().toLocaleDateString("en-CA");
+  const todaySessions = sessions.filter(
+    (item) => new Date(item.starts_at).toLocaleDateString("en-CA") === todayKey,
+  );
+  return (
+    <>
+      <div className="page-head">
+        <div>
+          <h1>Hola, {profile.full_name?.split(" ")[0] || "familia"}</h1>
+          <p>Resumen de tus atletas, asistencias y próximos pagos.</p>
+        </div>
+      </div>
+      <article
+        className={`panel ${todaySessions.length ? "success-note" : ""}`}
+      >
+        <h2>
+          {todaySessions.length
+            ? "Hoy hay entrenamiento"
+            : "Hoy no hay actividad"}
+        </h2>
+        {todaySessions.map((item) => (
+          <p key={item.id}>
+            <b>{item.training_groups?.name || "Grupo"}</b> ·{" "}
+            {new Date(item.starts_at).toLocaleTimeString("es-ES", {
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+            –
+            {new Date(item.ends_at).toLocaleTimeString("es-ES", {
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </p>
+        ))}
+        {!todaySessions.length && (
+          <p>
+            Según el calendario escolar de los colegios de Fuenlabrada y el
+            horario de tu grupo.
+          </p>
+        )}
+      </article>
+      <section className="metric-grid family-metrics">
+        <button
+          className="metric metric-action"
+          onClick={() => athletes[0] && openAthlete(athletes[0].id)}
+        >
+          <small>Atletas inscritos</small>
+          <b>{athletes.length}</b>
+          <em>Ver fichas →</em>
+        </button>
+        <button
+          className="metric metric-action"
+          onClick={() => athletes[0] && openAthlete(athletes[0].id)}
+        >
+          <small>Asistencias recientes</small>
+          <b>{records.filter((record) => record.attended).length}</b>
+          <em>Ver asistencia →</em>
+        </button>
+        <button className="metric metric-action" onClick={() => go("Cuotas")}>
+          <small>Próximo pago</small>
+          <b>{nextPayment ? euro(nextPayment.amount_cents) : "—"}</b>
+          <small>
+            {nextPayment
+              ? date(nextPayment.scheduled_for)
+              : "No hay pagos pendientes"}
+          </small>
+          <em>Ver cuotas →</em>
+        </button>
+      </section>
+      <section className="two-columns">
+        <article className="panel">
+          <h2>Mis atletas</h2>
+          {athletes.map((athlete) => (
+            <button
+              className="summary-line summary-button"
+              key={athlete.id}
+              onClick={() => openAthlete(athlete.id)}
+            >
+              <span>
+                <b>
+                  {athlete.first_name} {athlete.last_name}
+                </b>
+                <small>
+                  {athlete.training_groups?.name || "Grupo pendiente"}
+                </small>
+              </span>
+              <span>
+                {athlete.club_status === "active" ? "Activo" : "En revisión"} ·
+                Ver ficha →
+              </span>
+            </button>
+          ))}
+          {!athletes.length && <p>No hay atletas asociados a esta cuenta.</p>}
+        </article>
+        <article className="panel">
+          <h2>Próximos entrenamientos</h2>
+          {upcoming.length ? (
+            upcoming.map((item) => (
+              <div className="summary-line" key={item.id}>
+                <span>
+                  <b>{item.training_groups?.name || "Grupo"}</b>
+                  <small>
+                    {new Date(item.starts_at).toLocaleDateString("es-ES", {
+                      weekday: "long",
+                      day: "2-digit",
+                      month: "short",
+                    })}
+                  </small>
+                </span>
+                <span>
+                  {new Date(item.starts_at).toLocaleTimeString("es-ES", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </span>
+              </div>
+            ))
+          ) : (
+            <p>No hay entrenamientos lectivos próximos.</p>
+          )}
+        </article>
+      </section>
+      {familyId && (
+        <article className="panel family-preferences">
+          <h2>Avisos de asistencia</h2>
+          <p>
+            Elige si quieres que el club te avise cuando el entrenador pase
+            lista de tu hijo/a.
+          </p>
+          <label className="check-line">
+            <input
+              type="checkbox"
+              checked={pref.enabled}
+              onChange={(e) => setPref({ ...pref, enabled: e.target.checked })}
+            />
+            Quiero recibir avisos de asistencia
+          </label>
+          <fieldset disabled={!pref.enabled}>
+            <legend>Canal preferido</legend>
+            <label>
+              <input
+                type="checkbox"
+                checked={pref.app}
+                onChange={(e) => setPref({ ...pref, app: e.target.checked })}
+              />
+              En la aplicación
+            </label>
+            <label>
+              <input
+                type="checkbox"
+                checked={pref.email}
+                onChange={(e) => setPref({ ...pref, email: e.target.checked })}
+              />
+              Preparar por email
+            </label>
+          </fieldset>
+          <small>
+            Los emails quedarán preparados hasta conectar el proveedor de correo
+            del club.
+          </small>
+          <button onClick={() => void savePreference()}>
+            Guardar preferencias
+          </button>
+          {notice && (
+            <p
+              className={
+                notice.includes("guardadas") ? "success-note" : "error-note"
+              }
+            >
+              {notice}
+            </p>
+          )}
+        </article>
+      )}
+    </>
+  );
 }
 
-export function FamilyAthletes({ initialAthleteId = "" }: { initialAthleteId?: string }) {
-  const [athletes, setAthletes] = useState<Athlete[]>([]); const [records, setRecords] = useState<Attendance[]>([]); const [entries, setEntries] = useState<{ athlete_id: string; status: string; competition_events?: { title: string; starts_at: string }[] | null }[]>([]); const [selectedId, setSelectedId] = useState("");
-  const load = async () => { if (!supabase) return; const [{ data: athleteData }, { data: recordData }, { data: entryData }] = await Promise.all([supabase.from("athletes").select("*,training_groups(*)"), supabase.from("attendance_records").select("athlete_id,attended,marked_at,attendance_sessions(starts_at)").order("marked_at", { ascending: false }), supabase.from("competition_entries").select("athlete_id,status,competition_events(title,starts_at)").order("created_at", { ascending: false })]); setAthletes((athleteData ?? []) as Athlete[]); setRecords((recordData ?? []) as Attendance[]); setEntries((entryData ?? []) as typeof entries); };
-  useEffect(() => { void load(); }, []); useEffect(() => { if (initialAthleteId) setSelectedId(initialAthleteId); }, [initialAthleteId]); const selected = athletes.find(item => item.id === selectedId); const [message, setMessage] = useState(""); const [sending, setSending] = useState(false); const sendMessage = async (e: FormEvent) => { e.preventDefault(); if (!supabase || !selected || !message.trim()) return; setSending(true); const { error } = await supabase.rpc("send_message_to_athlete_coach", { target_athlete_id: selected.id, message_body: message.trim() }); setSending(false); if (error) return alert(error.message); setMessage(""); alert("Mensaje enviado al entrenador asignado. Si no hay entrenador, lo recibe el club."); };
-  return <><div className="page-head"><div><h1>Mis atletas</h1><p>Abre la ficha de cada atleta para consultar grupo, asistencia y carreras.</p></div></div><section className="cards">{athletes.map(athlete => <button key={athlete.id} className={`panel athlete-summary ${selectedId === athlete.id ? "selected-row" : ""}`} onClick={() => setSelectedId(athlete.id)}><h2>{athlete.first_name} {athlete.last_name}</h2><p>{athlete.training_groups?.name || "Grupo pendiente de asignación"}</p><small>Licencia: {athlete.license_status === "active" ? athlete.license_number || "activa" : "pendiente"} · Ver ficha →</small></button>)}</section>{selected && <section className="athlete-detail"><div className="page-head"><div><h1>{selected.first_name} {selected.last_name}</h1><p>Información deportiva y seguimiento de la temporada.</p></div><button className="outline" onClick={() => setSelectedId("")}>Cerrar ficha</button></div><div className="detail-grid"><article className="panel"><h2>Grupo y licencia</h2><p><b>{selected.training_groups?.name || "Sin grupo"}</b></p><p>{selected.training_groups?.schedule_days || "Horario pendiente"} {selected.training_groups?.starts_at ? `· ${selected.training_groups.starts_at.slice(0, 5)}–${selected.training_groups.ends_at?.slice(0, 5)}` : ""}</p><p>Licencia: {selected.license_status === "active" ? selected.license_number || "Activa" : "Pendiente"}</p></article><article className="panel"><h2>Últimas asistencias</h2>{records.filter(record => record.athlete_id === selected.id).slice(0, 6).map(record => <p key={`${record.athlete_id}-${record.marked_at}`}>{date(record.attendance_sessions?.[0]?.starts_at)} · {record.attended ? "Ha asistido" : "No ha asistido"}</p>)}{!records.some(record => record.athlete_id === selected.id) && <p>Aún no hay asistencias registradas.</p>}</article><article className="panel"><h2>Carreras y pruebas</h2>{entries.filter(entry => entry.athlete_id === selected.id).map((entry, index) => <p key={index}><b>{entry.competition_events?.[0]?.title || "Prueba"}</b><br />{date(entry.competition_events?.[0]?.starts_at)} · {entry.status}</p>)}{!entries.some(entry => entry.athlete_id === selected.id) && <p>Aún no hay solicitudes de competición.</p>}</article><form className="panel stacked-form" onSubmit={sendMessage}><h2>Mensaje al entrenador</h2><p>Por ejemplo: «Hoy sale cinco minutos antes» o una indicación que deba conocer.</p><textarea required value={message} onChange={e => setMessage(e.target.value)} placeholder="Escribe el mensaje" /><button disabled={sending}>{sending ? "Enviando…" : "Enviar al entrenador"}</button></form></div></section>}</>;
+export function FamilyAthletes({
+  initialAthleteId = "",
+}: {
+  initialAthleteId?: string;
+}) {
+  const [athletes, setAthletes] = useState<Athlete[]>([]);
+  const [records, setRecords] = useState<Attendance[]>([]);
+  const [entries, setEntries] = useState<
+    {
+      athlete_id: string;
+      status: string;
+      competition_events?: { title: string; starts_at: string }[] | null;
+    }[]
+  >([]);
+  const [selectedId, setSelectedId] = useState("");
+  const load = async () => {
+    if (!supabase) return;
+    const [{ data: athleteData }, { data: recordData }, { data: entryData }] =
+      await Promise.all([
+        supabase.from("athletes").select("*,training_groups(*)"),
+        supabase
+          .from("attendance_records")
+          .select(
+            "athlete_id,attended,marked_at,attendance_sessions(starts_at)",
+          )
+          .order("marked_at", { ascending: false }),
+        supabase
+          .from("competition_entries")
+          .select("athlete_id,status,competition_events(title,starts_at)")
+          .order("created_at", { ascending: false }),
+      ]);
+    setAthletes((athleteData ?? []) as Athlete[]);
+    setRecords((recordData ?? []) as Attendance[]);
+    setEntries((entryData ?? []) as typeof entries);
+  };
+  useEffect(() => {
+    void load();
+  }, []);
+  useEffect(() => {
+    if (initialAthleteId) setSelectedId(initialAthleteId);
+  }, [initialAthleteId]);
+  const selected = athletes.find((item) => item.id === selectedId);
+  const [message, setMessage] = useState("");
+  const [sending, setSending] = useState(false);
+  const sendMessage = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!supabase || !selected || !message.trim()) return;
+    setSending(true);
+    const { error } = await supabase.rpc("send_message_to_athlete_coach", {
+      target_athlete_id: selected.id,
+      message_body: message.trim(),
+    });
+    setSending(false);
+    if (error) return alert(error.message);
+    setMessage("");
+    alert(
+      "Mensaje enviado al entrenador asignado. Si no hay entrenador, lo recibe el club.",
+    );
+  };
+  return (
+    <>
+      <div className="page-head">
+        <div>
+          <h1>Mis atletas</h1>
+          <p>
+            Abre la ficha de cada atleta para consultar grupo, asistencia y
+            carreras.
+          </p>
+        </div>
+      </div>
+      <section className="cards">
+        {athletes.map((athlete) => (
+          <button
+            key={athlete.id}
+            className={`panel athlete-summary ${selectedId === athlete.id ? "selected-row" : ""}`}
+            onClick={() => setSelectedId(athlete.id)}
+          >
+            <h2>
+              {athlete.first_name} {athlete.last_name}
+            </h2>
+            <p>
+              {athlete.training_groups?.name || "Grupo pendiente de asignación"}
+            </p>
+            <small>
+              Licencia:{" "}
+              {athlete.license_status === "active"
+                ? athlete.license_number || "activa"
+                : "pendiente"}{" "}
+              · Ver ficha →
+            </small>
+          </button>
+        ))}
+      </section>
+      {selected && (
+        <section className="athlete-detail">
+          <div className="page-head">
+            <div>
+              <h1>
+                {selected.first_name} {selected.last_name}
+              </h1>
+              <p>Información deportiva y seguimiento de la temporada.</p>
+            </div>
+            <button className="outline" onClick={() => setSelectedId("")}>
+              Cerrar ficha
+            </button>
+          </div>
+          <div className="detail-grid">
+            <article className="panel">
+              <h2>Grupo y licencia</h2>
+              <p>
+                <b>{selected.training_groups?.name || "Sin grupo"}</b>
+              </p>
+              <p>
+                {selected.training_groups?.schedule_days || "Horario pendiente"}{" "}
+                {selected.training_groups?.starts_at
+                  ? `· ${selected.training_groups.starts_at.slice(0, 5)}–${selected.training_groups.ends_at?.slice(0, 5)}`
+                  : ""}
+              </p>
+              <p>
+                Licencia:{" "}
+                {selected.license_status === "active"
+                  ? selected.license_number || "Activa"
+                  : "Pendiente"}
+              </p>
+            </article>
+            <article className="panel">
+              <h2>Últimas asistencias</h2>
+              {records
+                .filter((record) => record.athlete_id === selected.id)
+                .slice(0, 6)
+                .map((record) => (
+                  <p key={`${record.athlete_id}-${record.marked_at}`}>
+                    {date(record.attendance_sessions?.[0]?.starts_at)} ·{" "}
+                    {record.attended ? "Ha asistido" : "No ha asistido"}
+                  </p>
+                ))}
+              {!records.some((record) => record.athlete_id === selected.id) && (
+                <p>Aún no hay asistencias registradas.</p>
+              )}
+            </article>
+            <article className="panel">
+              <h2>Carreras y pruebas</h2>
+              {entries
+                .filter((entry) => entry.athlete_id === selected.id)
+                .map((entry, index) => (
+                  <p key={index}>
+                    <b>{entry.competition_events?.[0]?.title || "Prueba"}</b>
+                    <br />
+                    {date(entry.competition_events?.[0]?.starts_at)} ·{" "}
+                    {entry.status}
+                  </p>
+                ))}
+              {!entries.some((entry) => entry.athlete_id === selected.id) && (
+                <p>Aún no hay solicitudes de competición.</p>
+              )}
+            </article>
+            <form className="panel stacked-form" onSubmit={sendMessage}>
+              <h2>Mensaje al entrenador</h2>
+              <p>
+                Por ejemplo: «Hoy sale cinco minutos antes» o una indicación que
+                deba conocer.
+              </p>
+              <textarea
+                required
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                placeholder="Escribe el mensaje"
+              />
+              <button disabled={sending}>
+                {sending ? "Enviando…" : "Enviar al entrenador"}
+              </button>
+            </form>
+          </div>
+        </section>
+      )}
+    </>
+  );
 }
 
 export function Shop({ profile }: { profile: Profile }) {
-  const [products, setProducts] = useState<Product[]>([]); const [variants, setVariants] = useState<ProductVariant[]>([]); const [orders, setOrders] = useState<ShopOrder[]>([]); const [size, setSize] = useState<Record<string, string>>({}); const [notice, setNotice] = useState(""); const [newProduct, setNewProduct] = useState({ name: "", description: "", price: "", sizes: "XS,S,M,L,XL", initialStock: "0" });
+  const [products, setProducts] = useState<Product[]>([]);
+  const [variants, setVariants] = useState<ProductVariant[]>([]);
+  const [orders, setOrders] = useState<ShopOrder[]>([]);
+  const [size, setSize] = useState<Record<string, string>>({});
+  const [notice, setNotice] = useState("");
+  const [newProduct, setNewProduct] = useState({
+    name: "",
+    description: "",
+    price: "",
+    sizes: "XS,S,M,L,XL",
+    initialStock: "0",
+  });
   const isManager = profile.role === "owner" || profile.role === "admin";
-  const load = async () => { if (!supabase) return; const productQuery = supabase.from("club_products").select("*").order("name"); if (!isManager) productQuery.eq("active", true); const [{ data: productData }, { data: variantData }, { data: orderData }] = await Promise.all([productQuery, supabase.from("club_product_variants").select("*").order("size"), supabase.from("club_orders").select("id,status,payment_method,payment_status,total_cents,created_at,club_order_items(product_name,size,quantity)").order("created_at", { ascending: false })]); setProducts((productData ?? []) as Product[]); setVariants((variantData ?? []) as ProductVariant[]); setOrders((orderData ?? []) as ShopOrder[]); };
-  useEffect(() => { void load(); }, []);
-  const variantsFor = (productId: string) => variants.filter(item => item.product_id === productId);
-  const chosenVariant = (product: Product) => { const productVariants = variantsFor(product.id); const chosenSize = size[product.id] || productVariants[0]?.size || product.sizes?.[0] || "Única"; return productVariants.find(item => item.size === chosenSize); };
-  const order = async (product: Product, paymentMethod: "pickup" | "card") => { if (!supabase) return; const variant = chosenVariant(product); if (!variant) return setNotice("Este producto aún no tiene tallas configuradas por el club."); const { data, error } = await supabase.rpc("create_shop_order", { target_product_id: product.id, target_size: variant.size, target_payment_method: paymentMethod }); if (error || !data) return setNotice(error?.message || "No se pudo crear el pedido."); if (paymentMethod === "pickup") { setNotice(variant.stock_on_hand > 0 ? "Pedido reservado. Pagarás al recogerlo en el club." : "Pedido de encargo recibido. El club te avisará cuando llegue."); void load(); return; } const { data: sessionData } = await supabase.auth.getSession(); const response = await fetch("/api/create-stripe-checkout", { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${sessionData.session?.access_token || ""}` }, body: JSON.stringify({ orderId: (data as { id: string }).id }) }); const result = await response.json().catch(() => ({})); if (!response.ok || !result.url) { setNotice(result.error || "Pedido reservado. El pago con tarjeta se activará cuando el club termine de conectar Stripe."); void load(); return; } window.location.assign(result.url as string); };
-  const addProduct = async (e: FormEvent) => { e.preventDefault(); if (!supabase) return; const price = Math.round(Number(newProduct.price.replace(",", ".")) * 100); const initialStock = Math.max(0, Math.floor(Number(newProduct.initialStock))); const sizes = newProduct.sizes.split(",").map(item => item.trim()).filter(Boolean); if (!newProduct.name || !Number.isFinite(price) || !sizes.length) return setNotice("Indica producto, precio y al menos una talla."); const { data, error } = await supabase.from("club_products").insert({ name: newProduct.name, description: newProduct.description || null, price_cents: price, sizes, active: true, created_by: profile.id }).select("id").single(); if (!error && data) { const { error: stockError } = await supabase.from("club_product_variants").upsert(sizes.map(item => ({ product_id: data.id, size: item, stock_on_hand: initialStock, allow_backorder: true })), { onConflict: "product_id,size" }); if (stockError) return setNotice(stockError.message); } setNotice(error ? error.message : "Producto añadido con su stock inicial."); if (!error) setNewProduct({ name: "", description: "", price: "", sizes: "XS,S,M,L,XL", initialStock: "0" }); void load(); };
-  const setStock = async (variant: ProductVariant, stock: number) => { if (!supabase) return; const { error } = await supabase.from("club_product_variants").update({ stock_on_hand: Math.max(0, Math.floor(stock)) }).eq("id", variant.id); setNotice(error ? error.message : "Stock actualizado."); void load(); };
-  const updateOrder = async (order: ShopOrder, status: string) => { if (!supabase) return; const paymentStatus = status === "paid" ? "paid" : order.payment_status; const { error } = await supabase.from("club_orders").update({ status, payment_status: paymentStatus, updated_at: new Date().toISOString() }).eq("id", order.id); setNotice(error ? error.message : "Pedido actualizado."); void load(); };
-  return <><div className="page-head"><div><h1>{isManager ? "Gestión de tienda" : "Tienda del club"}</h1><p>{isManager ? "Controla productos, tallas, stock y pedidos. El público no ve esta gestión." : "Material y equipación oficial del club."}</p></div></div>{isManager && <><section className="metric-grid shop-metrics"><article className="metric"><small>Productos activos</small><b>{products.filter(item => item.active).length}</b></article><article className="metric"><small>Unidades en stock</small><b>{variants.reduce((total, item) => total + item.stock_on_hand, 0)}</b></article><article className="metric"><small>Pedidos pendientes</small><b>{orders.filter(item => !["paid", "cancelled"].includes(item.status)).length}</b></article></section><form className="panel inline-form" onSubmit={addProduct}><label>Producto<input value={newProduct.name} onChange={e => setNewProduct({ ...newProduct, name: e.target.value })} placeholder="Camiseta de entrenamiento" /></label><label>Precio (€)<input value={newProduct.price} onChange={e => setNewProduct({ ...newProduct, price: e.target.value })} placeholder="18" /></label><label>Tallas (separadas por coma)<input value={newProduct.sizes} onChange={e => setNewProduct({ ...newProduct, sizes: e.target.value })} /></label><label>Stock inicial por talla<input type="number" min="0" value={newProduct.initialStock} onChange={e => setNewProduct({ ...newProduct, initialStock: e.target.value })} /></label><label>Descripción<input value={newProduct.description} onChange={e => setNewProduct({ ...newProduct, description: e.target.value })} /></label><button>Añadir producto</button></form><section className="shop-admin-grid"><article className="panel"><h2>Stock por talla</h2><p>Cuando llegue a cero, la familia verá que es un encargo y podrá solicitarlo.</p><div className="stock-list">{variants.map(variant => { const product = products.find(item => item.id === variant.product_id); return <div className="stock-row" key={variant.id}><span><b>{product?.name || "Producto"}</b><small>{variant.size}</small></span><input type="number" min="0" value={variant.stock_on_hand} onChange={e => void setStock(variant, Number(e.target.value))} /><button className="outline" onClick={() => void setStock(variant, variant.stock_on_hand + 1)}>+1</button></div>; })}{!variants.length && <p>Aún no hay tallas con stock configurado.</p>}</div></article><article className="panel"><h2>Inventario</h2>{products.map(product => <article className="admin-product" key={product.id}><h3>{product.name}</h3><small>{product.active ? "Visible en tienda" : "Oculto"} · {euro(product.price_cents)}</small><p>{variantsFor(product.id).map(item => `${item.size}: ${item.stock_on_hand}`).join(" · ") || "Sin tallas configuradas"}</p></article>)}</article></section></>} {!isManager && <section className="cards">{products.map(product => { const variant = chosenVariant(product); const productVariants = variantsFor(product.id); return <article className="panel product-card" key={product.id}><div className="product-icon">AF</div><h2>{product.name}</h2><p>{product.description || "Equipación oficial del Club Atletas de Fuenlabrada."}</p><b>{euro(product.price_cents)}</b>{productVariants.length > 0 && <select className="shop-choice" value={size[product.id] || productVariants[0].size} onChange={e => setSize({ ...size, [product.id]: e.target.value })}>{productVariants.map(item => <option key={item.id} value={item.size}>{item.size} · {item.stock_on_hand > 0 ? `${item.stock_on_hand} disponible${item.stock_on_hand === 1 ? "" : "s"}` : "Sin stock · encargar"}</option>)}</select>}{variant && <small className={variant.stock_on_hand > 0 ? "" : "stock-note"}>{variant.stock_on_hand > 0 ? "Disponible para recoger en el club." : variant.backorder_message || "Sin stock ahora: puedes encargarlo y el club te avisará cuando llegue."}</small>}<div className="shop-buy-actions"><button onClick={() => void order(product, "pickup")}>Pagar al recoger</button><button className="outline" onClick={() => void order(product, "card")}>Pagar con tarjeta</button></div></article>; })}{!products.length && <article className="panel empty">La tienda aún no tiene productos publicados.</article>}</section>} {notice && <p className={notice.includes("recibido") || notice.includes("actualizado") || notice.includes("añadido") || notice.includes("reservado") ? "success-note panel" : "error-note panel"}>{notice}</p>}<article className="panel table"><h2>{isManager ? "Pedidos recibidos" : "Mis pedidos"}</h2>{orders.map(order => <div className="row" key={order.id}><span><b>{order.club_order_items?.map(item => `${item.product_name}${item.size ? ` · ${item.size}` : ""}`).join(", ") || "Pedido del club"}</b><small>{date(order.created_at)} · {order.payment_method === "card" ? "Tarjeta" : "Pago al recoger"}</small></span><span>{euro(order.total_cents)}</span><span>{order.payment_status === "paid" ? "Pagado" : order.status === "ready" ? "Listo para recoger" : order.status === "cancelled" ? "Cancelado" : "Pendiente"}</span>{isManager && <span className="order-status"><select value={order.status} onChange={e => void updateOrder(order, e.target.value)}><option value="requested">Pendiente</option><option value="reviewing">En preparación</option><option value="ready">Listo para recoger</option><option value="paid">Pagado</option><option value="cancelled">Cancelado</option></select></span>}</div>)}{!orders.length && <p className="empty">{isManager ? "Aún no hay pedidos." : "Aún no tienes pedidos."}</p>}</article></>;
+  const load = async () => {
+    if (!supabase) return;
+    const productQuery = supabase
+      .from("club_products")
+      .select("*")
+      .order("name");
+    if (!isManager) productQuery.eq("active", true);
+    const [{ data: productData }, { data: variantData }, { data: orderData }] =
+      await Promise.all([
+        productQuery,
+        supabase.from("club_product_variants").select("*").order("size"),
+        supabase
+          .from("club_orders")
+          .select(
+            "id,status,payment_method,payment_status,total_cents,created_at,club_order_items(product_name,size,quantity)",
+          )
+          .order("created_at", { ascending: false }),
+      ]);
+    setProducts((productData ?? []) as Product[]);
+    setVariants((variantData ?? []) as ProductVariant[]);
+    setOrders((orderData ?? []) as ShopOrder[]);
+  };
+  useEffect(() => {
+    void load();
+  }, []);
+  const variantsFor = (productId: string) =>
+    variants.filter((item) => item.product_id === productId);
+  const chosenVariant = (product: Product) => {
+    const productVariants = variantsFor(product.id);
+    const chosenSize =
+      size[product.id] ||
+      productVariants[0]?.size ||
+      product.sizes?.[0] ||
+      "Única";
+    return productVariants.find((item) => item.size === chosenSize);
+  };
+  const order = async (product: Product, paymentMethod: "pickup" | "card") => {
+    if (!supabase) return;
+    const variant = chosenVariant(product);
+    if (!variant)
+      return setNotice(
+        "Este producto aún no tiene tallas configuradas por el club.",
+      );
+    const { data, error } = await supabase.rpc("create_shop_order", {
+      target_product_id: product.id,
+      target_size: variant.size,
+      target_payment_method: paymentMethod,
+    });
+    if (error || !data)
+      return setNotice(error?.message || "No se pudo crear el pedido.");
+    if (paymentMethod === "pickup") {
+      setNotice(
+        variant.stock_on_hand > 0
+          ? "Pedido reservado. Pagarás al recogerlo en el club."
+          : "Pedido de encargo recibido. El club te avisará cuando llegue.",
+      );
+      void load();
+      return;
+    }
+    const { data: sessionData } = await supabase.auth.getSession();
+    const response = await fetch("/api/create-stripe-checkout", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${sessionData.session?.access_token || ""}`,
+      },
+      body: JSON.stringify({ orderId: (data as { id: string }).id }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || !result.url) {
+      setNotice(
+        result.error ||
+          "Pedido reservado. El pago con tarjeta se activará cuando el club termine de conectar Stripe.",
+      );
+      void load();
+      return;
+    }
+    window.location.assign(result.url as string);
+  };
+  const addProduct = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!supabase) return;
+    const price = Math.round(Number(newProduct.price.replace(",", ".")) * 100);
+    const initialStock = Math.max(
+      0,
+      Math.floor(Number(newProduct.initialStock)),
+    );
+    const sizes = newProduct.sizes
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+    if (!newProduct.name || !Number.isFinite(price) || !sizes.length)
+      return setNotice("Indica producto, precio y al menos una talla.");
+    const { data, error } = await supabase
+      .from("club_products")
+      .insert({
+        name: newProduct.name,
+        description: newProduct.description || null,
+        price_cents: price,
+        sizes,
+        active: true,
+        created_by: profile.id,
+      })
+      .select("id")
+      .single();
+    if (!error && data) {
+      const { error: stockError } = await supabase
+        .from("club_product_variants")
+        .upsert(
+          sizes.map((item) => ({
+            product_id: data.id,
+            size: item,
+            stock_on_hand: initialStock,
+            allow_backorder: true,
+          })),
+          { onConflict: "product_id,size" },
+        );
+      if (stockError) return setNotice(stockError.message);
+    }
+    setNotice(error ? error.message : "Producto añadido con su stock inicial.");
+    if (!error)
+      setNewProduct({
+        name: "",
+        description: "",
+        price: "",
+        sizes: "XS,S,M,L,XL",
+        initialStock: "0",
+      });
+    void load();
+  };
+  const setStock = async (variant: ProductVariant, stock: number) => {
+    if (!supabase) return;
+    const { error } = await supabase
+      .from("club_product_variants")
+      .update({ stock_on_hand: Math.max(0, Math.floor(stock)) })
+      .eq("id", variant.id);
+    setNotice(error ? error.message : "Stock actualizado.");
+    void load();
+  };
+  const updateOrder = async (order: ShopOrder, status: string) => {
+    if (!supabase) return;
+    const paymentStatus = status === "paid" ? "paid" : order.payment_status;
+    const { error } = await supabase
+      .from("club_orders")
+      .update({
+        status,
+        payment_status: paymentStatus,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", order.id);
+    setNotice(error ? error.message : "Pedido actualizado.");
+    void load();
+  };
+  return (
+    <>
+      <div className="page-head">
+        <div>
+          <h1>{isManager ? "Gestión de tienda" : "Tienda del club"}</h1>
+          <p>
+            {isManager
+              ? "Controla productos, tallas, stock y pedidos. El público no ve esta gestión."
+              : "Material y equipación oficial del club."}
+          </p>
+        </div>
+      </div>
+      {isManager && (
+        <>
+          <section className="metric-grid shop-metrics">
+            <article className="metric">
+              <small>Productos activos</small>
+              <b>{products.filter((item) => item.active).length}</b>
+            </article>
+            <article className="metric">
+              <small>Unidades en stock</small>
+              <b>
+                {variants.reduce(
+                  (total, item) => total + item.stock_on_hand,
+                  0,
+                )}
+              </b>
+            </article>
+            <article className="metric">
+              <small>Pedidos pendientes</small>
+              <b>
+                {
+                  orders.filter(
+                    (item) => !["paid", "cancelled"].includes(item.status),
+                  ).length
+                }
+              </b>
+            </article>
+          </section>
+          <form className="panel inline-form" onSubmit={addProduct}>
+            <label>
+              Producto
+              <input
+                value={newProduct.name}
+                onChange={(e) =>
+                  setNewProduct({ ...newProduct, name: e.target.value })
+                }
+                placeholder="Camiseta de entrenamiento"
+              />
+            </label>
+            <label>
+              Precio (€)
+              <input
+                value={newProduct.price}
+                onChange={(e) =>
+                  setNewProduct({ ...newProduct, price: e.target.value })
+                }
+                placeholder="18"
+              />
+            </label>
+            <label>
+              Tallas (separadas por coma)
+              <input
+                value={newProduct.sizes}
+                onChange={(e) =>
+                  setNewProduct({ ...newProduct, sizes: e.target.value })
+                }
+              />
+            </label>
+            <label>
+              Stock inicial por talla
+              <input
+                type="number"
+                min="0"
+                value={newProduct.initialStock}
+                onChange={(e) =>
+                  setNewProduct({ ...newProduct, initialStock: e.target.value })
+                }
+              />
+            </label>
+            <label>
+              Descripción
+              <input
+                value={newProduct.description}
+                onChange={(e) =>
+                  setNewProduct({ ...newProduct, description: e.target.value })
+                }
+              />
+            </label>
+            <button>Añadir producto</button>
+          </form>
+          <section className="shop-admin-grid">
+            <article className="panel">
+              <h2>Stock por talla</h2>
+              <p>
+                Cuando llegue a cero, la familia verá que es un encargo y podrá
+                solicitarlo.
+              </p>
+              <div className="stock-list">
+                {variants.map((variant) => {
+                  const product = products.find(
+                    (item) => item.id === variant.product_id,
+                  );
+                  return (
+                    <div className="stock-row" key={variant.id}>
+                      <span>
+                        <b>{product?.name || "Producto"}</b>
+                        <small>{variant.size}</small>
+                      </span>
+                      <input
+                        type="number"
+                        min="0"
+                        value={variant.stock_on_hand}
+                        onChange={(e) =>
+                          void setStock(variant, Number(e.target.value))
+                        }
+                      />
+                      <button
+                        className="outline"
+                        onClick={() =>
+                          void setStock(variant, variant.stock_on_hand + 1)
+                        }
+                      >
+                        +1
+                      </button>
+                    </div>
+                  );
+                })}
+                {!variants.length && (
+                  <p>Aún no hay tallas con stock configurado.</p>
+                )}
+              </div>
+            </article>
+            <article className="panel">
+              <h2>Inventario</h2>
+              {products.map((product) => (
+                <article className="admin-product" key={product.id}>
+                  <h3>{product.name}</h3>
+                  <small>
+                    {product.active ? "Visible en tienda" : "Oculto"} ·{" "}
+                    {euro(product.price_cents)}
+                  </small>
+                  <p>
+                    {variantsFor(product.id)
+                      .map((item) => `${item.size}: ${item.stock_on_hand}`)
+                      .join(" · ") || "Sin tallas configuradas"}
+                  </p>
+                </article>
+              ))}
+            </article>
+          </section>
+        </>
+      )}{" "}
+      {!isManager && (
+        <section className="cards">
+          {products.map((product) => {
+            const variant = chosenVariant(product);
+            const productVariants = variantsFor(product.id);
+            return (
+              <article className="panel product-card" key={product.id}>
+                <div className="product-icon">AF</div>
+                <h2>{product.name}</h2>
+                <p>
+                  {product.description ||
+                    "Equipación oficial del Club Atletas de Fuenlabrada."}
+                </p>
+                <b>{euro(product.price_cents)}</b>
+                {productVariants.length > 0 && (
+                  <select
+                    className="shop-choice"
+                    value={size[product.id] || productVariants[0].size}
+                    onChange={(e) =>
+                      setSize({ ...size, [product.id]: e.target.value })
+                    }
+                  >
+                    {productVariants.map((item) => (
+                      <option key={item.id} value={item.size}>
+                        {item.size} ·{" "}
+                        {item.stock_on_hand > 0
+                          ? `${item.stock_on_hand} disponible${item.stock_on_hand === 1 ? "" : "s"}`
+                          : "Sin stock · encargar"}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                {variant && (
+                  <small
+                    className={variant.stock_on_hand > 0 ? "" : "stock-note"}
+                  >
+                    {variant.stock_on_hand > 0
+                      ? "Disponible para recoger en el club."
+                      : variant.backorder_message ||
+                        "Sin stock ahora: puedes encargarlo y el club te avisará cuando llegue."}
+                  </small>
+                )}
+                <div className="shop-buy-actions">
+                  <button onClick={() => void order(product, "pickup")}>
+                    Pagar al recoger
+                  </button>
+                  <button
+                    className="outline"
+                    onClick={() => void order(product, "card")}
+                  >
+                    Pagar con tarjeta
+                  </button>
+                </div>
+              </article>
+            );
+          })}
+          {!products.length && (
+            <article className="panel empty">
+              La tienda aún no tiene productos publicados.
+            </article>
+          )}
+        </section>
+      )}{" "}
+      {notice && (
+        <p
+          className={
+            notice.includes("recibido") ||
+            notice.includes("actualizado") ||
+            notice.includes("añadido") ||
+            notice.includes("reservado")
+              ? "success-note panel"
+              : "error-note panel"
+          }
+        >
+          {notice}
+        </p>
+      )}
+      <article className="panel table">
+        <h2>{isManager ? "Pedidos recibidos" : "Mis pedidos"}</h2>
+        {orders.map((order) => (
+          <div className="row" key={order.id}>
+            <span>
+              <b>
+                {order.club_order_items
+                  ?.map(
+                    (item) =>
+                      `${item.product_name}${item.size ? ` · ${item.size}` : ""}`,
+                  )
+                  .join(", ") || "Pedido del club"}
+              </b>
+              <small>
+                {date(order.created_at)} ·{" "}
+                {order.payment_method === "card"
+                  ? "Tarjeta"
+                  : "Pago al recoger"}
+              </small>
+            </span>
+            <span>{euro(order.total_cents)}</span>
+            <span>
+              {order.payment_status === "paid"
+                ? "Pagado"
+                : order.status === "ready"
+                  ? "Listo para recoger"
+                  : order.status === "cancelled"
+                    ? "Cancelado"
+                    : "Pendiente"}
+            </span>
+            {isManager && (
+              <span className="order-status">
+                <select
+                  value={order.status}
+                  onChange={(e) => void updateOrder(order, e.target.value)}
+                >
+                  <option value="requested">Pendiente</option>
+                  <option value="reviewing">En preparación</option>
+                  <option value="ready">Listo para recoger</option>
+                  <option value="paid">Pagado</option>
+                  <option value="cancelled">Cancelado</option>
+                </select>
+              </span>
+            )}
+          </div>
+        ))}
+        {!orders.length && (
+          <p className="empty">
+            {isManager ? "Aún no hay pedidos." : "Aún no tienes pedidos."}
+          </p>
+        )}
+      </article>
+    </>
+  );
 }

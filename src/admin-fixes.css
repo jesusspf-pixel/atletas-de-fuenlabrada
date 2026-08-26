@@ -166,3 +166,5 @@
   .admin-reference-page[data-admin-screen="Invitaciones"] .invite-created { grid-template-columns:42px minmax(0,1fr); }
   .admin-reference-page[data-admin-screen="Invitaciones"] .invite-created>button { grid-column:1/-1;width:100%; }
 }
+/* Athlete roster opens the complete administrative dossier. */
+.group-roster-new>button{display:grid;grid-template-columns:42px minmax(0,1fr) auto 18px;align-items:center;gap:11px;width:100%;padding:11px;border:0;border-radius:15px;background:#f3f7fb;color:inherit;font:inherit;text-align:left;cursor:pointer;transition:.2s ease}.group-roster-new>button:hover{transform:translateY(-2px);box-shadow:0 10px 24px #0a285418}.group-roster-new>button>i{display:grid;width:42px;height:42px;place-items:center;border-radius:14px;background:#dcecff;color:#175dab;font-size:11px;font-style:normal;font-weight:900}.group-roster-new>button>img{display:block;width:42px;height:42px;border-radius:14px;object-fit:cover}.group-roster-new>button>strong{color:#2d78d2;font-size:20px}.group-roster-new>button span,.group-roster-new>button b,.group-roster-new>button small{display:block;min-width:0}
