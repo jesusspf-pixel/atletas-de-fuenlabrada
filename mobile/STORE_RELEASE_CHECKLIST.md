@@ -23,6 +23,10 @@ El identificador debe confirmarse antes de crear las fichas definitivas en las t
 - Android App Links declarados para ambos dominios.
 - Botones exclusivos de instalación PWA ocultos dentro de las apps nativas.
 - Splash, barra de estado y colores base configurados.
+- Solicitud autenticada de eliminación de cuenta en `/eliminar-cuenta`.
+- Permiso y registro del dispositivo para avisos nativos en Android e iOS.
+- Tokens nativos separados de las suscripciones de avisos del navegador.
+- Universal Links declarados en iOS para ambos dominios oficiales.
 
 ## Necesario antes de firmar
 
@@ -36,6 +40,8 @@ El identificador debe confirmarse antes de crear las fichas definitivas en las t
 8. Política de privacidad definitiva publicada en una URL pública.
 9. Solicitud de eliminación de cuenta accesible dentro y fuera de la app.
 10. Usuario de demostración estable para los equipos de revisión.
+
+Los avisos nativos no se enviarán todavía: primero deben conectarse las credenciales de Firebase (Android) y APNs (iOS). Los avisos web actuales continúan siendo independientes.
 
 ## Pruebas obligatorias antes de enviar
 

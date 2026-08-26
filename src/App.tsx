@@ -964,6 +964,9 @@ function Portal({
           <a className="button-link outline" href="/club">
             ← Web del club
           </a>
+          <a className="account-delete-link" href="/eliminar-cuenta">
+            Privacidad y eliminar cuenta
+          </a>
           <button className="plain" onClick={signOut}>
             Cerrar sesión
           </button>

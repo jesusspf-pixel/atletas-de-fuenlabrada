@@ -7,6 +7,7 @@ import MemberExperience from "./components/MemberExperience";
 import PublicClubSite from "./components/PublicClubSite";
 import PublicGroupsPage from "./components/PublicGroupsPage";
 import CoachDesignPreview from "./components/CoachDesignPreview";
+import AccountDeletion from "./components/AccountDeletion";
 import { supabase } from "./lib/supabase";
 import { installNativeRuntime } from "./lib/nativeRuntime";
 import "./styles.css";
@@ -37,8 +38,10 @@ function Root() {
   const publicGroups = window.location.pathname === "/grupos-precios";
   const publicClub = window.location.pathname === "/club";
   const coachDesignPreview = window.location.pathname === "/preview-entrenador";
+  const accountDeletion = window.location.pathname === "/eliminar-cuenta";
 
   if (coachDesignPreview) return <CoachDesignPreview />;
+  if (accountDeletion) return <AccountDeletion />;
 
   useEffect(() => {
     const client = supabase;

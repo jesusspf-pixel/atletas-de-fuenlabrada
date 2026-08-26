@@ -17,6 +17,25 @@ export default function PwaInstall(){
   const[message,setMessage]=useState("");
 
   useEffect(()=>{
+    if(native){
+      void import("@capacitor/push-notifications").then(async({PushNotifications})=>{
+        const permission=await PushNotifications.checkPermissions();
+        setPushState(permission.receive==="granted"?"on":"off");
+        await PushNotifications.addListener("registration",async token=>{
+          if(!supabase)return;
+          const{data}=await supabase.auth.getSession();
+          const response=await fetch("/api/push-subscription",{method:"POST",headers:{"content-type":"application/json",authorization:`Bearer ${data.session?.access_token||""}`},body:JSON.stringify({endpoint:`native://${Capacitor.getPlatform()}/${token.value}`,type:"native",platform:Capacitor.getPlatform(),token:token.value})});
+          if(response.ok){setPushState("on");setMessage("Notificaciones activadas en este dispositivo.")}
+          else setMessage("El dispositivo dio permiso, pero todavía falta vincularlo al servicio de avisos.");
+        });
+        await PushNotifications.addListener("registrationError",()=>setMessage("No se pudo registrar este dispositivo para recibir avisos."));
+        await PushNotifications.addListener("pushNotificationActionPerformed",event=>{
+          const url=String(event.notification.data?.url||"/?access=1");
+          window.location.assign(url.startsWith("/")?url:"/?access=1");
+        });
+      }).catch(()=>setPushState("unsupported"));
+      return;
+    }
     setIos(/iphone|ipad|ipod/i.test(navigator.userAgent));
     setInstalled(runningInstalled());
     const pushSupported="serviceWorker" in navigator&&"PushManager" in window&&"Notification" in window;
@@ -27,11 +46,11 @@ export default function PwaInstall(){
     window.addEventListener("beforeinstallprompt",save);
     window.addEventListener("appinstalled",markInstalled);
     return()=>{window.removeEventListener("beforeinstallprompt",save);window.removeEventListener("appinstalled",markInstalled)};
-  },[]);
+  },[native]);
 
   const install=async()=>{if(prompt){await prompt.prompt();const choice=await prompt.userChoice;if(choice.outcome==="accepted")setPrompt(null)}else setShow(true)};
-  const enablePush=async()=>{try{setMessage("");if(!supabase||pushState==="unsupported")throw new Error("Este dispositivo no admite notificaciones push.");const permission=await Notification.requestPermission();if(permission!=="granted")throw new Error("No se ha concedido permiso para las notificaciones.");const registration=await navigator.serviceWorker.ready;const config=await fetch("/api/public-config",{cache:"no-store"}).then(response=>response.json()) as {vapidPublicKey?:string};if(!config.vapidPublicKey)throw new Error("Las notificaciones todavía no están activadas por el club.");let subscription=await registration.pushManager.getSubscription();if(!subscription)subscription=await registration.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:keyBytes(config.vapidPublicKey)});const{data}=await supabase.auth.getSession();const response=await fetch("/api/push-subscription",{method:"POST",headers:{"content-type":"application/json",authorization:`Bearer ${data.session?.access_token||""}`},body:JSON.stringify(subscription)});if(!response.ok)throw new Error("No se pudo registrar este dispositivo.");setPushState("on");setMessage("Notificaciones activadas en este dispositivo.")}catch(error){setMessage(error instanceof Error?error.message:"No se pudieron activar las notificaciones.")}};
-  const showActions=!native&&(!installed||pushState==="off");
+  const enablePush=async()=>{try{setMessage("");if(!supabase||pushState==="unsupported")throw new Error("Este dispositivo no admite notificaciones push.");if(native){const{PushNotifications}=await import("@capacitor/push-notifications");let permission=await PushNotifications.checkPermissions();if(permission.receive==="prompt")permission=await PushNotifications.requestPermissions();if(permission.receive!=="granted")throw new Error("No se ha concedido permiso para las notificaciones.");await PushNotifications.register();return}const permission=await Notification.requestPermission();if(permission!=="granted")throw new Error("No se ha concedido permiso para las notificaciones.");const registration=await navigator.serviceWorker.ready;const config=await fetch("/api/public-config",{cache:"no-store"}).then(response=>response.json()) as {vapidPublicKey?:string};if(!config.vapidPublicKey)throw new Error("Las notificaciones todavía no están activadas por el club.");let subscription=await registration.pushManager.getSubscription();if(!subscription)subscription=await registration.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:keyBytes(config.vapidPublicKey)});const{data}=await supabase.auth.getSession();const response=await fetch("/api/push-subscription",{method:"POST",headers:{"content-type":"application/json",authorization:`Bearer ${data.session?.access_token||""}`},body:JSON.stringify(subscription)});if(!response.ok)throw new Error("No se pudo registrar este dispositivo.");setPushState("on");setMessage("Notificaciones activadas en este dispositivo.")}catch(error){setMessage(error instanceof Error?error.message:"No se pudieron activar las notificaciones.")}};
+  const showActions=native?pushState==="off":(!installed||pushState==="off");
 
-  return <>{showActions&&<div className="pwa-actions">{!installed&&<button className="install" onClick={install}>↓ Instalar aplicación</button>}{pushState==="off"&&<button className="install" onClick={()=>void enablePush()}>🔔 Activar avisos</button>}</div>}{!native&&message&&<div className="install-help"><button onClick={()=>setMessage("")}>×</button><b>Notificaciones</b><p>{message}</p></div>}{!native&&show&&!installed&&<div className="install-help"><button onClick={()=>setShow(false)}>×</button><b>{ios?"Instalar en iPhone o iPad":"Instalar en este dispositivo"}</b><p>{ios?"Abre el menú Compartir de Safari y pulsa «Añadir a pantalla de inicio».":"Abre el menú del navegador y elige «Instalar aplicación» o «Añadir a pantalla de inicio»."}</p></div>}</>;
+  return <>{showActions&&<div className="pwa-actions">{!native&&!installed&&<button className="install" onClick={install}>↓ Instalar aplicación</button>}{pushState==="off"&&<button className="install" onClick={()=>void enablePush()}>🔔 Activar avisos</button>}</div>}{message&&<div className="install-help"><button onClick={()=>setMessage("")}>×</button><b>Notificaciones</b><p>{message}</p></div>}{!native&&show&&!installed&&<div className="install-help"><button onClick={()=>setShow(false)}>×</button><b>{ios?"Instalar en iPhone o iPad":"Instalar en este dispositivo"}</b><p>{ios?"Abre el menú Compartir de Safari y pulsa «Añadir a pantalla de inicio».":"Abre el menú del navegador y elige «Instalar aplicación» o «Añadir a pantalla de inicio»."}</p></div>}</>;
 }
