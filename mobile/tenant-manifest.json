@@ -1,0 +1,18 @@
+{
+  "platform": {
+    "owner": "Sportmed Integral Solutions, S.L.",
+    "publisher": "Sportmed Integral Solutions, S.L.",
+    "product": "Sportmed Club Platform"
+  },
+  "licensee": {
+    "clubName": "Club Atletas de Fuenlabrada",
+    "applicationName": "Atletas de Fuenlabrada",
+    "domain": "www.atletasdefuenlabrada.com",
+    "supportEmail": "info@atletasdefuenlabrada.com"
+  },
+  "mobile": {
+    "bundleId": "com.sportmed.atletasdefuenlabrada",
+    "version": "1.0.0",
+    "build": 1
+  }
+}

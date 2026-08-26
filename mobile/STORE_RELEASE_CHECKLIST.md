@@ -2,16 +2,17 @@
 
 Esta rama contiene los proyectos nativos sin modificar la versión web en producción.
 
-## Identidad propuesta
+## Identidad aprobada
 
 - Nombre: Atletas de Fuenlabrada
-- Propietario: Sportmed Integral Solutions, S.L.
+- Propietario, desarrollador y editor: Sportmed Integral Solutions, S.L.
+- Club licenciatario: Club Atletas de Fuenlabrada
 - Identificador Android/iOS: `com.sportmed.atletasdefuenlabrada`
 - Versión inicial: `1.0.0` (`versionCode` / build `1`)
 - Web y soporte: `https://www.atletasdefuenlabrada.com`
 - Correo de soporte: `info@atletasdefuenlabrada.com`
 
-El identificador debe confirmarse antes de crear las fichas definitivas en las tiendas.
+El mismo modelo se reutilizará con un identificador distinto para cada futuro club licenciatario.
 
 ## Ya preparado
 
