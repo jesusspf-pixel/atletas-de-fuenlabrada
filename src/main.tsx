@@ -13,7 +13,6 @@ import "./components/family-registration.css";
 import "./components/registration-visibility.css";
 import "./components/sports-center.css";
 import "./app-redesign.css";
-import "./app-mobile-redesign.css";
 // El acceso de ranking abre siempre la vista de resultados del área deportiva.
 
 type Role = "owner" | "admin" | "coach" | "parent" | "adult_athlete" | "minor_athlete";
@@ -72,7 +71,6 @@ function Root() {
   useEffect(() => {
     if (!sports || !signedIn) return;
     const enhanceSportsNav = () => {
-      document.querySelector(".sports-center-shell")?.classList.add("app-redesign");
       const nav = document.querySelector(".sports-center-shell .club-side nav");
       if (!nav || nav.querySelector("[data-main-nav='true']")) return;
       const divider = document.createElement("small");
