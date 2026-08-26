@@ -18,6 +18,8 @@ type Entry = { athlete_id: string; status: string; competition_events?: { title:
 type TrainingPlan = { id: string; title: string; body: string; week_starts_on: string; training_group_id: string; published_at: string | null };
 type TrainingDocument = { id: string; title: string; storage_path: string; training_group_id: string | null; created_at: string };
 type ProfileSettings = { athlete_id: string; avatar_url: string | null; cover_url: string | null; bio: string | null; challenge_opt_in: boolean; show_activity_to_club: boolean };
+type GroupMate = { id: string; first_name: string; last_name: string; athlete_profile_settings?: { avatar_url: string | null }[] | null };
+type GroupCoach = { coach_profile_id: string; profiles?: { full_name: string | null; avatar_url?: string | null } | null };
 
 const euro = (cents: number) => new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(cents / 100);
 const licenseText = (athlete: Athlete) => athlete.federation_license || athlete.license_number || (athlete.license_status === "active" ? "Activa" : "Pendiente");
@@ -40,6 +42,9 @@ export default function MemberExperience({ profileId }: { profileId: string }) {
   const [planNotice, setPlanNotice] = useState("");
   const [loading, setLoading] = useState(true);
   const [refreshVersion, setRefreshVersion] = useState(0);
+  const [showGroup, setShowGroup] = useState(false);
+  const [groupMates, setGroupMates] = useState<GroupMate[]>([]);
+  const [groupCoaches, setGroupCoaches] = useState<GroupCoach[]>([]);
 
   useEffect(() => {
     const detect = () => {
@@ -130,6 +135,19 @@ export default function MemberExperience({ profileId }: { profileId: string }) {
     window.open(data.signedUrl, "_blank", "noopener,noreferrer");
   };
 
+  const openGroup = async () => {
+    if (!supabase || !athlete?.training_group_id) return;
+    setShowGroup(true);
+    const [mates, coaches] = await Promise.all([
+      supabase.from("athletes").select("id,first_name,last_name,athlete_profile_settings(avatar_url)").eq("training_group_id", athlete.training_group_id).eq("club_status", "active").order("first_name"),
+      supabase.from("training_group_coaches").select("coach_profile_id,profiles(full_name)").eq("training_group_id", athlete.training_group_id),
+    ]);
+    setGroupMates((mates.data ?? []) as unknown as GroupMate[]);
+    setGroupCoaches((coaches.data ?? []) as unknown as GroupCoach[]);
+  };
+
+  const goTo = (label: string) => [...document.querySelectorAll<HTMLButtonElement>(".club-side nav button")].find(item => item.textContent?.trim().startsWith(label))?.click();
+
   if (!mode) return null;
   if (loading) return <section className="member-experience"><article className="panel">Cargando tu información…</article></section>;
   if (!athlete) return <section className="member-experience"><div className="page-head"><div><h1>Mi perfil</h1><p>Tu inscripción deportiva todavía no está vinculada a esta cuenta.</p></div></div></section>;
@@ -137,20 +155,22 @@ export default function MemberExperience({ profileId }: { profileId: string }) {
   if (mode === "home") return <section className="design-v2-stage member-live-home"><header className="design-v2-hero"><div><small>INICIO · MI TEMPORADA</small><h1>Todo empieza<br/>aquí.</h1><p>{athlete.training_groups?.name || "Grupo pendiente"} · Licencia {licenseText(athlete)}</p></div></header><section className="design-v2-float">
     <div className="design-v2-title"><div><small>ESTA SEMANA</small><h2>Tu entrenamiento</h2></div><button onClick={() => [...document.querySelectorAll<HTMLButtonElement>(".club-side nav button")].find(item => item.textContent?.trim().startsWith("Mi perfil"))?.click()}>Mi perfil →</button></div>
     <article className="member-live-plan"><div><small>PLAN DE ENTRENAMIENTO</small>{currentPlan?<><h2>{currentPlan.title}</h2><p style={{whiteSpace:"pre-wrap"}}>{currentPlan.body}</p><span>Semana del {new Date(`${currentPlan.week_starts_on}T12:00:00`).toLocaleDateString("es-ES")}</span></>:<><h2>Sin plan publicado todavía</h2><p>Cuando tu entrenador publique el plan aparecerá aquí automáticamente.</p></>}</div>{currentPlanDocument&&<button type="button" onClick={()=>void openPlanPdf()}>Abrir plan&nbsp; ›</button>}{planNotice&&<p className="error-note">{planNotice}</p>}</article>
-    <header className="design-v2-section-head"><div><small>RESUMEN</small><h2>Tu actividad en el club</h2></div></header><section className="member-live-cards"><article><i>✓</i><small>ESTADO</small><b>{athlete.club_status==="active"?"Activo":"En revisión"}</b><span>Alta en el club</span></article><article><i>◎</i><small>LICENCIA</small><b>{licenseText(athlete)}</b><span>{athlete.license_status==="active"?"Licencia activa":"Pendiente de tramitar"}</span></article><article><i>↗</i><small>GRUPO</small><b>{athlete.training_groups?.name||"Pendiente"}</b><span>{athlete.training_groups?.category_label||"Sin asignar"}</span></article></section>
-    <section className="design-v2-bottom member-live-bottom"><article><header><div><small>PRÓXIMA CUOTA</small><h3>{upcomingFee?upcomingFee.charge_kind==="enrolment"?"Matrícula":"Cuota del club":"Sin cuotas programadas"}</h3></div></header>{upcomingFee?<div><i>€</i><span><b>{euro(upcomingFee.approved_amount_cents??upcomingFee.calculated_amount_cents)}</b><small>{upcomingFee.scheduled_for?new Date(upcomingFee.scheduled_for).toLocaleDateString("es-ES"):"Fecha pendiente"}</small></span><em/></div>:<p>Las próximas cuotas aparecerán aquí.</p>}</article><article><header><div><small>PRÓXIMA COMPETICIÓN</small><h3>{upcomingCompetition?.event?.title||"Sin próxima competición"}</h3></div></header>{upcomingCompetition?.event?<div><i>↗</i><span><b>{upcomingCompetition.event.venue||"Ubicación pendiente"}</b><small>{new Date(upcomingCompetition.event.starts_at).toLocaleDateString("es-ES")}</small></span><em/></div>:<p>Las competiciones confirmadas aparecerán aquí.</p>}</article></section>
+    <header className="design-v2-section-head"><div><small>RESUMEN</small><h2>Tu actividad en el club</h2></div></header><section className="member-live-cards"><article><i>✓</i><small>ESTADO</small><b>{athlete.club_status==="active"?"Activo":"En revisión"}</b><span>Alta en el club</span></article><article><i>◎</i><small>LICENCIA</small><b>{licenseText(athlete)}</b><span>{athlete.license_status==="active"?"Licencia activa":"Pendiente de tramitar"}</span></article><button className="member-summary-action" onClick={() => void openGroup()}><i>↗</i><small>GRUPO</small><b>{athlete.training_groups?.name||"Pendiente"}</b><span>{athlete.training_groups?.category_label||"Sin asignar"} · Ver grupo</span></button></section>
+    <section className="design-v2-bottom member-live-bottom"><button className="member-bottom-action" onClick={() => goTo("Cuotas")}><header><div><small>PRÓXIMA CUOTA</small><h3>{upcomingFee?upcomingFee.charge_kind==="enrolment"?"Matrícula":"Cuota del club":"Sin cuotas programadas"}</h3></div></header>{upcomingFee?<div><i>€</i><span><b>{euro(upcomingFee.approved_amount_cents??upcomingFee.calculated_amount_cents)}</b><small>{upcomingFee.scheduled_for?new Date(upcomingFee.scheduled_for).toLocaleDateString("es-ES"):"Fecha pendiente"}</small></span><em>›</em></div>:<p>Las próximas cuotas aparecerán aquí.</p>}</button><article><header><div><small>PRÓXIMA COMPETICIÓN</small><h3>{upcomingCompetition?.event?.title||"Sin próxima competición"}</h3></div></header>{upcomingCompetition?.event?<div><i>↗</i><span><b>{upcomingCompetition.event.venue||"Ubicación pendiente"}</b><small>{new Date(upcomingCompetition.event.starts_at).toLocaleDateString("es-ES")}</small></span><em/></div>:<p>Las competiciones confirmadas aparecerán aquí.</p>}</article></section>
+    {showGroup && <div className="member-group-overlay" role="dialog" aria-modal="true"><section><header><div><small>TU EQUIPO</small><h2>{athlete.training_groups?.name}</h2><p>Entrenadores y atletas que forman tu grupo.</p></div><button aria-label="Cerrar" onClick={() => setShowGroup(false)}>×</button></header><h3>Entrenadores</h3><div className="member-roster">{groupCoaches.map(coach => <article key={coach.coach_profile_id}><span className="roster-avatar">E</span><b>{coach.profiles?.full_name || "Entrenador del grupo"}</b><small>Entrenador</small></article>)}{!groupCoaches.length && <p>El entrenador todavía no está visible.</p>}</div><h3>Atletas</h3><div className="member-roster">{groupMates.map(mate => <article key={mate.id}>{mate.athlete_profile_settings?.[0]?.avatar_url ? <img src={mate.athlete_profile_settings[0].avatar_url} alt="" /> : <span className="roster-avatar">{mate.first_name[0]}{mate.last_name[0]}</span>}<b>{mate.first_name} {mate.last_name}</b><small>{mate.id === athlete.id ? "Tú" : athlete.training_groups?.name}</small></article>)}{!groupMates.length && <p>No hay otros atletas visibles todavía.</p>}</div></section></div>}
   </section></section>;
 
-  return <section className="member-experience member-profile-page">
-    <div className="page-head"><div><small>PERFIL DEPORTIVO</small><h1>{athlete.first_name} {athlete.last_name}</h1><p>{athlete.training_groups?.name || "Grupo pendiente"} · Licencia {licenseText(athlete)}</p></div></div>
-    <section className="profile-private-editor">
+  return <section className="member-experience member-profile-page design-v2-stage">
+    <header className="design-v2-hero member-profile-hero"><div><small>MI PERFIL</small><h1>{athlete.first_name}<br/>{athlete.last_name}</h1><p>{athlete.training_groups?.name || "Grupo pendiente"} · Licencia {licenseText(athlete)}</p></div></header>
+    <section className="design-v2-float member-profile-sheet"><div className="design-v2-title"><div><small>IDENTIDAD DEPORTIVA</small><h2>Tu perfil en el club</h2></div></div><section className="profile-private-editor">
       <AthleteProfileEditor athleteId={athlete.id} canEdit />
     </section>
-    <section className="panel profile-sports-summary">
+    <section className="profile-sports-summary profile-sports-next">
       <small>FICHA DEPORTIVA PÚBLICA</small>
       <h2>Resultados, marcas y ranking</h2>
-      <p>Consulta tus competiciones, resultados oficiales, mejores marcas, histórico y Club Challenge en la ficha deportiva. Esta pantalla no permite editar tu perfil.</p>
-      <button onClick={() => window.location.assign(`/deportivo?athleteId=${encodeURIComponent(athlete.id)}`)}>Abrir ficha deportiva y rankings →</button>
+      <p>Consulta tus mejores marcas de entrenamiento y competición, tu histórico y tu posición en el club.</p>
+      <div><span><i>↗</i><b>Marcas de entrenamiento</b><small>Registro personal y evolución</small></span><span><i>★</i><b>Resultados oficiales</b><small>Competiciones y mejores marcas</small></span></div>
+      <button onClick={() => window.location.assign(`/deportivo?athleteId=${encodeURIComponent(athlete.id)}`)}>Abrir mi ficha deportiva →</button>
     </section>
-  </section>;
+  </section></section>;
 }
