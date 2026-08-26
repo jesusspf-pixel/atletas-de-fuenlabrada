@@ -1,0 +1,9 @@
+.challenge-heading{display:flex;align-items:center;gap:8px}
+.challenge-icon{width:25px;height:25px;flex:0 0 auto;color:#1f58a8}
+.achievement .challenge-icon{width:30px;height:30px;padding:5px;border-radius:9px;background:#e8f0ff}
+.achievement.unlocked .challenge-icon{color:#9a6412;background:#fff0c8}
+.achievement-feed .challenge-icon{width:24px;height:24px;color:#b37a19}
+.challenge-table .rank-1{color:#c58b1b}
+.challenge-table .rank-2{color:#7d8a9d}
+.challenge-table .rank-3{color:#a7653d}
+.team-challenge .challenge-icon{color:#2b65bb}
