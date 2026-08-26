@@ -24,13 +24,6 @@ type PlanDay = { day: string; load: string; sections: { label: string; value: st
 
 const euro = (cents: number) => new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(cents / 100);
 const licenseText = (athlete: Athlete) => athlete.federation_license || athlete.license_number || (athlete.license_status === "active" ? "Activa" : "Pendiente");
-const mondayKey = (value = new Date()) => {
-  const date = new Date(value);
-  date.setHours(12, 0, 0, 0);
-  const day = date.getDay() || 7;
-  date.setDate(date.getDate() - day + 1);
-  return date.toISOString().slice(0, 10);
-};
 const parseWeeklyPlan = (body: string): PlanDay[] => body.split(/\n\n(?=(?:LUNES|MARTES|MIÉRCOLES|JUEVES|VIERNES|SÁBADO|DOMINGO)\n)/).map(block => { const lines=block.split("\n").filter(Boolean); const day=lines.shift()||""; if(!/^(LUNES|MARTES|MIÉRCOLES|JUEVES|VIERNES|SÁBADO|DOMINGO)$/.test(day))return null; const load=lines.shift()||""; const sections=lines.map(line=>{const separator=line.indexOf(":");return separator>0?{label:line.slice(0,separator),value:line.slice(separator+1).trim()}:{label:"Detalle",value:line}}); return {day:day.charAt(0)+day.slice(1).toLowerCase(),load,sections}; }).filter((item):item is PlanDay=>Boolean(item));
 
 export default function MemberExperience({ profileId }: { profileId: string }) {
@@ -71,14 +64,10 @@ export default function MemberExperience({ profileId }: { profileId: string }) {
       if (!mine.length) { setLedger([]); setEntries([]); setPlans([]); setDocuments([]); setProfileSettings(null); setLoading(false); return; }
       const ids = mine.map(a => a.id);
       const groupIds = [...new Set(mine.map(a => a.training_group_id).filter((id): id is string => Boolean(id)))];
-      const weekStart = mondayKey();
-      const weekEndDate = new Date(`${weekStart}T12:00:00`);
-      weekEndDate.setDate(weekEndDate.getDate() + 6);
-      const weekEnd = weekEndDate.toISOString().slice(0, 10);
       const [{ data: ledgerData }, { data: entryData }, planResult, documentResult, settingsResult] = await Promise.all([
         supabase.from("billing_charge_drafts").select("id,charge_kind,approved_amount_cents,calculated_amount_cents,status,scheduled_for").in("athlete_id", ids).order("scheduled_for", { ascending: true }),
         supabase.from("competition_entries").select("athlete_id,status,competition_events(title,starts_at,venue)").in("athlete_id", ids).order("created_at", { ascending: false }),
-        groupIds.length ? supabase.from("training_plans").select("id,title,body,week_starts_on,training_group_id,published_at").in("training_group_id", groupIds).gte("week_starts_on", weekStart).lte("week_starts_on", weekEnd).order("published_at", { ascending: false }) : Promise.resolve({ data: [] }),
+        groupIds.length ? supabase.from("training_plans").select("id,title,body,week_starts_on,training_group_id,published_at").in("training_group_id", groupIds).not("published_at", "is", null).order("published_at", { ascending: false, nullsFirst: false }).limit(Math.max(20, groupIds.length * 5)) : Promise.resolve({ data: [] }),
         groupIds.length ? supabase.from("club_documents").select("id,title,storage_path,training_group_id,created_at").eq("document_type", "training_plan").in("training_group_id", groupIds).order("created_at", { ascending: false }) : Promise.resolve({ data: [] }),
         supabase.from("athlete_profile_settings").select("athlete_id,avatar_url,cover_url,bio,challenge_opt_in,show_activity_to_club").eq("athlete_id", mine[0].id).maybeSingle(),
       ]);
