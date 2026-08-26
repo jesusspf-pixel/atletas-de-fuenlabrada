@@ -100,7 +100,8 @@ export default function BillingControlCenter() {
 
   const actions = (draft: Draft) => <>
     {draft.status === "awaiting_admin" && <><button disabled={busy} onClick={() => void updateDraft(draft, "approved")}>Revisar y aprobar</button> <button className="outline" disabled={busy} onClick={() => void updateDraft(draft, "waived")}>Eximir</button></>}
-    {["approved", "failed"].includes(draft.status) && <><button disabled={busy} onClick={() => void retryDraft(draft)}>Reintentar ahora</button> <button className="outline" disabled={busy} onClick={() => void updateDraft(draft, "approved")}>Modificar</button> <button className="outline" disabled={busy} onClick={() => void updateDraft(draft, "cancelled")}>Cancelar</button></>}
+    {draft.status === "failed" && <><button disabled={busy} onClick={() => void retryDraft(draft)}>Reintentar ahora</button> <button className="outline" disabled={busy} onClick={() => void updateDraft(draft, "approved")}>Modificar</button> <button className="outline" disabled={busy} onClick={() => void updateDraft(draft, "cancelled")}>Cancelar</button></>}
+    {draft.status === "approved" && <><small>Programado para cobro automático.</small> <button className="outline" disabled={busy} onClick={() => void updateDraft(draft, "approved")}>Modificar</button> <button className="outline" disabled={busy} onClick={() => void updateDraft(draft, "cancelled")}>Cancelar</button></>}
     {draft.status === "collecting" && <small>Stripe está procesando el cobro.</small>}
     {draft.status === "paid" && <small>Cobrado correctamente.</small>}
     {["cancelled", "waived"].includes(draft.status) && <small>{draft.status === "waived" ? "Cuota exenta." : "Cuota cancelada."}</small>}

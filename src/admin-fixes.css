@@ -38,6 +38,10 @@
 .admin-reference-sheet > * > .page-head::after { display: none; }
 .admin-reference-sheet .page-head h1 { color: #fff !important; }
 .admin-reference-sheet .page-head p { color: #c9dcf5 !important; }
+.admin-reference-sheet .page-head small { color: #bcd8f3 !important; }
+.admin-reference-sheet .page-head > button,
+.admin-reference-sheet .page-head > .button-link,
+.admin-reference-sheet .page-head > .calendar-link { margin-top: 38px; }
 .admin-reference-sheet .metric::after { display: none; }
 .admin-reference-sheet .metric { display: flex; min-width: 0; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
 .admin-reference-sheet .metric small { max-width: 100%; color: #5c7088 !important; }
