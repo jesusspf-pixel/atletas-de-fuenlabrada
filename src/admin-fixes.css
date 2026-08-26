@@ -74,10 +74,46 @@
 .admin-reference-page[data-admin-screen="Avisos"] .stacked-form { background: linear-gradient(145deg,#f0eaff,#fff) !important; }
 .admin-reference-page[data-admin-screen="Avisos"] .table > .table-title { padding: 20px; background: linear-gradient(135deg,#143d78,#2368b8); }
 .admin-reference-page[data-admin-screen="Avisos"] .table > .table-title h2 { color: #fff !important; }
-.admin-reference-page[data-admin-screen="Invitaciones"] .invite-form { background: linear-gradient(145deg,#102f65,#205fa9) !important; color: #fff; }
-.admin-reference-page[data-admin-screen="Invitaciones"] .invite-form label,
-.admin-reference-page[data-admin-screen="Invitaciones"] .invite-form legend { color: #fff !important; }
-.admin-reference-page[data-admin-screen="Invitaciones"] .invite-form .muted { color: #d5e5f7 !important; }
+.admin-reference-page[data-admin-screen="Invitaciones"] .invite-workspace { display:grid;grid-template-columns:minmax(0,.88fr) minmax(0,1.12fr);align-items:start;gap:18px;padding:0!important;background:transparent!important;box-shadow:none!important;color:#10233f; }
+.admin-reference-page[data-admin-screen="Invitaciones"] .invite-step { min-width:0;padding:25px;border-radius:25px;background:#fff;box-shadow:0 13px 35px rgba(8,39,76,.08); }
+.admin-reference-page[data-admin-screen="Invitaciones"] .invite-step>header { display:flex;align-items:center;gap:13px;margin-bottom:20px; }
+.admin-reference-page[data-admin-screen="Invitaciones"] .invite-step>header>span { display:grid;flex:0 0 38px;width:38px;height:38px;place-items:center;border-radius:13px;background:#e9f2ff;color:#175cad;font-weight:900; }
+.admin-reference-page[data-admin-screen="Invitaciones"] .invite-step h2 { margin:0;color:#10233f!important;font-size:20px; }
+.admin-reference-page[data-admin-screen="Invitaciones"] .invite-step header p { margin:4px 0 0;color:#738299;font-size:12px; }
+.admin-reference-page[data-admin-screen="Invitaciones"] .invite-type-grid { display:grid;gap:11px; }
+.admin-reference-page[data-admin-screen="Invitaciones"] .invite-type-grid>button { display:grid;grid-template-columns:46px minmax(0,1fr) 25px;align-items:center;gap:13px;width:100%;min-height:78px;padding:13px;text-align:left;border:1px solid #e2e9f1!important;background:#f6f8fb!important;color:#10233f!important;box-shadow:none!important; }
+.admin-reference-page[data-admin-screen="Invitaciones"] .invite-type-grid>button.selected { border-color:#347bd0!important;background:linear-gradient(135deg,#e8f3ff,#f7fbff)!important;box-shadow:0 9px 22px rgba(30,103,186,.12)!important; }
+.admin-reference-page[data-admin-screen="Invitaciones"] .invite-type-grid i { display:grid;width:46px;height:46px;place-items:center;border-radius:15px;background:#dcecff;color:#175eaf;font-size:11px;font-style:normal;font-weight:900;letter-spacing:.08em; }
+.admin-reference-page[data-admin-screen="Invitaciones"] .invite-type-grid span,.admin-reference-page[data-admin-screen="Invitaciones"] .invite-type-grid b,.admin-reference-page[data-admin-screen="Invitaciones"] .invite-type-grid small { display:block;min-width:0; }
+.admin-reference-page[data-admin-screen="Invitaciones"] .invite-type-grid b { color:#10233f;font-size:14px; }
+.admin-reference-page[data-admin-screen="Invitaciones"] .invite-type-grid small { margin-top:4px;color:#738299;font-size:11px; }
+.admin-reference-page[data-admin-screen="Invitaciones"] .invite-type-grid em { color:#2d6ebc;font-size:20px;font-style:normal;font-weight:900; }
+.admin-reference-page[data-admin-screen="Invitaciones"] .invite-details { background:linear-gradient(145deg,#102f65,#205fa9);color:#fff; }
+.admin-reference-page[data-admin-screen="Invitaciones"] .invite-details h2,.admin-reference-page[data-admin-screen="Invitaciones"] .invite-details label,.admin-reference-page[data-admin-screen="Invitaciones"] .invite-details legend { color:#fff!important; }
+.admin-reference-page[data-admin-screen="Invitaciones"] .invite-details header p { color:#d5e5f7; }
+.admin-reference-page[data-admin-screen="Invitaciones"] .invite-details>header>span { background:rgba(255,255,255,.15);color:#fff; }
+.admin-reference-page[data-admin-screen="Invitaciones"] .invite-field-grid { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px; }
+.admin-reference-page[data-admin-screen="Invitaciones"] .invite-field-grid label>span { display:block;margin-bottom:8px;font-size:11px;font-weight:800; }
+.admin-reference-page[data-admin-screen="Invitaciones"] .invite-details input,.admin-reference-page[data-admin-screen="Invitaciones"] .invite-details select { min-width:0;width:100%;min-height:49px;background:#fff!important;color:#10233f!important; }
+.admin-reference-page[data-admin-screen="Invitaciones"] .invite-group-picker { margin:18px 0 0;padding:17px;border:1px solid rgba(255,255,255,.16)!important;border-radius:18px;background:rgba(255,255,255,.08)!important;box-shadow:none!important; }
+.admin-reference-page[data-admin-screen="Invitaciones"] .invite-group-picker legend { padding:0 8px;font-size:12px;font-weight:900; }
+.admin-reference-page[data-admin-screen="Invitaciones"] .invite-group-picker label { display:flex;align-items:center;gap:10px;min-width:0;padding:10px;border-radius:13px;background:rgba(255,255,255,.09); }
+.admin-reference-page[data-admin-screen="Invitaciones"] .invite-group-picker input { flex:0 0 18px;width:18px;min-height:18px;box-shadow:none!important; }
+.admin-reference-page[data-admin-screen="Invitaciones"] .invite-group-picker span,.admin-reference-page[data-admin-screen="Invitaciones"] .invite-group-picker b,.admin-reference-page[data-admin-screen="Invitaciones"] .invite-group-picker small { display:block;min-width:0; }
+.admin-reference-page[data-admin-screen="Invitaciones"] .invite-group-picker small { margin-top:2px;color:#d5e5f7; }
+.admin-reference-page[data-admin-screen="Invitaciones"] .invite-groups-grid { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:9px; }
+.admin-reference-page[data-admin-screen="Invitaciones"] .invite-group-picker>p { margin:12px 0 0;color:#d5e5f7;font-size:11px; }
+.admin-reference-page[data-admin-screen="Invitaciones"] .invite-info { margin-top:18px;padding:15px 17px;border-radius:15px;background:rgba(255,255,255,.1);color:#e5f0fd;font-size:12px;line-height:1.55; }
+.admin-reference-page[data-admin-screen="Invitaciones"] .invite-submit { width:100%;margin-top:18px;background:#fff!important;color:#155aa7!important;box-shadow:0 10px 25px rgba(4,25,55,.18)!important;font-weight:900; }
+.admin-reference-page[data-admin-screen="Invitaciones"] .invite-created { display:grid;grid-template-columns:48px minmax(0,1fr) auto;align-items:center;gap:16px;margin-top:18px;background:linear-gradient(145deg,#e9f8f2,#fff)!important; }
+.admin-reference-page[data-admin-screen="Invitaciones"] .invite-created>span { display:grid;width:48px;height:48px;place-items:center;border-radius:16px;background:#d5f2e6;color:#08785c;font-size:21px;font-weight:900; }
+.admin-reference-page[data-admin-screen="Invitaciones"] .invite-created h2 { margin:3px 0 8px;color:#10233f; }
+.admin-reference-page[data-admin-screen="Invitaciones"] .invite-created .link-box { overflow:hidden;margin:0 0 6px;color:#4e6178;text-overflow:ellipsis;white-space:nowrap; }
+.admin-reference-page[data-admin-screen="Invitaciones"] .invite-history { margin-top:18px; }
+.admin-reference-page[data-admin-screen="Invitaciones"] .invite-history>header { padding:21px 23px;background:linear-gradient(135deg,#eaf4ff,#fff); }
+.admin-reference-page[data-admin-screen="Invitaciones"] .invite-history h2 { margin:3px 0 0;color:#10233f; }
+.admin-reference-page[data-admin-screen="Invitaciones"] .invite-status { width:max-content;padding:6px 10px;border-radius:999px;background:#fff2d8;color:#9c6500;font-size:10px;font-weight:900; }
+.admin-reference-page[data-admin-screen="Invitaciones"] .invite-status.accepted { background:#dff5eb;color:#08775a; }
 .admin-reference-page[data-admin-screen="Tienda"] .shop-workspace { gap: 16px; }
 .admin-reference-page[data-admin-screen="Tienda"] .catalog-list { background: linear-gradient(145deg,#102f65,#205fa9) !important; color: #fff; }
 .admin-reference-page[data-admin-screen="Tienda"] .catalog-list h2 { color: #fff !important; }
@@ -92,4 +128,9 @@
   .admin-reference-sheet > * > .page-head { min-height: 205px; margin-left: -13px; margin-right: -13px; padding: 28px 18px 70px; border-radius: 0 0 29px 29px; background-size: auto 100%; background-position: 44% center; }
   .admin-reference-page[data-admin-screen="Cuotas"] .billing-control > .metric-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .admin-reference-page[data-admin-screen="Cuotas"] .billing-control > .table .row > span:last-child { justify-content: flex-start; }
+  .admin-reference-page[data-admin-screen="Invitaciones"] .invite-workspace { grid-template-columns:1fr; }
+  .admin-reference-page[data-admin-screen="Invitaciones"] .invite-step { padding:18px; }
+  .admin-reference-page[data-admin-screen="Invitaciones"] .invite-field-grid,.admin-reference-page[data-admin-screen="Invitaciones"] .invite-groups-grid { grid-template-columns:1fr; }
+  .admin-reference-page[data-admin-screen="Invitaciones"] .invite-created { grid-template-columns:42px minmax(0,1fr); }
+  .admin-reference-page[data-admin-screen="Invitaciones"] .invite-created>button { grid-column:1/-1;width:100%; }
 }
