@@ -8,8 +8,8 @@ type Env = {
 };
 
 export const onRequestGet = ({ env }: { env: Env }) => {
-  const url = env.VITE_SUPABASE_URL || env.SUPABASE_URL;
-  const key = env.VITE_SUPABASE_PUBLISHABLE_KEY || env.VITE_SUPABASE_ANON_KEY || env.SUPABASE_ANON_KEY;
+  const url = env.VITE_SUPABASE_URL || env.SUPABASE_URL || "https://refqwgxihcdaeshqdhlq.supabase.co";
+  const key = env.VITE_SUPABASE_PUBLISHABLE_KEY || env.VITE_SUPABASE_ANON_KEY || env.SUPABASE_ANON_KEY || "sb_publishable_CNlB4f3cvFzsOD7QFN7lkA_V2SvLrw_";
   if (!url || !key) {
     return Response.json({ error: "Configuración pública no disponible." }, {
       status: 503,
