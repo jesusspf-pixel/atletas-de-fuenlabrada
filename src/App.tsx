@@ -944,6 +944,17 @@ function Portal({
               )}
             </button>
           ))}
+          {profile.role === "coach" && (
+            <button
+              type="button"
+              className="coach-nav-signout"
+              onClick={signOut}
+              aria-label="Cerrar sesión"
+            >
+              <i aria-hidden="true">↪</i>
+              <span>Salir</span>
+            </button>
+          )}
         </nav>
         <div className="side-user">
           <b>{profile.full_name || profile.email}</b>
