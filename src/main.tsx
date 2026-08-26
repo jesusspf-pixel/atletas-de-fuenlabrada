@@ -8,6 +8,7 @@ import PublicClubSite from "./components/PublicClubSite";
 import PublicGroupsPage from "./components/PublicGroupsPage";
 import CoachDesignPreview from "./components/CoachDesignPreview";
 import { supabase } from "./lib/supabase";
+import { installNativeRuntime } from "./lib/nativeRuntime";
 import "./styles.css";
 import "./access.css";
 import "./components/family-registration.css";
@@ -18,6 +19,8 @@ import "./app-visual-v2.css";
 import "./admin-next.css";
 import "./admin-fixes.css";
 import "./responsive-guardrails.css";
+
+installNativeRuntime();
 // El acceso de ranking abre siempre la vista de resultados del área deportiva.
 
 type Role = "owner" | "admin" | "coach" | "parent" | "adult_athlete" | "minor_athlete";

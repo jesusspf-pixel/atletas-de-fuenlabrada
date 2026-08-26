@@ -1,5 +1,7 @@
 node_modules/
 dist/
+android/app/src/main/assets/public/
+ios/App/App/public/
 .env
 .env.local
 .env.*.local
