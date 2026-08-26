@@ -984,6 +984,9 @@ function Portal({
         <div className="visual-page-body" data-section={section}>
           {portalContent}
         </div>
+        <footer className="platform-credit">
+          Desarrollado por <b>Sportmed Integral Solutions, S.L.</b>
+        </footer>
       </section>
     </main>
   );
