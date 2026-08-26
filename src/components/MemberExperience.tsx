@@ -173,7 +173,7 @@ export default function MemberExperience({ profileId }: { profileId: string }) {
       <h2>Resultados, marcas y ranking</h2>
       <p>Consulta tus mejores marcas de entrenamiento y competición, tu histórico y tu posición en el club.</p>
       <div><span><i>↗</i><b>Marcas de entrenamiento</b><small>Registro personal y evolución</small></span><span><i>★</i><b>Resultados oficiales</b><small>Competiciones y mejores marcas</small></span></div>
-      <button onClick={() => window.location.assign(`/deportivo?athleteId=${encodeURIComponent(athlete.id)}`)}>Abrir mi ficha deportiva →</button>
+      <button onClick={() => window.location.assign(`/?section=${encodeURIComponent("Marcas")}`)}>Abrir mi ficha deportiva →</button>
     </section>
   </section></section>;
 }
