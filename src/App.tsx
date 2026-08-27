@@ -16,6 +16,7 @@ import {
 import { Shop } from "./components/ProfessionalShop";
 import BillingControlCenter from "./components/BillingControlCenter";
 import MemberFees from "./components/MemberFees";
+import { withOfficialTrainingSchedules } from "./lib/trainingGroupSchedule";
 import FamilyNotices from "./components/FamilyNotices";
 import ClubChallenge from "./components/ClubChallenge";
 import { AthleteResults } from "./components/AthleteResults";
@@ -649,7 +650,7 @@ function useRows<T>(table: string, select = "*") {
     const { data, error: queryError } = await supabase
       .from(table)
       .select(select);
-    setRows((data ?? []) as T[]);
+    setRows((table === "training_groups" ? withOfficialTrainingSchedules((data ?? []) as any[]) : (data ?? [])) as T[]);
     setError(queryError?.message ?? "");
     setLoading(false);
   };

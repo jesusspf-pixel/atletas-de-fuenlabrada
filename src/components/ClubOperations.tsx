@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
+import { withOfficialTrainingSchedules } from "../lib/trainingGroupSchedule";
 import "./club-operations.css";
 
 type Profile = {
@@ -1213,7 +1214,7 @@ export function AnnouncementManager({ profile }: { profile: Profile }) {
     const archived = new Set(
       (archiveData ?? []).map((item) => item.announcement_id),
     );
-    setGroups((groupData ?? []) as Group[]);
+    setGroups(withOfficialTrainingSchedules((groupData ?? []) as Group[]));
     setAthletes((athleteData ?? []) as Recipient[]);
     setStaff((staffData ?? []) as Profile[]);
     setSent(
