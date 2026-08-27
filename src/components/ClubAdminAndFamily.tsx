@@ -131,7 +131,7 @@ export function GroupManager({ onOpenAthlete }: { onOpenAthlete?: (id: string) =
       { data: athleteAvatarData },
       { data: coachAvatarData },
     ] = await Promise.all([
-      supabase.from("training_groups").select("*").order("name"),
+      supabase.from("training_groups").select("*").eq("active", true).order("name"),
       supabase
         .from("profiles")
         .select("id,email,full_name,role")

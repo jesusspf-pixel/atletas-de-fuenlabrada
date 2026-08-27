@@ -2231,12 +2231,12 @@ function Invitations() {
                 <input
                   type="checkbox"
                   checked={
-                    selectedGroups.length === groups.rows.length &&
-                    groups.rows.length > 0
+                    selectedGroups.length === groups.rows.filter((g) => g.active).length &&
+                    groups.rows.some((g) => g.active)
                   }
                   onChange={(e) =>
                     setSelectedGroups(
-                      e.target.checked ? groups.rows.map((g) => g.id) : [],
+                      e.target.checked ? groups.rows.filter((g) => g.active).map((g) => g.id) : [],
                     )
                   }
                 />
@@ -2246,7 +2246,7 @@ function Invitations() {
                 </span>
               </label>
               <div className="invite-groups-grid">
-                {groups.rows.map((g) => (
+                {groups.rows.filter((g) => g.active).map((g) => (
                   <label key={g.id}>
                     <input
                       type="checkbox"
@@ -2732,7 +2732,7 @@ function Attendance({ profile }: { profile: Profile }) {
     attended: boolean | null;
   }>("attendance_records");
   const groups = ["owner", "admin"].includes(profile.role)
-    ? allGroups.rows
+    ? allGroups.rows.filter((group) => group.active)
     : (assigned.rows
         .map((item) => item.training_groups)
         .filter(Boolean) as Group[]);
