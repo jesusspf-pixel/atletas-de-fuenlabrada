@@ -6,6 +6,7 @@ import HistoricalRanking from "./HistoricalRanking";
 import ClubChallenge from "./ClubChallenge";
 import AppNavIcon from "./AppNavIcon";
 import CoachTrainingFeedback from "./CoachTrainingFeedback";
+import { withOfficialTrainingSchedule, withOfficialTrainingSchedules } from "../lib/trainingGroupSchedule";
 
 type Role = "owner" | "admin" | "coach" | "parent" | "adult_athlete" | "minor_athlete";
 type Profile = { id: string; email: string; full_name: string | null; role: Role };
@@ -45,7 +46,7 @@ export default function SportsCenter() {
     const client = supabase; if (!profile || !client) return;
     const load = async () => {
       const { data: athleteData } = await client.from("athletes").select("id,first_name,last_name,license_number,federation_license,license_status,training_group_id,user_profile_id,training_groups(*)").order("last_name");
-      const ownAthletes = (athleteData ?? []) as unknown as Athlete[];
+      const ownAthletes = ((athleteData ?? []) as unknown as Athlete[]).map(athlete => athlete.training_groups ? { ...athlete, training_groups: withOfficialTrainingSchedule(athlete.training_groups) } : athlete);
       setAthletes(ownAthletes);
       if (ownAthletes.length) {
         const { data: avatarData } = await client.from("athlete_profile_settings").select("athlete_id,avatar_url").in("athlete_id", ownAthletes.map(athlete => athlete.id));
@@ -67,7 +68,7 @@ export default function SportsCenter() {
 
       if (profile.role === "coach") {
         const { data: linkData } = await client.from("training_group_coaches").select("training_groups(*)").eq("coach_profile_id", profile.id);
-        const ownGroups = (linkData ?? []).map((row: any) => row.training_groups).filter(Boolean) as Group[];
+        const ownGroups = withOfficialTrainingSchedules((linkData ?? []).map((row: any) => row.training_groups).filter(Boolean) as Group[]);
         setGroups(ownGroups);
         const requestedGroupId = requested().get("groupId");
         const requestedName = requested().get("groupName");
@@ -75,7 +76,7 @@ export default function SportsCenter() {
         setSelectedGroupId(current => targetGroup?.id || current);
       } else if (["owner", "admin"].includes(profile.role)) {
         const { data: groupData } = await client.from("training_groups").select("*").order("name");
-        setGroups((groupData ?? []) as Group[]);
+        setGroups(withOfficialTrainingSchedules((groupData ?? []) as Group[]));
       }
     };
     void load();

@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
+import { withOfficialTrainingSchedules } from "../lib/trainingGroupSchedule";
 import "./club-admin-family.css";
 
 type Role =
@@ -148,7 +149,7 @@ export function GroupManager({ onOpenAthlete }: { onOpenAthlete?: (id: string) =
       supabase.from("athlete_profile_settings").select("athlete_id,avatar_url"),
       supabase.from("coach_profile_settings").select("profile_id,avatar_url"),
     ]);
-    setGroups((groupData ?? []) as Group[]);
+    setGroups(withOfficialTrainingSchedules((groupData ?? []) as Group[]));
     setCoaches((coachData ?? []) as Profile[]);
     setLinks((linkData ?? []) as typeof links);
     setAthletes((athleteData ?? []) as Athlete[]);
