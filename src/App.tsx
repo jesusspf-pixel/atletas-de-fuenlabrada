@@ -961,7 +961,7 @@ function Portal({
         <nav>
           {menu.map((item) => (
             <button
-              className={section === item ? "selected" : ""}
+              className={section === item || (section === "Altas en revisión" && item === "Atletas") ? "selected" : ""}
               key={item}
               onClick={() => setSection(item)}
             >
@@ -992,7 +992,7 @@ function Portal({
           </span>
           <PwaInstall />
         </header>
-        <div className="visual-page-body" data-section={section}>
+        <div className="visual-page-body" data-section={section === "Altas en revisión" ? "Atletas" : section}>
           {portalContent}
         </div>
         <footer className="platform-credit">
@@ -1037,7 +1037,7 @@ function Admin({
   else if (section === "Configuración") content = <Settings />;
   else content = <AdminHome profile={profile} go={go} />;
   return (
-    <section className="admin-reference-page" data-admin-screen={section}>
+    <section className="admin-reference-page" data-admin-screen={section === "Altas en revisión" ? "Atletas" : section}>
       <div className="admin-reference-art" aria-hidden="true">
         <i />
         <i />
