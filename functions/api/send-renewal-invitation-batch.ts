@@ -12,7 +12,11 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (!batch) return json({ error: "El envío no existe o ha caducado." }, 404);
   if (batch.status === "completed") return json({ ok: true, alreadyCompleted: true, sent: batch.sent_count, failed: batch.failed_count });
   await fetch(`${env.SUPABASE_URL}/rest/v1/family_invitation_delivery_batches?id=eq.${batch.id}`, { method: "PATCH", headers, body: JSON.stringify({ status: "processing" }) });
-  const invitationsResponse = await fetch(`${env.SUPABASE_URL}/rest/v1/family_renewal_invitations?delivery_batch_id=eq.${batch.id}&delivery_status=in.(pending,failed)&select=id,email,token`, { headers });
+  // Pages Functions have a per-request subrequest limit. Each invitation needs
+  // three calls (mark sending, Resend, mark result), so process a safe chunk and
+  // let the caller continue the same auditable batch without duplicating sent mail.
+  const chunkSize = 12;
+  const invitationsResponse = await fetch(`${env.SUPABASE_URL}/rest/v1/family_renewal_invitations?delivery_batch_id=eq.${batch.id}&delivery_status=in.(pending,failed)&select=id,email,token&order=created_at.asc&limit=${chunkSize}`, { headers });
   const invitations = await invitationsResponse.json().catch(() => []);
   let sent = Number(batch.sent_count || 0), failed = 0;
   const failures: Array<{ id: string; error: string }> = [];
@@ -31,7 +35,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       await fetch(`${env.SUPABASE_URL}/rest/v1/family_renewal_invitations?id=eq.${invitation.id}`, { method: "PATCH", headers, body: JSON.stringify({ delivery_status: "failed", delivery_error: error }) });
     }
   }
-  const status = failed ? (sent ? "partial" : "failed") : "completed";
+  const status = failed ? (sent ? "partial" : "failed") : invitations.length < chunkSize ? "completed" : "processing";
   await fetch(`${env.SUPABASE_URL}/rest/v1/family_invitation_delivery_batches?id=eq.${batch.id}`, { method: "PATCH", headers, body: JSON.stringify({ status, sent_count: sent, failed_count: failed, result: { failures }, completed_at: new Date().toISOString() }) });
-  return json({ ok: failed === 0, status, sent, failed });
+  return json({ ok: failed === 0, status, sent, failed, processed: invitations.length, continue: status === "processing" });
 };
