@@ -744,6 +744,7 @@ function Portal({
             "Inicio",
             "Atletas",
             "Grupos",
+            "Entrenadores",
             "Cuotas",
             "Carreras",
             "Asistencia",
@@ -1026,6 +1027,7 @@ function Admin({
       <AthletesAdmin onOpenAthlete={openAthlete} statusFilter={section === "Altas en revisión" ? "pending_review" : undefined} />
     );
   else if (section === "Grupos") content = <GroupManager onOpenAthlete={openAthlete} />;
+  else if (section === "Entrenadores") content = <CoachesAdmin />;
   else if (section === "Invitaciones") content = <Invitations />;
   else if (section === "Cuotas") content = <Fees profile={profile} />;
   else if (section === "Tienda") content = <Shop profile={profile} />;
@@ -1045,6 +1047,106 @@ function Admin({
       </div>
       <div className="admin-reference-sheet">{content}</div>
     </section>
+  );
+}
+
+function CoachesAdmin() {
+  const profiles = useRows<Profile>("profiles", "id,email,full_name,phone,role");
+  const settings = useRows<{
+    profile_id: string;
+    avatar_url: string | null;
+    public_phone: string | null;
+    bio: string | null;
+  }>("coach_profile_settings", "profile_id,avatar_url,public_phone,bio");
+  const assignments = useRows<{
+    training_group_id: string;
+    coach_profile_id: string;
+  }>("training_group_coaches", "training_group_id,coach_profile_id");
+  const groups = useRows<Group>(
+    "training_groups",
+    "id,name,category_label,active,schedule_days,starts_at,ends_at,colour",
+  );
+  const coaches = profiles.rows
+    .filter((person) => person.role === "coach")
+    .sort((a, b) =>
+      (a.full_name || a.email).localeCompare(b.full_name || b.email, "es"),
+    );
+  const assignedCoaches = new Set(
+    assignments.rows.map((assignment) => assignment.coach_profile_id),
+  );
+  const error = profiles.error || settings.error || assignments.error || groups.error;
+  const initials = (person: Profile) =>
+    (person.full_name || person.email)
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase())
+      .join("");
+  return (
+    <>
+      <Header
+        title="Entrenadores"
+        text="Equipo técnico registrado y grupos que tiene asignados. Esta información solo es visible para administración."
+      />
+      <section className="coach-admin-metrics">
+        <article>
+          <small>ENTRENADORES REGISTRADOS</small>
+          <b>{coaches.length}</b>
+          <span>Con acceso al panel técnico</span>
+        </article>
+        <article>
+          <small>CON GRUPO ASIGNADO</small>
+          <b>{coaches.filter((coach) => assignedCoaches.has(coach.id)).length}</b>
+          <span>Ya vinculados a uno o más grupos</span>
+        </article>
+        <article className={coaches.some((coach) => !assignedCoaches.has(coach.id)) ? "attention" : ""}>
+          <small>SIN GRUPO</small>
+          <b>{coaches.filter((coach) => !assignedCoaches.has(coach.id)).length}</b>
+          <span>Pendientes de asignación</span>
+        </article>
+      </section>
+      {error && <p className="error-note panel">No se pudo cargar todo el equipo técnico: {error}</p>}
+      <section className="coach-admin-grid">
+        {coaches.map((coach) => {
+          const coachSettings = settings.rows.find((item) => item.profile_id === coach.id);
+          const coachGroups = assignments.rows
+            .filter((item) => item.coach_profile_id === coach.id)
+            .map((item) => groups.rows.find((group) => group.id === item.training_group_id))
+            .filter((group): group is Group => Boolean(group))
+            .sort((a, b) => a.name.localeCompare(b.name, "es", { numeric: true }));
+          return (
+            <article className="coach-admin-card" key={coach.id}>
+              <header>
+                {coachSettings?.avatar_url ? (
+                  <img src={coachSettings.avatar_url} alt="" />
+                ) : (
+                  <i>{initials(coach)}</i>
+                )}
+                <div>
+                  <small>ENTRENADOR REGISTRADO</small>
+                  <h2>{coach.full_name || "Nombre pendiente"}</h2>
+                </div>
+                <em>Activo</em>
+              </header>
+              <dl>
+                <div><dt>Correo</dt><dd>{coach.email || "No indicado"}</dd></div>
+                <div><dt>Teléfono</dt><dd>{coach.phone || coachSettings?.public_phone || "No indicado"}</dd></div>
+              </dl>
+              {coachSettings?.bio && <p>{coachSettings.bio}</p>}
+              <footer>
+                <small>GRUPOS ASIGNADOS</small>
+                <div>
+                  {coachGroups.map((group) => <span key={group.id}>{group.name}</span>)}
+                  {!coachGroups.length && <strong>Sin grupos asignados</strong>}
+                </div>
+              </footer>
+            </article>
+          );
+        })}
+        {!profiles.loading && !coaches.length && !error && (
+          <Empty>Todavía no hay entrenadores registrados.</Empty>
+        )}
+      </section>
+    </>
   );
 }
 function AdminHome({

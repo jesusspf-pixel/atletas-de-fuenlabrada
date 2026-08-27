@@ -92,7 +92,7 @@ function Root() {
       const labels = role === "coach"
         ? ["Inicio", "Mi grupo", "Carreras", "Avisos"]
         : role === "owner" || role === "admin"
-          ? ["Inicio", "Atletas", "Grupos", "Cuotas", "Carreras", "Avisos", "Tienda"]
+          ? ["Inicio", "Atletas", "Grupos", "Entrenadores", "Cuotas", "Carreras", "Avisos", "Tienda"]
           : ["Inicio", role === "parent" ? "Mis atletas" : "Mi perfil", "Carreras", "Cuotas", "Avisos", "Tienda"];
       labels.reverse().forEach(label => {
         const button = document.createElement("button");
