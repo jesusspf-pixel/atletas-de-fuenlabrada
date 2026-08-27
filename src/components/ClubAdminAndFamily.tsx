@@ -829,8 +829,10 @@ export function FamilyHome({
 
 export function FamilyAthletes({
   initialAthleteId = "",
+  dependentsOnly = false,
 }: {
   initialAthleteId?: string;
+  dependentsOnly?: boolean;
 }) {
   const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [records, setRecords] = useState<Attendance[]>([]);
@@ -868,7 +870,8 @@ export function FamilyAthletes({
   useEffect(() => {
     if (initialAthleteId) setSelectedId(initialAthleteId);
   }, [initialAthleteId]);
-  const selected = athletes.find((item) => item.id === selectedId);
+  const visibleAthletes = dependentsOnly ? athletes.filter((item) => Boolean(item.family_id)) : athletes;
+  const selected = visibleAthletes.find((item) => item.id === selectedId);
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
   const sendMessage = async (e: FormEvent) => {
@@ -890,15 +893,16 @@ export function FamilyAthletes({
     <>
       <div className="page-head">
         <div>
-          <h1>Mis atletas</h1>
+          <h1>{dependentsOnly ? "Mis menores" : "Mis atletas"}</h1>
           <p>
             Abre la ficha de cada atleta para consultar grupo, asistencia y
             carreras.
           </p>
         </div>
+        <button onClick={() => window.location.assign("/alta-menor")}>＋ Añadir menor</button>
       </div>
       <section className="cards">
-        {athletes.map((athlete) => (
+        {visibleAthletes.map((athlete) => (
           <button
             key={athlete.id}
             className={`panel athlete-summary ${selectedId === athlete.id ? "selected-row" : ""}`}
@@ -919,6 +923,7 @@ export function FamilyAthletes({
             </small>
           </button>
         ))}
+        {!visibleAthletes.length && <article className="panel"><h2>Aún no tienes menores a tu cargo</h2><p>Pulsa «Añadir menor» para iniciar su inscripción sin crear otra cuenta.</p></article>}
       </section>
       {selected && (
         <section className="athlete-detail">

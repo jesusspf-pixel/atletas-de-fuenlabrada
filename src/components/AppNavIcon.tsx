@@ -7,6 +7,7 @@ const paths:Record<string,ReactNode>={
   "Grupos":<><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></>,
   "Mi grupo":<><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M3 20a6 6 0 0 1 12 0M14 15a5 5 0 0 1 7 4.5"/></>,
   "Mis grupos":<><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M3 20a6 6 0 0 1 12 0M14 15a5 5 0 0 1 7 4.5"/></>,
+  "Mis menores":<><circle cx="8" cy="8" r="3"/><circle cx="17" cy="10" r="2.5"/><path d="M3 20a5 5 0 0 1 10 0M13 20a4 4 0 0 1 8 0"/></>,
   "Planificación":<><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 2v4M16 2v4M4 9h16M8 13h3M8 17h7"/></>,
   "Asistencia":<><path d="M5 3h14v18H5zM8 8h8"/><path d="m8 14 2 2 5-5"/></>,
   "Carreras":<><path d="M5 21V4M5 5h11l-2 4 2 4H5"/><path d="M9 21h8"/></>,

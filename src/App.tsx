@@ -776,7 +776,7 @@ function Portal({
   const memberMenu = ["parent", "adult_athlete", "minor_athlete"].includes(
     profile.role,
   )
-    ? [...baseMenu, "Marcas", "Challenge"]
+    ? [...baseMenu, ...(profile.role === "adult_athlete" ? ["Mis menores"] : []), "Marcas", "Challenge"]
     : baseMenu;
   const menu = memberMenu;
   const notices = useRows<{ id: string; created_by: string }>(
@@ -2962,6 +2962,8 @@ function Member({
     return <FamilyHome profile={profile} go={go} openAthlete={openAthlete} />;
   if (section === "Mis atletas" && profile.role === "parent")
     return <FamilyAthletes initialAthleteId={focusedAthleteId} />;
+  if (section === "Mis menores" && profile.role === "adult_athlete")
+    return <FamilyAthletes initialAthleteId={focusedAthleteId} dependentsOnly />;
   if (section === "Carreras") return <CompetitionManager profile={profile} />;
   if (section === "Cuotas") return <Fees profile={profile} />;
   if (section === "Avisos" && profile.role === "parent")

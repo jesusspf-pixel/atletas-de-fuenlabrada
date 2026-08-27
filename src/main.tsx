@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import SportsCenter from "./components/SportsCenter";
 import SelfAthleteRegistration from "./components/SelfAthleteRegistration";
+import FamilyRegistration from "./components/FamilyRegistration";
 import MemberExperience from "./components/MemberExperience";
 import PublicClubSite from "./components/PublicClubSite";
 import PublicGroupsPage from "./components/PublicGroupsPage";
@@ -29,8 +30,10 @@ function Root() {
   const [showAccess, setShowAccess] = useState(forcedAccess);
   const [role, setRole] = useState<Role | null>(null);
   const [profileId, setProfileId] = useState("");
+  const [accountEmail, setAccountEmail] = useState("");
   const sports = window.location.pathname === "/deportivo";
   const selfAthlete = window.location.pathname === "/alta-atleta";
+  const addDependent = window.location.pathname === "/alta-menor";
   const publicGroups = window.location.pathname === "/grupos-precios";
   const publicClub = window.location.pathname === "/club";
   const coachDesignPreview = window.location.pathname === "/preview-entrenador";
@@ -48,14 +51,14 @@ function Root() {
     const load = async () => {
       const { data } = await client.auth.getSession();
       setSignedIn(Boolean(data.session));
-      if (data.session) await loadRole(data.session.user.id);
-      else { setRole(null); setProfileId(""); }
+      if (data.session) { setAccountEmail(data.session.user.email || ""); await loadRole(data.session.user.id); }
+      else { setRole(null); setProfileId(""); setAccountEmail(""); }
     };
     void load();
     const { data: { subscription } } = client.auth.onAuthStateChange((_event, session) => {
       setSignedIn(Boolean(session));
-      if (session) void loadRole(session.user.id);
-      else { setRole(null); setProfileId(""); }
+      if (session) { setAccountEmail(session.user.email || ""); void loadRole(session.user.id); }
+      else { setRole(null); setProfileId(""); setAccountEmail(""); }
     });
     return () => subscription.unsubscribe();
   }, []);
@@ -280,6 +283,10 @@ function Root() {
   if (selfAthlete) {
     if (!signedIn) return <App />;
     return <SelfAthleteRegistration onDone={() => window.location.assign("/deportivo")} />;
+  }
+  if (addDependent) {
+    if (!signedIn) return <App />;
+    return <FamilyRegistration email={accountEmail} addingDependents onBack={() => window.location.assign("/")} />;
   }
   if (sports) return <SportsCenter />;
 
