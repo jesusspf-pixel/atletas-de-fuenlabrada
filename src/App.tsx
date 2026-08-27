@@ -1221,7 +1221,11 @@ function AthletesAdmin() {
     if (selected) {
       const membership = selected.memberships?.[0];
       setGroupId(selected.training_group_id || "");
-      setStatus(selected.club_status);
+      setStatus(
+        selected.club_status === "pending_review"
+          ? "active"
+          : selected.club_status,
+      );
       setLicenseStatus(selected.license_status);
       setLicenseNumber(selected.license_number || "");
       setSelectedPlan(membership?.plan || "term");
