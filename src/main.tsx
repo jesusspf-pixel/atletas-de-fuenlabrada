@@ -173,7 +173,7 @@ function Root() {
         const text = document.createElement("span"); text.textContent = "Ranking del club";
         button.replaceChildren(icon, text);
         button.addEventListener("click", () => window.location.assign("/deportivo?view=ranking"));
-        nav.appendChild(button);
+        nav.insertBefore(button, nav.querySelector(".nav-signout"));
       }
       if (role === "parent" && nav && !nav.querySelector("[data-self-athlete='true']")) {
         const button = document.createElement("button");
@@ -183,7 +183,7 @@ function Root() {
         const text = document.createElement("span"); text.textContent = "También soy atleta";
         button.replaceChildren(icon, text);
         button.addEventListener("click", () => window.location.assign("/alta-atleta"));
-        nav.appendChild(button);
+        nav.insertBefore(button, nav.querySelector(".nav-signout"));
       }
 
       if (role === "coach") {
