@@ -714,6 +714,7 @@ function Portal({
   );
   const [focusedAthleteId, setFocusedAthleteId] = useState("");
   const [adminAthleteId, setAdminAthleteId] = useState("");
+  const [adminAthleteReturnSection, setAdminAthleteReturnSection] = useState("Atletas");
   const [challengeAthleteId, setChallengeAthleteId] = useState("");
   const [ownAthleteId, setOwnAthleteId] = useState("");
   const [memberAvatarUrl, setMemberAvatarUrl] = useState("");
@@ -912,12 +913,13 @@ function Portal({
         go={setSection}
         athleteId={adminAthleteId}
         openAthlete={(id) => {
+          setAdminAthleteReturnSection(section);
           setAdminAthleteId(id);
-          setSection("Atletas");
+          setSection(section === "Altas en revisión" ? section : "Atletas");
         }}
         closeAthlete={() => {
           setAdminAthleteId("");
-          setSection("Grupos");
+          setSection(adminAthleteReturnSection);
         }}
       />
     ) : profile.role === "coach" ? (
@@ -1017,11 +1019,11 @@ function Admin({
   closeAthlete: () => void;
 }) {
   let content: ReactNode;
-  if (section === "Atletas")
+  if (section === "Atletas" || section === "Altas en revisión")
     content = athleteId ? (
       <AdminAthleteDossier athleteId={athleteId} adminProfileId={profile.id} onBack={closeAthlete} />
     ) : (
-      <AthletesAdmin onOpenAthlete={openAthlete} />
+      <AthletesAdmin onOpenAthlete={openAthlete} statusFilter={section === "Altas en revisión" ? "pending_review" : undefined} />
     );
   else if (section === "Grupos") content = <GroupManager onOpenAthlete={openAthlete} />;
   else if (section === "Invitaciones") content = <Invitations />;
@@ -1107,7 +1109,7 @@ function AdminHome({
         <Metric
           label="Altas en revisión"
           value={`${pendingRows.length}`}
-          onClick={() => go("Atletas")}
+          onClick={() => go("Altas en revisión")}
         />
         <Metric
           label="Grupos activos"
@@ -1129,7 +1131,7 @@ function AdminHome({
       <section className="two-columns">
         <article
           className="panel actionable-panel"
-          onClick={() => go("Atletas")}
+          onClick={() => go("Altas en revisión")}
         >
           <h2>
             Altas pendientes <span>Ver atletas →</span>
@@ -1196,7 +1198,7 @@ function Metric({
     </button>
   );
 }
-function AthletesAdmin({ onOpenAthlete }: { onOpenAthlete: (id: string) => void }) {
+function AthletesAdmin({ onOpenAthlete, statusFilter }: { onOpenAthlete: (id: string) => void; statusFilter?: string }) {
   const { rows, loading, error, reload } = useRows<AthleteRecord>(
     "athletes",
     "*,profiles:user_profile_id(*),training_groups(*),families(*,profiles(*)),memberships(*),consents(*),federation_license_applications(training_category,competition_category,form_data),health_declarations(relevant_condition,relevant_condition_detail,asthma_allergy_medication,injury_limitation,support_needs,additional_notes)",
@@ -1217,6 +1219,7 @@ function AthletesAdmin({ onOpenAthlete }: { onOpenAthlete: (id: string) => void 
   const [waiveEnrolment, setWaiveEnrolment] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<"monthly" | "term">("term");
   const [enrolmentFee, setEnrolmentFee] = useState("");
+  const visibleRows = statusFilter ? rows.filter((athlete) => athlete.club_status === statusFilter) : rows;
   useEffect(() => {
     if (selected) {
       const membership = selected.memberships?.[0];
@@ -1375,8 +1378,8 @@ function AthletesAdmin({ onOpenAthlete }: { onOpenAthlete: (id: string) => void 
   return (
     <>
       <Header
-        title="Atletas"
-        text="Pulsa un atleta para abrir su ficha completa y gestionar su alta, grupo y licencia."
+        title={statusFilter === "pending_review" ? "Altas en revisión" : "Atletas"}
+        text={statusFilter === "pending_review" ? "Solo aparecen las solicitudes que todavía necesitan validación administrativa." : "Pulsa un atleta para abrir su ficha completa y gestionar su alta, grupo y licencia."}
       />
       {error && (
         <p className="error-note panel">
@@ -1386,7 +1389,7 @@ function AthletesAdmin({ onOpenAthlete }: { onOpenAthlete: (id: string) => void 
       <div className="panel table">
         {loading
           ? "Cargando…"
-          : rows.map((a) => (
+          : visibleRows.map((a) => (
               <button
                 className={`row athlete-row ${selectedId === a.id ? "selected-row" : ""}`}
                 key={a.id}
@@ -1434,8 +1437,8 @@ function AthletesAdmin({ onOpenAthlete }: { onOpenAthlete: (id: string) => void 
                 <span>Ver ficha →</span>
               </button>
             ))}
-        {!loading && !rows.length && !error && (
-          <Empty>Aún no hay atletas registrados.</Empty>
+        {!loading && !visibleRows.length && !error && (
+          <Empty>{statusFilter === "pending_review" ? "No hay altas pendientes de revisión." : "Aún no hay atletas registrados."}</Empty>
         )}
       </div>
       {selected && (
