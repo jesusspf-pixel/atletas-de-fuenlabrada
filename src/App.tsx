@@ -205,9 +205,10 @@ export default function App() {
       };
 
       const currentUrl = new URL(window.location.href);
-      if (currentUrl.searchParams.get("logout") === "1") {
+      if (currentUrl.searchParams.get("logout") === "1" || currentUrl.searchParams.get("section") === "Salir") {
         await client.auth.signOut();
         currentUrl.searchParams.delete("logout");
+        currentUrl.searchParams.delete("section");
         window.history.replaceState(
           {},
           "",
@@ -945,34 +946,17 @@ function Portal({
               )}
             </button>
           ))}
-          {profile.role === "coach" && (
-            <button
-              type="button"
-              className="coach-nav-signout"
-              onClick={signOut}
-              aria-label="Cerrar sesión"
-            >
-              <i aria-hidden="true">↪</i>
-              <span>Salir</span>
-            </button>
-          )}
-        </nav>
-        <div className="side-user">
-          <b>{profile.full_name || profile.email}</b>
-          <small>
-            {profile.is_demo ? "Modo demostración" : roleName[profile.role]}
-          </small>
-          <a className="button-link outline" href="/club">
-            ← Web del club
-          </a>
-          <button className="plain" onClick={signOut}>
-            Cerrar sesión
+          <button
+            type="button"
+            className="nav-signout"
+            onClick={signOut}
+            aria-label="Cerrar sesión"
+          >
+            <AppNavIcon name="Salir" />
+            <span>Salir</span>
           </button>
-        </div>
+        </nav>
       </aside>
-      <button className="global-visible-signout" onClick={signOut}>
-        Salir
-      </button>
       <section className="club-content">
         <header className="topbar">
           <span>
