@@ -689,7 +689,9 @@ function Portal({
   profile: Profile;
   signOut: () => void;
 }) {
-  const [section, setSection] = useState("Inicio");
+  const [section, setSection] = useState(
+    () => new URLSearchParams(window.location.search).get("section") || "Inicio",
+  );
   const [focusedAthleteId, setFocusedAthleteId] = useState("");
   const [adminAthleteId, setAdminAthleteId] = useState("");
   const [challengeAthleteId, setChallengeAthleteId] = useState("");
@@ -776,7 +778,7 @@ function Portal({
   const memberMenu = ["parent", "adult_athlete", "minor_athlete"].includes(
     profile.role,
   )
-    ? [...baseMenu, ...(profile.role === "adult_athlete" ? ["Mis menores"] : []), "Marcas", "Challenge"]
+    ? [...baseMenu, "Marcas", "Challenge"]
     : baseMenu;
   const menu = memberMenu;
   const notices = useRows<{ id: string; created_by: string }>(
@@ -881,6 +883,8 @@ function Portal({
           coachProfileId={profile.id}
         />
       </>
+    ) : section === "Mis menores" && profile.role !== "minor_athlete" ? (
+      <FamilyAthletes initialAthleteId={focusedAthleteId} dependentsOnly />
     ) : ["owner", "admin"].includes(profile.role) ? (
       <Admin
         section={section}
@@ -2962,7 +2966,7 @@ function Member({
     return <FamilyHome profile={profile} go={go} openAthlete={openAthlete} />;
   if (section === "Mis atletas" && profile.role === "parent")
     return <FamilyAthletes initialAthleteId={focusedAthleteId} />;
-  if (section === "Mis menores" && profile.role === "adult_athlete")
+  if (section === "Mis menores" && profile.role !== "minor_athlete")
     return <FamilyAthletes initialAthleteId={focusedAthleteId} dependentsOnly />;
   if (section === "Carreras") return <CompetitionManager profile={profile} />;
   if (section === "Cuotas") return <Fees profile={profile} />;
@@ -3287,6 +3291,24 @@ function Settings() {
           </p>
         )}
       </form>
+      <article className="panel dependents-access-card">
+        <small>CUENTA PERSONAL · FAMILIA</small>
+        <h2>Personas a mi cargo</h2>
+        <p>
+          Este acceso es personal: permite añadir menores a tu propia cuenta sin
+          afectar a tus permisos de administración.
+        </p>
+        <button
+          type="button"
+          onClick={() =>
+            window.location.assign(
+              `/?section=${encodeURIComponent("Mis menores")}`,
+            )
+          }
+        >
+          Gestionar personas a mi cargo →
+        </button>
+      </article>
     </>
   );
 }

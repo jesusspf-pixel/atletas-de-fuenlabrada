@@ -164,5 +164,11 @@ export default function MemberExperience({ profileId }: { profileId: string }) {
       <div><span><i>↗</i><b>Marcas de entrenamiento</b><small>Registro personal y evolución</small></span><span><i>★</i><b>Resultados oficiales</b><small>Competiciones y mejores marcas</small></span></div>
       <button onClick={() => window.location.assign(`/?section=${encodeURIComponent("Marcas")}`)}>Abrir mi ficha deportiva →</button>
     </section>
+    <section className="profile-sports-summary profile-sports-next dependents-access-card">
+      <small>FAMILIA</small>
+      <h2>Personas a mi cargo</h2>
+      <p>Añade y gestiona menores desde tu misma cuenta. Tu perfil deportivo seguirá siendo el principal y la cuenta pasará también a funcionar como cuenta de familia.</p>
+      <button onClick={() => window.location.assign(`/?section=${encodeURIComponent("Mis menores")}`)}>Gestionar personas a mi cargo →</button>
+    </section>
   </section></section>;
 }

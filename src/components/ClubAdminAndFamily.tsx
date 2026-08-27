@@ -846,18 +846,43 @@ export function FamilyAthletes({
   const [selectedId, setSelectedId] = useState("");
   const load = async () => {
     if (!supabase) return;
-    const [{ data: athleteData }, { data: recordData }, { data: entryData }] =
-      await Promise.all([
-        supabase.from("athletes").select("*,training_groups(*)"),
+    const { data: authData } = await supabase.auth.getUser();
+    const profileId = authData.user?.id;
+    if (!profileId) return;
+    const { data: familyData } = await supabase
+      .from("families")
+      .select("id")
+      .eq("primary_profile_id", profileId);
+    const familyIds = (familyData ?? []).map((item) => item.id);
+    if (!familyIds.length) {
+      setAthletes([]);
+      setRecords([]);
+      setEntries([]);
+      return;
+    }
+    const { data: athleteData } = await supabase
+      .from("athletes")
+      .select("*,training_groups(*)")
+      .in("family_id", familyIds);
+    const athleteIds = (athleteData ?? []).map((item) => item.id);
+    if (!athleteIds.length) {
+      setAthletes([]);
+      setRecords([]);
+      setEntries([]);
+      return;
+    }
+    const [{ data: recordData }, { data: entryData }] = await Promise.all([
         supabase
           .from("attendance_records")
           .select(
             "athlete_id,attended,marked_at,attendance_sessions(starts_at)",
           )
+          .in("athlete_id", athleteIds)
           .order("marked_at", { ascending: false }),
         supabase
           .from("competition_entries")
           .select("athlete_id,status,competition_events(title,starts_at)")
+          .in("athlete_id", athleteIds)
           .order("created_at", { ascending: false }),
       ]);
     setAthletes((athleteData ?? []) as Athlete[]);
@@ -893,7 +918,7 @@ export function FamilyAthletes({
     <>
       <div className="page-head">
         <div>
-          <h1>{dependentsOnly ? "Mis menores" : "Mis atletas"}</h1>
+          <h1>{dependentsOnly ? "Personas a mi cargo" : "Mis atletas"}</h1>
           <p>
             Abre la ficha de cada atleta para consultar grupo, asistencia y
             carreras.
