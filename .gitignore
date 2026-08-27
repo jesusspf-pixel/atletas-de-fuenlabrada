@@ -2,6 +2,11 @@ node_modules/
 dist/
 android/app/src/main/assets/public/
 ios/App/App/public/
+.toolchains/
+.android-local/
+.gradle-local/
+mobile/releases/*.apk
+mobile/releases/*.aab
 .env
 .env.local
 .env.*.local
