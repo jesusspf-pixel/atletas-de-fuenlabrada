@@ -71,6 +71,12 @@ type Athlete = {
   family_id: string | null;
   user_profile_id: string | null;
   training_groups?: Group | null;
+  birth_date?: string | null;
+  federative_sex?: string | null;
+  dni_nie?: string | null;
+  training_category?: string | null;
+  official_competition_category?: string | null;
+  medical_notes?: string | null;
 };
 type Family = {
   relationship_to_athlete: string;
@@ -84,6 +90,20 @@ type Family = {
 };
 type AthleteRecord = Athlete & {
   families?: Family | null;
+  profiles?: Profile | null;
+  federation_license_applications?: {
+    training_category: string | null;
+    competition_category: string | null;
+    form_data: Record<string, string | null> | null;
+  }[];
+  health_declarations?: {
+    relevant_condition: boolean;
+    relevant_condition_detail: string | null;
+    asthma_allergy_medication: string | null;
+    injury_limitation: string | null;
+    support_needs: string | null;
+    additional_notes: string | null;
+  }[];
   memberships?: {
     id: string;
     plan: "monthly" | "term";
@@ -1179,7 +1199,7 @@ function Metric({
 function AthletesAdmin() {
   const { rows, loading, error, reload } = useRows<AthleteRecord>(
     "athletes",
-    "*,training_groups(*),families(*,profiles(*)),memberships(*),consents(*)",
+    "*,profiles:user_profile_id(*),training_groups(*),families(*,profiles(*)),memberships(*),consents(*),federation_license_applications(training_category,competition_category,form_data),health_declarations(relevant_condition,relevant_condition_detail,asthma_allergy_medication,injury_limitation,support_needs,additional_notes)",
   );
   const groups = useRows<Group>("training_groups");
   const avatarSettings = useRows<{
@@ -1346,6 +1366,8 @@ function AthletesAdmin() {
   const avatarFor = (id: string) =>
     avatarSettings.rows.find((item) => item.athlete_id === id)?.avatar_url ||
     "";
+  const registrationContact = (athlete: AthleteRecord) =>
+    athlete.families?.profiles || athlete.profiles || null;
   return (
     <>
       <Header
@@ -1384,9 +1406,9 @@ function AthletesAdmin() {
                     {a.first_name} {a.last_name}
                   </b>
                   <small>{a.training_groups?.name || "Sin grupo"}</small>
-                  {a.families?.profiles && (
+                  {registrationContact(a) && (
                     <small>
-                      {a.families.profiles.email} · {a.families.profiles.phone || a.families.emergency_phone || "Sin teléfono"}
+                      {registrationContact(a)?.email} · {registrationContact(a)?.phone || a.families?.emergency_phone || "Sin teléfono"}
                     </small>
                   )}
                 </span>
@@ -1437,6 +1459,17 @@ function AthletesAdmin() {
           </Header>
           <div className="detail-grid">
             <article className="panel">
+              <h2>Datos completos del atleta</h2>
+              <p><b>Nombre:</b> {selected.first_name} {selected.last_name}</p>
+              <p><b>Fecha de nacimiento:</b> {selected.birth_date ? new Date(`${selected.birth_date}T12:00:00`).toLocaleDateString("es-ES") : "No indicada"}</p>
+              <p><b>Sexo federativo:</b> {selected.federative_sex === "F" ? "Femenino" : selected.federative_sex === "M" ? "Masculino" : "No indicado"}</p>
+              <p><b>DNI / NIE:</b> {selected.dni_nie || "No indicado"}</p>
+              <p><b>Categoría de entrenamiento:</b> {selected.training_category || "No indicada"}</p>
+              <p><b>Categoría de competición:</b> {selected.official_competition_category || "No indicada"}</p>
+              <p><b>Correo:</b> {registrationContact(selected)?.email || "No indicado"}</p>
+              <p><b>Teléfono:</b> {registrationContact(selected)?.phone || "No indicado"}</p>
+            </article>
+            <article className="panel">
               <h2>Padre, madre o tutor</h2>
               <p>
                 <b>
@@ -1458,7 +1491,38 @@ function AthletesAdmin() {
                 Relación:{" "}
                 {selected.families?.relationship_to_athlete || "No indicada"}
               </p>
+              <p><b>DNI / NIE del responsable:</b> {selected.families?.dni_nie || "No indicado"}</p>
+              <p><b>Domicilio:</b> {selected.families?.address_line || "No indicado"}</p>
+              <p><b>Código postal:</b> {selected.families?.postal_code || "No indicado"}</p>
+              <p><b>Localidad:</b> {selected.families?.locality || "No indicada"}</p>
+              <p><b>Provincia:</b> {selected.families?.province || "No indicada"}</p>
             </article>
+            {selected.federation_license_applications?.[0] && (() => {
+              const application = selected.federation_license_applications![0];
+              const data = application.form_data || {};
+              return <article className="panel">
+                <h2>Ficha federativa</h2>
+                <p><b>Nacionalidad:</b> {data.nationality || "No indicada"}</p>
+                <p><b>Localidad de nacimiento:</b> {data.birthplace || "No indicada"}</p>
+                <p><b>Licencia anterior:</b> {data.previous_license || "No indicada"}</p>
+                <p><b>Club anterior:</b> {data.previous_club || "No indicado"}</p>
+                <p><b>Categoría FAM:</b> {application.training_category || "No indicada"}</p>
+                <p><b>Categoría de competición:</b> {application.competition_category || "No indicada"}</p>
+              </article>;
+            })()}
+            {selected.health_declarations?.[0] && (() => {
+              const health = selected.health_declarations![0];
+              return <article className="panel">
+                <h2>Información de salud declarada</h2>
+                <small>Información privada visible únicamente para administración autorizada.</small>
+                <p><b>Condición relevante:</b> {health.relevant_condition ? "Sí" : "No"}</p>
+                <p><b>Detalle:</b> {health.relevant_condition_detail || "No indicado"}</p>
+                <p><b>Asma, alergias o medicación:</b> {health.asthma_allergy_medication || "No indicado"}</p>
+                <p><b>Lesión o limitación:</b> {health.injury_limitation || "No indicada"}</p>
+                <p><b>Necesidades de apoyo:</b> {health.support_needs || "No indicadas"}</p>
+                <p><b>Observaciones:</b> {health.additional_notes || selected.medical_notes || "No indicadas"}</p>
+              </article>;
+            })()}
             <article className="panel">
               <h2>Solicitud económica</h2>
               <p>
