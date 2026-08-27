@@ -1,5 +1,5 @@
--- PostgreSQL infiere las ramas de CASE como text. La columna usa el enum
--- public.club_status, por lo que el resultado debe tiparse explícitamente.
+-- Completa la corrección de approve_registration_and_schedule: los CASE que
+-- escriben enums deben tiparse expresamente en PostgreSQL.
 create or replace function public.approve_registration_and_schedule(target_athlete_id uuid, waive_enrolment boolean default false)
 returns table(enrolment_draft_id uuid, athlete_id uuid)
 language plpgsql security definer set search_path=public as $$

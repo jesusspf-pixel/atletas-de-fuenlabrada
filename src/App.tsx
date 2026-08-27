@@ -1384,6 +1384,11 @@ function AthletesAdmin() {
                     {a.first_name} {a.last_name}
                   </b>
                   <small>{a.training_groups?.name || "Sin grupo"}</small>
+                  {a.families?.profiles && (
+                    <small>
+                      {a.families.profiles.email} · {a.families.profiles.phone || a.families.emergency_phone || "Sin teléfono"}
+                    </small>
+                  )}
                 </span>
                 <span>
                   {a.club_status === "pending_review"
