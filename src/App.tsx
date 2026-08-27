@@ -1021,7 +1021,7 @@ function Admin({
     content = athleteId ? (
       <AdminAthleteDossier athleteId={athleteId} adminProfileId={profile.id} onBack={closeAthlete} />
     ) : (
-      <AthletesAdmin />
+      <AthletesAdmin onOpenAthlete={openAthlete} />
     );
   else if (section === "Grupos") content = <GroupManager onOpenAthlete={openAthlete} />;
   else if (section === "Invitaciones") content = <Invitations />;
@@ -1196,7 +1196,7 @@ function Metric({
     </button>
   );
 }
-function AthletesAdmin() {
+function AthletesAdmin({ onOpenAthlete }: { onOpenAthlete: (id: string) => void }) {
   const { rows, loading, error, reload } = useRows<AthleteRecord>(
     "athletes",
     "*,profiles:user_profile_id(*),training_groups(*),families(*,profiles(*)),memberships(*),consents(*),federation_license_applications(training_category,competition_category,form_data),health_declarations(relevant_condition,relevant_condition_detail,asthma_allergy_medication,injury_limitation,support_needs,additional_notes)",
@@ -1390,7 +1390,7 @@ function AthletesAdmin() {
               <button
                 className={`row athlete-row ${selectedId === a.id ? "selected-row" : ""}`}
                 key={a.id}
-                onClick={() => setSelectedId(a.id)}
+                onClick={() => onOpenAthlete(a.id)}
               >
                 <span className="admin-athlete-avatar">
                   {avatarFor(a.id) ? (
