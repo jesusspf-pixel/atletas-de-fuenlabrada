@@ -62,12 +62,11 @@ export default function AthleteProfileEditor({ athleteId, canEdit }: { athleteId
   };
 
   const success = notice === "Perfil actualizado." || notice.includes("guardada y vinculada");
-  const showLocalPreview = window.location.pathname === "/deportivo";
-
   return <article className="panel athlete-profile-card">
-    {showLocalPreview && <div className="athlete-cover athlete-cover-club">
+    <div className="athlete-cover athlete-cover-club athlete-profile-identity">
       {settings.avatar_url ? <img className="athlete-avatar" src={settings.avatar_url} alt="Foto de perfil del atleta" onError={() => setNotice("La foto está guardada, pero el navegador no puede mostrar este formato. Prueba con JPG, PNG o WebP.")} /> : <div className="athlete-avatar athlete-avatar-placeholder">AF</div>}
-    </div>}
+      <div><small>IMAGEN DEL CORREDOR</small><b>Tu foto de perfil</b><span>Visible en grupos, comunicaciones y Club Challenge.</span></div>
+    </div>
     {settings.bio && <p className="athlete-bio">{settings.bio}</p>}
     {canEdit && !editing && <div className="profile-editor-collapsed"><button type="button" className="outline" onClick={() => setEditing(true)}>Editar foto de perfil</button></div>}
     {canEdit && editing && <div className="stacked-form"><div className="table-title"><h2>Personaliza tu ficha</h2>{settings.avatar_url && <button type="button" className="plain" onClick={() => setEditing(false)}>Cerrar edición</button>}</div><label>Foto de perfil<input type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" disabled={busy} onChange={event => void uploadAvatar(event)} /></label>{notice && <p className={success ? "success-note" : "error-note"}>{notice}</p>}<label>Presentación<textarea maxLength={280} value={settings.bio || ""} onChange={event => setSettings(current => ({ ...current, bio: event.target.value }))} placeholder="Cuéntanos algo sobre ti como atleta…" /></label><label className="check-line"><input type="checkbox" checked={settings.challenge_opt_in} onChange={event => setSettings(current => ({ ...current, challenge_opt_in: event.target.checked, show_activity_to_club: event.target.checked ? current.show_activity_to_club : false }))} />Participar en Club Challenge</label><label className="check-line"><input type="checkbox" disabled={!settings.challenge_opt_in} checked={settings.show_activity_to_club} onChange={event => setSettings(current => ({ ...current, show_activity_to_club: event.target.checked }))} />Compartir mis estadísticas de actividad con el club</label><small>La foto se guarda al seleccionarla y será tu imagen en Challenge, comunicaciones y grupos. El fondo utiliza siempre la identidad oficial del club.</small><button type="button" disabled={busy} onClick={() => void save({ ...settings, cover_url: null })}>{busy ? "Guardando…" : "Guardar cambios"}</button></div>}
