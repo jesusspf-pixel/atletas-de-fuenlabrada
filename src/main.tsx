@@ -25,7 +25,7 @@ type Role = "owner" | "admin" | "coach" | "parent" | "adult_athlete" | "minor_at
 
 function Root() {
   const params = new URLSearchParams(window.location.search);
-  const forcedAccess = params.has("access") || params.has("signup") || params.has("invitation") || params.has("code") || window.location.hash.includes("type=recovery");
+  const forcedAccess = params.has("access") || params.has("signup") || params.has("invitation") || params.has("code") || params.has("error_description") || window.location.hash.includes("type=recovery") || window.location.hash.includes("error_description");
   const [signedIn, setSignedIn] = useState(false);
   const [showAccess, setShowAccess] = useState(forcedAccess);
   const [role, setRole] = useState<Role | null>(null);

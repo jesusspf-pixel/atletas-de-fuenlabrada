@@ -454,21 +454,33 @@ function Access() {
   const [kind, setKind] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState(() => {
+    const current = new URL(window.location.href);
+    const queryError = current.searchParams.get("error_description");
+    const hash = new URLSearchParams(current.hash.replace(/^#/, ""));
+    const callbackError = queryError || hash.get("error_description");
+    return callbackError
+      ? `No se pudo confirmar el correo: ${callbackError.replace(/\+/g, " ")}. Solicita un enlace nuevo.`
+      : "";
+  });
   const [busy, setBusy] = useState(false);
+  const needsConfirmation = /email not confirmed|confirmar el correo|confirm.*email/i.test(message);
+  const confirmationRedirect = () => {
+    const current = new URL(window.location.href);
+    const redirect = new URL("/?access=1", window.location.origin);
+    const invitationToken = current.searchParams.get("invitation");
+    const renewalToken = current.searchParams.get("renewal");
+    if (invitationToken) redirect.searchParams.set("invitation", invitationToken);
+    if (renewalToken) redirect.searchParams.set("renewal", renewalToken);
+    return redirect.toString();
+  };
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (!supabase) return;
     const client = supabase;
     setBusy(true);
     setMessage("");
-    const current = new URL(window.location.href);
-    const invitationToken = current.searchParams.get("invitation");
-    const renewalToken = current.searchParams.get("renewal");
-    const redirect = new URL("/?access=1", window.location.origin);
-    if (invitationToken)
-      redirect.searchParams.set("invitation", invitationToken);
-    if (renewalToken) redirect.searchParams.set("renewal", renewalToken);
+    const redirect = confirmationRedirect();
     if (kind === "login") {
       const result = await client.auth.signInWithPassword({
         email,
@@ -482,7 +494,7 @@ function Access() {
       client.auth.signUp({
         email,
         password,
-        options: { emailRedirectTo: redirect.toString() },
+        options: { emailRedirectTo: redirect },
       });
     let result = await signup();
     if (
@@ -505,6 +517,24 @@ function Access() {
       return;
     }
     setMessage("Cuenta creada. Revisa tu correo y confirma la cuenta.");
+  };
+  const resendConfirmation = async () => {
+    if (!supabase || !email) {
+      setMessage("Escribe primero el correo de la cuenta.");
+      return;
+    }
+    setBusy(true);
+    const { error } = await supabase.auth.resend({
+      type: "signup",
+      email,
+      options: { emailRedirectTo: confirmationRedirect() },
+    });
+    setBusy(false);
+    setMessage(
+      error
+        ? `No se pudo enviar el nuevo correo: ${error.message}`
+        : "Nuevo correo enviado. Utiliza únicamente el enlace más reciente.",
+    );
   };
   return (
     <main className="secure-screen">
@@ -546,6 +576,11 @@ function Access() {
           </button>
         </form>
         {message && <p className="error-note">{message}</p>}
+        {needsConfirmation && (
+          <button className="outline" disabled={busy} onClick={() => void resendConfirmation()}>
+            Enviar un nuevo correo de confirmación
+          </button>
+        )}
         <button
           className="plain"
           onClick={() => {
