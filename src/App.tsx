@@ -701,9 +701,9 @@ function useRows<T>(table: string, select = "*") {
   const [rows, setRows] = useState<T[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const reload = async () => {
+  const reload = async (silent = false) => {
     if (!supabase) return;
-    setLoading(true);
+    if (!silent) setLoading(true);
     setError("");
     const { data, error: queryError } = await supabase
       .from(table)
@@ -714,6 +714,18 @@ function useRows<T>(table: string, select = "*") {
   };
   useEffect(() => {
     void reload();
+    const refresh = () => void reload(true);
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    const interval = window.setInterval(refresh, 30_000);
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, [table, select]);
   return { rows, loading, error, reload };
 }
