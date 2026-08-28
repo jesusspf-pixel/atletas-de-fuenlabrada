@@ -10,6 +10,7 @@ type RuleSet = {
 type Membership = { id: string; season: string; plan: "monthly" | "term"; athletes?: { first_name: string; last_name: string } | null };
 type Draft = {
   id: string; membership_id: string; charge_kind: "enrolment" | "recurring" | "manual"; scheduled_for: string;
+  period_starts_on: string | null; period_ends_on: string | null;
   calculated_amount_cents: number; approved_amount_cents: number | null; discount_cents: number; status: string;
   admin_note: string | null; override_reason: string | null; athletes?: { first_name: string; last_name: string } | null;
   memberships?: { season: string; plan: string } | null;
@@ -36,7 +37,7 @@ export default function BillingControlCenter() {
     const [rulesResult, membershipsResult, draftsResult] = await Promise.all([
       client.from("club_billing_rules").select("*").eq("id", true).maybeSingle(),
       client.from("memberships").select("id,season,plan,athletes(first_name,last_name)").order("created_at", { ascending: false }),
-      client.from("billing_charge_drafts").select("id,membership_id,charge_kind,scheduled_for,calculated_amount_cents,approved_amount_cents,discount_cents,status,admin_note,override_reason,athletes(first_name,last_name),memberships(season,plan)").order("scheduled_for", { ascending: true }),
+      client.from("billing_charge_drafts").select("id,membership_id,charge_kind,scheduled_for,period_starts_on,period_ends_on,calculated_amount_cents,approved_amount_cents,discount_cents,status,admin_note,override_reason,athletes(first_name,last_name),memberships(season,plan)").order("scheduled_for", { ascending: true }),
     ]);
     if (rulesResult.data) setRules(rulesResult.data as RuleSet);
     setMemberships((membershipsResult.data ?? []) as unknown as Membership[]);
