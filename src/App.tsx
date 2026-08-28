@@ -277,6 +277,7 @@ export default function App() {
     return (
       <AdultRegistration
         email={session.user.email ?? ""}
+        renewalToken={renewal}
         onBack={() => {
           setRegister(null);
           void supabase?.auth.signOut();
@@ -305,6 +306,7 @@ export default function App() {
       "adult" ? (
       <AdultRegistration
         email={session.user.email ?? ""}
+        renewalToken={renewal}
         onBack={() => {
           setRegister(null);
           void supabase?.auth.signOut();
