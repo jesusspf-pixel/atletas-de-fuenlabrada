@@ -53,7 +53,7 @@ export async function onRequestPost(context: any) {
     if (!env.STRIPE_SECRET_KEY) return json({ error: "El servicio de tarjeta no está configurado todavía." }, 503);
 
     const authorization = context.request.headers.get("authorization") || "";
-    const requestBody = await context.request.json().catch(() => ({})) as { returnTo?: unknown };
+    const requestBody = await context.request.json().catch(() => ({})) as { returnTo?: unknown; renewalToken?: unknown };
     if (!authorization.startsWith("Bearer ")) return json({ error: "Inicia sesión para añadir la tarjeta." }, 401);
 
     const token = authorization.slice(7);
@@ -94,6 +94,24 @@ export async function onRequestPost(context: any) {
 
     const origin = new URL(context.request.url).origin;
     const registration = requestBody.returnTo === "adult" ? "adult" : "family";
+    const renewalToken = typeof requestBody.renewalToken === "string" && /^[0-9a-f-]{36}$/i.test(requestBody.renewalToken)
+      ? requestBody.renewalToken
+      : "";
+    const successUrl = new URL(`${origin}/`);
+    successUrl.searchParams.set("access", "1");
+    successUrl.searchParams.set("section", "Cuotas");
+    successUrl.searchParams.set("payment_method", "updated");
+    successUrl.searchParams.set("registration", registration);
+    successUrl.searchParams.set("checkout_session_id", "{CHECKOUT_SESSION_ID}");
+    const cancelUrl = new URL(`${origin}/`);
+    cancelUrl.searchParams.set("access", "1");
+    cancelUrl.searchParams.set("section", "Cuotas");
+    cancelUrl.searchParams.set("payment_method", "cancelled");
+    cancelUrl.searchParams.set("registration", registration);
+    if (renewalToken) {
+      successUrl.searchParams.set("renewal", renewalToken);
+      cancelUrl.searchParams.set("renewal", renewalToken);
+    }
     const checkoutParams = new URLSearchParams({
       mode: "setup",
       // Checkout requires a currency for a setup-only session. The club bills in EUR.
@@ -101,8 +119,8 @@ export async function onRequestPost(context: any) {
       customer: customerId,
       // El ID permite comprobar en el servidor que Stripe terminó el Setup antes
       // de enviar la inscripción. Nunca se acepta un "OK" solo desde el navegador.
-      success_url: `${origin}/?access=1&section=Cuotas&payment_method=updated&registration=${registration}&checkout_session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${origin}/?access=1&section=Cuotas&payment_method=cancelled&registration=${registration}`,
+      success_url: successUrl.toString(),
+      cancel_url: cancelUrl.toString(),
     });
     const checkout = await stripePost(env.STRIPE_SECRET_KEY, "checkout/sessions", checkoutParams);
     if (!checkout.response.ok || typeof checkout.data.url !== "string") {
