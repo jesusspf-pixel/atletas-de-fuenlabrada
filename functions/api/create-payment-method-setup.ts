@@ -112,6 +112,13 @@ export async function onRequestPost(context: any) {
       successUrl.searchParams.set("renewal", renewalToken);
       cancelUrl.searchParams.set("renewal", renewalToken);
     }
+    // Stripe replaces this placeholder only when the braces remain literal.
+    // URLSearchParams percent-encodes them, which made the app receive the
+    // marker instead of a real `cs_...` session id after returning from Stripe.
+    const stripeSuccessUrl = successUrl.toString().replace(
+      /%7BCHECKOUT_SESSION_ID%7D/gi,
+      "{CHECKOUT_SESSION_ID}",
+    );
     const checkoutParams = new URLSearchParams({
       mode: "setup",
       // Checkout requires a currency for a setup-only session. The club bills in EUR.
@@ -119,7 +126,7 @@ export async function onRequestPost(context: any) {
       customer: customerId,
       // El ID permite comprobar en el servidor que Stripe terminó el Setup antes
       // de enviar la inscripción. Nunca se acepta un "OK" solo desde el navegador.
-      success_url: successUrl.toString(),
+      success_url: stripeSuccessUrl,
       cancel_url: cancelUrl.toString(),
     });
     const checkout = await stripePost(env.STRIPE_SECRET_KEY, "checkout/sessions", checkoutParams);
