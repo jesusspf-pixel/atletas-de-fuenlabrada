@@ -36,6 +36,9 @@ type Athlete = {
   license_number: string | null;
   training_group_id: string | null;
   family_id: string | null;
+  birth_date?: string;
+  training_category?: string | null;
+  user_profile_id?: string | null;
   training_groups?: Group | null;
 };
 type Attendance = {
@@ -693,7 +696,7 @@ export function FamilyHome({
       <section className="metric-grid family-metrics">
         <button
           className="metric metric-action"
-          onClick={() => athletes[0] && openAthlete(athletes[0].id)}
+          onClick={() => go("Mis atletas")}
         >
           <small>Atletas inscritos</small>
           <b>{athletes.length}</b>
@@ -701,7 +704,7 @@ export function FamilyHome({
         </button>
         <button
           className="metric metric-action"
-          onClick={() => athletes[0] && openAthlete(athletes[0].id)}
+          onClick={() => go("Mis atletas")}
         >
           <small>Asistencias recientes</small>
           <b>{records.filter((record) => record.attended).length}</b>
@@ -802,13 +805,10 @@ export function FamilyHome({
                 checked={pref.email}
                 onChange={(e) => setPref({ ...pref, email: e.target.checked })}
               />
-              Preparar por email
+              Recibir también por email
             </label>
           </fieldset>
-          <small>
-            Los emails quedarán preparados hasta conectar el proveedor de correo
-            del club.
-          </small>
+          <small>Los avisos se enviarán por los canales que selecciones.</small>
           <button onClick={() => void savePreference()}>
             Guardar preferencias
           </button>
@@ -899,6 +899,9 @@ export function FamilyAthletes({
   const selected = visibleAthletes.find((item) => item.id === selectedId);
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
+  const [minorEmail, setMinorEmail] = useState("");
+  const [accessNotice, setAccessNotice] = useState("");
+  const [invitingAccess, setInvitingAccess] = useState(false);
   const sendMessage = async (e: FormEvent) => {
     e.preventDefault();
     if (!supabase || !selected || !message.trim()) return;
@@ -913,6 +916,24 @@ export function FamilyAthletes({
     alert(
       "Mensaje enviado al entrenador asignado. Si no hay entrenador, lo recibe el club.",
     );
+  };
+  const inviteMinorAccess = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!supabase || !selected || !minorEmail.trim()) return;
+    setInvitingAccess(true);
+    setAccessNotice("");
+    const { data: { session } } = await supabase.auth.getSession();
+    const response = await fetch("/api/invite-minor-access", {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${session?.access_token || ""}` },
+      body: JSON.stringify({ athleteId: selected.id, email: minorEmail.trim() }),
+    });
+    const result = await response.json().catch(() => ({})) as { error?: string };
+    setInvitingAccess(false);
+    if (!response.ok) return setAccessNotice(result.error || "No se pudo crear el acceso.");
+    setAccessNotice(`Invitación enviada a ${minorEmail.trim()}. El acceso solo mostrará su información deportiva.`);
+    setMinorEmail("");
+    await load();
   };
   return (
     <>
@@ -981,6 +1002,21 @@ export function FamilyAthletes({
                   ? selected.license_number || "Activa"
                   : "Pendiente"}
               </p>
+            </article>
+            <article className="panel minor-access-card">
+              <h2>Acceso personal del atleta</h2>
+              {selected.user_profile_id ? (
+                <p className="success-note">Este atleta ya tiene su acceso individual vinculado.</p>
+              ) : ["Sub 6", "Sub 8", "Sub 10", "Sub 12"].includes(selected.training_category || "") ? (
+                <p>Disponible desde la categoría Sub-14.</p>
+              ) : (
+                <form className="minor-access" onSubmit={inviteMinorAccess}>
+                  <p>Recibirá una invitación para consultar únicamente entrenamientos, calendario, avisos, competiciones y sus propias marcas.</p>
+                  <label>Correo personal del atleta<input required type="email" value={minorEmail} onChange={(event) => setMinorEmail(event.target.value)} placeholder="correo del atleta" /></label>
+                  <button disabled={invitingAccess}>{invitingAccess ? "Enviando…" : "Crear acceso individual"}</button>
+                </form>
+              )}
+              {accessNotice && <p className={accessNotice.startsWith("Invitación") ? "success-note" : "error-note"}>{accessNotice}</p>}
             </article>
             <article className="panel">
               <h2>Últimas asistencias</h2>

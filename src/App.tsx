@@ -802,14 +802,16 @@ function Portal({
             "Tienda",
             "Configuración",
           ]
-        : [
-            "Inicio",
-            profile.role === "parent" ? "Mis atletas" : "Mi perfil",
-            "Carreras",
-            "Cuotas",
-            "Avisos",
-            "Tienda",
-          ];
+        : profile.role === "minor_athlete"
+          ? ["Inicio", "Mi perfil", "Carreras", "Avisos"]
+          : [
+              "Inicio",
+              profile.role === "parent" ? "Mis atletas" : "Mi perfil",
+              "Carreras",
+              "Cuotas",
+              "Avisos",
+              "Tienda",
+            ];
   useEffect(() => {
     if (!supabase) return;
     void (async () => {
@@ -846,11 +848,11 @@ function Portal({
       );
     })();
   }, [profile.id]);
-  const memberMenu = ["parent", "adult_athlete", "minor_athlete"].includes(
-    profile.role,
-  )
-    ? [...baseMenu, "Marcas", "Challenge"]
-    : baseMenu;
+  const memberMenu = profile.role === "minor_athlete"
+    ? [...baseMenu, "Marcas"]
+    : ["parent", "adult_athlete"].includes(profile.role)
+      ? [...baseMenu, "Marcas", "Challenge"]
+      : baseMenu;
   const menu = memberMenu;
   const notices = useRows<{ id: string; created_by: string }>(
     "announcements",
@@ -911,7 +913,9 @@ function Portal({
         ? "member-next-shell"
         : "admin-next-shell";
   const portalContent =
-    section === "Challenge" ? (
+    profile.role === "minor_athlete" && section === "Challenge" ? (
+      <><Header title="Acceso deportivo" text="El Challenge se gestiona desde la cuenta familiar." /><article className="panel"><h2>Sección reservada a la familia</h2><p>El padre, madre o tutor puede decidir la participación en el Challenge desde su cuenta.</p></article></>
+    ) : section === "Challenge" ? (
       challengeAthleteId ? (
         <>
           <Header
@@ -3189,6 +3193,8 @@ function Member({
   openAthlete: (id: string) => void;
   focusedAthleteId: string;
 }) {
+  if (profile.role === "minor_athlete" && ["Cuotas", "Tienda", "Mis atletas", "Mis menores"].includes(section))
+    return <><Header title="Acceso deportivo" text="Este perfil muestra únicamente la información deportiva del atleta." /><article className="panel"><h2>Sección reservada a la familia</h2><p>Las cuotas, compras y gestiones familiares solo están disponibles en la cuenta del padre, madre o tutor.</p></article></>;
   if (section === "Inicio" && profile.role === "parent")
     return <FamilyHome profile={profile} go={go} openAthlete={openAthlete} />;
   if (section === "Mis atletas" && profile.role === "parent")

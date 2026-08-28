@@ -141,7 +141,7 @@ function Root() {
     };
 
     const mountMemberExperience = () => {
-      if (role !== "adult_athlete" || !profileId) return;
+      if (!["adult_athlete", "minor_athlete"].includes(role || "") || !profileId) return;
       const content = document.querySelector<HTMLElement>(".club-content");
       if (!content) return;
       let mount = document.getElementById("member-experience-root");
