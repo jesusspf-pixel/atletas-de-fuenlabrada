@@ -568,6 +568,9 @@ export function FamilyHome({
   const [pref, setPref] = useState({ enabled: false, app: true, email: false });
   const [familyId, setFamilyId] = useState("");
   const [notice, setNotice] = useState("");
+  const [guardians,setGuardians]=useState<{id:string;relationship:string;profiles?:{full_name:string|null;email:string}|null}[]>([]);
+  const [guardianEmail,setGuardianEmail]=useState("");
+  const [guardianRelationship,setGuardianRelationship]=useState("padre");
   const load = async () => {
     if (!supabase) return;
     const [
@@ -627,6 +630,8 @@ export function FamilyHome({
           app: data.channels.includes("app"),
           email: data.channels.includes("email"),
         });
+      const {data:guardianData}=await supabase.from("family_guardians").select("id,relationship,profiles(full_name,email)").eq("family_id",family).eq("access_status","active");
+      setGuardians((guardianData||[]) as unknown as typeof guardians);
     }
   };
   useEffect(() => {
@@ -648,6 +653,7 @@ export function FamilyHome({
       });
     setNotice(error ? error.message : "Preferencias de asistencia guardadas.");
   };
+  const addGuardian=async(e:FormEvent)=>{e.preventDefault();if(!supabase||!athletes[0]||!guardianEmail.trim())return;setNotice("");const {data:{session}}=await supabase.auth.getSession();const response=await fetch("/api/invite-family-guardian",{method:"POST",headers:{"content-type":"application/json",authorization:`Bearer ${session?.access_token||""}`},body:JSON.stringify({athleteId:athletes[0].id,email:guardianEmail,relationship:guardianRelationship})});const result=await response.json().catch(()=>({}));if(!response.ok)return setNotice(result.error||"No se pudo añadir el tutor.");setGuardianEmail("");setNotice(result.existing?"Tutor adicional vinculado.":"Invitación enviada al tutor adicional.");await load();};
   const nextPayment = payments.find((item) =>
     ["awaiting_admin", "approved", "checkout_pending"].includes(item.status),
   );
@@ -774,6 +780,9 @@ export function FamilyHome({
           )}
         </article>
       </section>
+      {familyId && (
+        <article className="panel family-preferences"><h2>Tutores de la familia</h2><p>Cada tutor accede con su propia cuenta. Añadirlo no le asigna pagos.</p>{guardians.map(g=><div className="summary-line" key={g.id}><span><b>{g.profiles?.full_name||g.profiles?.email}</b><small>{g.relationship.replace("_"," ")}</small></span><span>Acceso autorizado</span></div>)}<form onSubmit={addGuardian}><label>Correo del tutor adicional<input type="email" value={guardianEmail} onChange={e=>setGuardianEmail(e.target.value)} placeholder="correo@ejemplo.com" required /></label><label>Relación<select value={guardianRelationship} onChange={e=>setGuardianRelationship(e.target.value)}><option value="padre">Padre</option><option value="madre">Madre</option><option value="tutor_legal">Tutor legal</option></select></label><button>Añadir tutor adicional</button></form></article>
+      )}
       {familyId && (
         <article className="panel family-preferences">
           <h2>Avisos de asistencia</h2>
