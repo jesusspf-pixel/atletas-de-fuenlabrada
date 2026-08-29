@@ -1,4 +1,5 @@
 const H={"content-type":"application/json",accept:"application/json"};
+const EXPECTED_STRIPE_ACCOUNT_ID="acct_1U7GSS4qEOpF73r5";
 const required=(env,name)=>{const value=String(env[name]||"").trim();if(!value)throw new Error(`Falta la configuración ${name}`);return value};
 const supabaseBase=(env)=>required(env,"SUPABASE_URL").replace(/\/+$/,"").replace(/\/(?:rest|auth)\/v1$/i,"");
 const db=(env,path,init={})=>{const base=supabaseBase(env);const key=required(env,"SUPABASE_SERVICE_ROLE_KEY");return fetch(`${base}${path}`,{...init,headers:{apikey:key,authorization:`Bearer ${key}`,...H,...(init.headers||{})}})};
@@ -7,6 +8,7 @@ const mail=async(env,to,subject,html)=>{if(!env.RESEND_API_KEY||!to)return;await
 const patch=(env,id,body)=>db(env,`/rest/v1/billing_charge_drafts?id=eq.${id}`,{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify({...body,updated_at:new Date().toISOString()})});
 async function run(env){
   required(env,"SUPABASE_URL");required(env,"SUPABASE_SERVICE_ROLE_KEY");required(env,"STRIPE_SECRET_KEY");
+  const accountResponse=await fetch("https://api.stripe.com/v1/account",{headers:{authorization:`Bearer ${env.STRIPE_SECRET_KEY}`}});const account=await accountResponse.json().catch(()=>({}));if(!accountResponse.ok)throw new Error(`La clave de Stripe no es válida para el cobrador (${accountResponse.status}).`);if(account.id!==EXPECTED_STRIPE_ACCOUNT_ID)throw new Error(`La clave del cobrador pertenece a otra cuenta de Stripe (${account.id||"desconocida"}).`);
   const claim=await db(env,"/rest/v1/rpc/claim_due_billing_charges",{method:"POST",body:JSON.stringify({batch_limit:100})});
   const charges=await claim.json().catch(()=>[]);if(!claim.ok)throw new Error(`No se pudieron reclamar los cobros pendientes (${claim.status}): ${JSON.stringify(charges).slice(0,800)}`);
   let paid=0,failed=0;

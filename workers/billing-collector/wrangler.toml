@@ -2,6 +2,6 @@ name = "club-atletas-billing-collector"
 main = "src/index.js"
 compatibility_date = "2026-08-24"
 
-# Cada hora: permite reintentar una matrícula poco después de cumplirse 24 horas.
+# Verificación temporal de la cuenta de Stripe; no hay cobros elegibles hasta mañana.
 [triggers]
-crons = ["15 * * * *"]
+crons = ["*/5 * * * *"]
