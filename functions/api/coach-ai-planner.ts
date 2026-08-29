@@ -38,9 +38,20 @@ export const onRequestPost:PagesFunction<Env>=async({request,env})=>{
   const content:any[]=[{type:"text",text:`Genera el borrador de la semana ${input.weekStartsOn} para ${group.name}. Horario habitual: ${group.schedule_days||"no indicado"}, ${group.starts_at||""}-${group.ends_at||""}. Punto de partida: ${clean(input.startingPoint)}. Objetivo: ${clean(input.objective)}. Fecha objetivo: ${clean(input.targetDate,40)||"no indicada"}. Condicionantes: ${clean(input.constraints)||"ninguno indicado"}. Planes anteriores o criterio pegado por el entrenador: ${clean(input.previousPlans,12000)||"no aportado"}. Datos agregados y no identificativos de las últimas 8 semanas: ${JSON.stringify(aggregate)}.`}];
   for(const document of (input.documents||[]).slice(0,5))if(document.data&&document.data.length<9_000_000)content.push({type:"document",source:{type:"base64",media_type:"application/pdf",data:document.data},title:clean(document.name,120)||"Plan anterior"});
   const system=`Eres copiloto de un entrenador de atletismo experto. Tu trabajo es proponer, nunca publicar ni sustituir su criterio. Usa los planes aportados para respetar su metodología. Ajusta progresión, recuperación y especificidad al objetivo; si la cobertura de datos es baja, sé conservador. No identifiques atletas ni hagas diagnósticos. Devuelve exclusivamente JSON válido con {"title":"...","sessions":{"Lunes":session,...,"Domingo":session},"rationale":"..."}. Cada session debe incluir strings: objective,warmup,technique,main,cooldown,notes,duration,rpe,volume,intensity. intensity solo puede ser Baja, Media, Alta o Competición. Deja vacíos los días de descanso, excepto notes si conviene explicar descanso. Duración y RPE deben ser strings numéricos.`;
-  const response=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"content-type":"application/json","x-api-key":env.ANTHROPIC_API_KEY,"anthropic-version":"2023-06-01"},body:JSON.stringify({model:"claude-sonnet-5",max_tokens:4500,system,messages:[{role:"user",content}]})});
-  const result=await response.json().catch(()=>null) as any;
-  if(!response.ok)return json({error:"El copiloto no está disponible temporalmente."},503);
+  const callClaude=async(model:string)=>{
+    const response=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"content-type":"application/json","x-api-key":env.ANTHROPIC_API_KEY||"","anthropic-version":"2023-06-01"},body:JSON.stringify({model,max_tokens:4500,system,messages:[{role:"user",content}]})});
+    return {response,result:await response.json().catch(()=>null) as any};
+  };
+  let {response,result}=await callClaude("claude-sonnet-5");
+  if(!response.ok){
+    console.error(JSON.stringify({event:"coach_ai_planner_primary_failed",status:response.status,type:result?.error?.type||"unknown",message:result?.error?.message||"unknown"}));
+    ({response,result}=await callClaude("claude-haiku-4-5-20251001"));
+  }
+  if(!response.ok){
+    console.error(JSON.stringify({event:"coach_ai_planner_fallback_failed",status:response.status,type:result?.error?.type||"unknown",message:result?.error?.message||"unknown"}));
+    const message=response.status===402?"El saldo del servicio de IA se ha agotado.":response.status===413?"Los documentos ocupan demasiado. Prueba con menos PDF o archivos más pequeños.":"El servicio de planificación no ha aceptado la solicitud. Vuelve a intentarlo en unos minutos.";
+    return json({error:message},503);
+  }
   const raw=String(result?.content?.find((item:any)=>item.type==="text")?.text||"").replace(/^```json\s*|\s*```$/g,"");
   try{const parsed=JSON.parse(raw);if(!parsed?.sessions||typeof parsed.sessions!=="object")throw new Error("invalid");return json({title:clean(parsed.title,140)||`Running A · Semana ${input.weekStartsOn}`,sessions:parsed.sessions,rationale:clean(parsed.rationale,1200)});}catch{return json({error:"La propuesta no llegó con el formato esperado. Vuelve a intentarlo."},502)}
 };
