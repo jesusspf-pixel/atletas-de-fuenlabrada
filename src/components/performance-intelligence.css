@@ -1,6 +1,8 @@
 .performance-hub {
   display: grid;
   gap: 16px;
+  container-name: performance-panel;
+  container-type: inline-size;
 }
 .performance-hero {
   display: flex;
@@ -302,6 +304,21 @@
     min-height: 118px;
     padding: 14px;
     scroll-snap-align: unset;
+  }
+}
+@container performance-panel (max-width: 700px) {
+  .performance-kpis {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 9px !important;
+    width: 100%;
+    overflow: visible !important;
+  }
+  .performance-kpis article {
+    width: auto !important;
+    min-width: 0 !important;
+    min-height: 116px;
+    padding: 14px;
   }
 }
 @media (max-width: 480px) {
