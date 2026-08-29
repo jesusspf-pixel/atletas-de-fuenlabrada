@@ -26,6 +26,7 @@ import {
   CoachProfile,
 } from "./components/CoachWorkspace";
 import CoachHomeNext from "./components/CoachHomeNext";
+import CoachPerformanceOverview from "./components/CoachPerformanceOverview";
 import AppNavIcon from "./components/AppNavIcon";
 import AdminAthleteDossier from "./components/AdminAthleteDossier";
 import {
@@ -795,6 +796,7 @@ function Portal({
           "Asistencia",
           "Carreras",
           "Avisos",
+          "Rendimiento",
           "Club Challenge",
         ]
       : ["owner", "admin"].includes(profile.role)
@@ -1109,6 +1111,8 @@ function Admin({
   else if (section === "Asistencia") content = <Attendance profile={profile} />;
   else if (section === "Avisos")
     content = <AnnouncementManager profile={profile} />;
+  else if (section === "Rendimiento")
+    return <section className="coach-reference-page coach-performance-reference"><div className="coach-reference-art" aria-hidden="true"><i/><i/><i/></div><div className="coach-reference-sheet"><CoachPerformanceOverview profileId={profile.id}/></div></section>;
   else if (section === "Configuración") content = <Settings />;
   else content = <AdminHome profile={profile} go={go} />;
   return (
