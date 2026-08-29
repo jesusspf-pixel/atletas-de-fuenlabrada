@@ -1,11 +1,13 @@
-const H={"content-type":"application/json"};
-const db=(env,path,init={})=>fetch(`${env.SUPABASE_URL}${path}`,{...init,headers:{apikey:env.SUPABASE_SERVICE_ROLE_KEY,authorization:`Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,...H,...(init.headers||{})}});
+const H={"content-type":"application/json",accept:"application/json"};
+const required=(env,name)=>{const value=String(env[name]||"").trim();if(!value)throw new Error(`Falta la configuración ${name}`);return value};
+const db=(env,path,init={})=>{const base=required(env,"SUPABASE_URL").replace(/\/+$/,"");const key=required(env,"SUPABASE_SERVICE_ROLE_KEY");return fetch(`${base}${path}`,{...init,headers:{apikey:key,authorization:`Bearer ${key}`,...H,...(init.headers||{})}})};
 const stripe=async(env,path,params,idempotencyKey)=>{const response=await fetch(`https://api.stripe.com/v1/${path}`,{method:"POST",headers:{authorization:`Bearer ${env.STRIPE_SECRET_KEY}`,"content-type":"application/x-www-form-urlencoded","Idempotency-Key":idempotencyKey},body:params});return{response,data:await response.json().catch(()=>({}))}};
 const mail=async(env,to,subject,html)=>{if(!env.RESEND_API_KEY||!to)return;await fetch("https://api.resend.com/emails",{method:"POST",headers:{authorization:`Bearer ${env.RESEND_API_KEY}`,...H},body:JSON.stringify({from:"Club Atletas de Fuenlabrada <info@atletasdefuenlabrada.com>",to:[to],subject,html})})};
 const patch=(env,id,body)=>db(env,`/rest/v1/billing_charge_drafts?id=eq.${id}`,{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify({...body,updated_at:new Date().toISOString()})});
 async function run(env){
+  required(env,"SUPABASE_URL");required(env,"SUPABASE_SERVICE_ROLE_KEY");required(env,"STRIPE_SECRET_KEY");
   const claim=await db(env,"/rest/v1/rpc/claim_due_billing_charges",{method:"POST",body:JSON.stringify({batch_limit:100})});
-  const charges=await claim.json().catch(()=>[]);if(!claim.ok)throw new Error("No se pudieron reclamar los cobros pendientes");
+  const charges=await claim.json().catch(()=>[]);if(!claim.ok)throw new Error(`No se pudieron reclamar los cobros pendientes (${claim.status}): ${JSON.stringify(charges).slice(0,800)}`);
   let paid=0,failed=0;
   for(const charge of charges){
     const customers=await db(env,`/rest/v1/stripe_customers?profile_id=eq.${charge.payer_profile_id}&select=stripe_customer_id`);const customer=(await customers.json().catch(()=>[]))?.[0]?.stripe_customer_id;
@@ -17,6 +19,6 @@ async function run(env){
     const subject=final?"Baja por falta de pago":`Pago rechazado · intento ${charge.attempt_number}`;const body=final?`<p>No ha sido posible cobrar la cuota pendiente. Desde hoy el acceso deportivo queda suspendido por falta de pago.</p><p>Para regularizar la situación, contacta con el club en el 613 05 00 00.</p>`:`<p>No hemos podido cobrar la cuota de ${charge.athlete_first_name} ${charge.athlete_last_name}.</p><p>Revisa la tarjeta o el saldo. Volveremos a intentarlo dentro de 24 horas.</p>`;await Promise.all([mail(env,payer,subject,body),...admins.map(email=>mail(env,email,`${subject} · ${charge.athlete_first_name} ${charge.athlete_last_name}`,`<p>${reason.replace(/[<>&]/g,"")}</p>${body}`))]);
     if(final)await db(env,"/rest/v1/rpc/suspend_membership_for_nonpayment",{method:"POST",body:JSON.stringify({target_membership_id:charge.membership_id})});failed++;
   }
-  return{processed:charges.length,paid,failed};
+  const summary={processed:charges.length,paid,failed};console.log(JSON.stringify({event:"automatic_billing_completed",...summary}));return summary;
 }
-export default{async fetch(request){if(new URL(request.url).pathname==="/health")return new Response(JSON.stringify({ok:true,service:"club-atletas-billing-collector"}),{headers:H});return new Response("Not found",{status:404})},async scheduled(event,env,ctx){ctx.waitUntil(run(env))}};
+export default{async fetch(request){if(new URL(request.url).pathname==="/health")return new Response(JSON.stringify({ok:true,service:"club-atletas-billing-collector"}),{headers:H});return new Response("Not found",{status:404})},async scheduled(event,env,ctx){ctx.waitUntil(run(env).catch(error=>{console.error("Automatic billing run failed",error instanceof Error?error.message:String(error));throw error}))}};
