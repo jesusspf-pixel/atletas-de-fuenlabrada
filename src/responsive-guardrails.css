@@ -57,3 +57,37 @@
   .visual-next-shell .visual-page-body>.page-head,.visual-next-shell .visual-page-body>*>.page-head{min-height:175px;padding-top:22px}
 }
 
+/* The coach navigation is one stable, horizontally scrollable sequence on every screen. */
+@media(max-width:820px){
+  .coach-next-shell .club-side nav,
+  .coach-next-shell:has(.coach-approved-home) .club-side nav,
+  .coach-next-shell:has(.coach-reference-page) .club-side nav,
+  .sports-center-shell.coach-next-shell .club-side nav{
+    display:grid!important;
+    grid-template-columns:none!important;
+    grid-template-rows:1fr!important;
+    grid-auto-flow:column!important;
+    grid-auto-columns:74px!important;
+    justify-content:start!important;
+    overflow-x:auto!important;
+    overflow-y:hidden!important;
+    overscroll-behavior-x:contain;
+    scroll-behavior:smooth;
+    scrollbar-width:none;
+    touch-action:pan-x;
+    -webkit-overflow-scrolling:touch;
+  }
+  .coach-next-shell .club-side nav::-webkit-scrollbar{display:none}
+  .coach-next-shell .club-side nav>button,
+  .coach-next-shell:has(.coach-approved-home) .club-side nav>button,
+  .coach-next-shell:has(.coach-reference-page) .club-side nav>button,
+  .sports-center-shell.coach-next-shell .club-side nav>button{
+    display:grid!important;
+    order:0!important;
+    grid-row:1!important;
+    width:74px!important;
+    min-width:74px!important;
+  }
+  .coach-next-shell .club-side nav>.nav-signout,
+  .coach-next-shell .club-side nav>.coach-nav-signout{order:9999!important}
+}
