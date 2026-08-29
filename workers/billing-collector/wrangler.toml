@@ -2,6 +2,6 @@ name = "club-atletas-billing-collector"
 main = "src/index.js"
 compatibility_date = "2026-08-24"
 
-# Verificación temporal autorizada: comprobar el cobro programado sin forzarlo manualmente.
+# Cada hora: permite reintentar una matrícula poco después de cumplirse 24 horas.
 [triggers]
-crons = ["*/5 * * * *"]
+crons = ["15 * * * *"]
