@@ -811,6 +811,7 @@ function Portal({
             "Avisos",
             "Invitaciones",
             "Tienda",
+            "Rendimiento",
             "Configuración",
           ]
         : profile.role === "minor_athlete"
@@ -1112,7 +1113,7 @@ function Admin({
   else if (section === "Avisos")
     content = <AnnouncementManager profile={profile} />;
   else if (section === "Rendimiento")
-    return <section className="coach-reference-page coach-performance-reference"><div className="coach-reference-art" aria-hidden="true"><i/><i/><i/></div><div className="coach-reference-sheet"><CoachPerformanceOverview profileId={profile.id}/></div></section>;
+    content = <CoachPerformanceOverview profileId={profile.id} allGroups />;
   else if (section === "Configuración") content = <Settings />;
   else content = <AdminHome profile={profile} go={go} />;
   return (
@@ -2627,6 +2628,8 @@ function Coach({
     content = <CompetitionManager profile={profile} manager />;
   else if (section === "Avisos")
     content = <AnnouncementManager profile={profile} />;
+  else if (section === "Rendimiento")
+    return <section className="coach-reference-page coach-performance-reference"><div className="coach-reference-art" aria-hidden="true"><i/><i/><i/></div><div className="coach-reference-sheet"><CoachPerformanceOverview profileId={profile.id}/></div></section>;
   else if (section === "Club Challenge")
     content = (
       <>
