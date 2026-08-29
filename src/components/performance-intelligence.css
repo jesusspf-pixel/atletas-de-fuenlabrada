@@ -243,13 +243,26 @@
     height: 90px;
   }
   .performance-kpis {
-    display: flex;
-    overflow-x: auto;
-    scroll-snap-type: x mandatory;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    overflow: visible;
   }
   .performance-kpis article {
-    min-width: 68%;
-    scroll-snap-align: start;
+    min-width: 0;
+    min-height: 126px;
+    padding: 15px;
+    border-radius: 18px;
+  }
+  .performance-kpis b {
+    margin: 7px 0 4px;
+    font-size: 25px;
+  }
+  .performance-kpis small,
+  .performance-kpis span {
+    overflow-wrap: anywhere;
+    font-size: 8px;
+    line-height: 1.35;
   }
   .performance-form-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
