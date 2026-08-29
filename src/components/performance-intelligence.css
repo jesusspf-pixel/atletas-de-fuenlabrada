@@ -79,6 +79,8 @@
   color: #0d2b53;
   font-size: 29px;
 }
+.performance-kpis article>em{display:block;margin-top:9px;color:#718198;font-size:9px;font-style:normal;line-height:1.35}
+.readiness-summary{display:grid;flex:none;justify-items:center;gap:6px}.readiness-help{max-width:120px;color:rgba(255,255,255,.78)!important;font-size:8px!important;line-height:1.35;text-align:center}
 .performance-chart {
   padding: 23px;
   border-radius: 25px;
@@ -210,6 +212,7 @@
   padding: 0;
   box-shadow: none;
 }
+.performance-form-grid label>small{display:block;min-height:28px;color:#718198;font-size:9px;font-weight:650;line-height:1.35}.performance-form-grid label>small b{color:#185da9;font-size:10px}
 .performance-form-grid .wide {
   grid-column: 1/-1;
 }

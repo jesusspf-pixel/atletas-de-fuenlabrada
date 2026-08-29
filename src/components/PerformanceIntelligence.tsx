@@ -52,6 +52,13 @@ const label = (value: number) =>
           : "Recuperación prioritaria";
 const colour = (value: number) =>
   value > -10 ? "#24b681" : value > -22 ? "#f2a93b" : "#ee5d68";
+const scaleText = {
+  rpe: (value: string) => Number(value) <= 2 ? "Muy suave" : Number(value) <= 4 ? "Suave" : Number(value) <= 6 ? "Moderado" : Number(value) <= 8 ? "Intenso" : "Máximo",
+  sleep: (value: string) => Number(value) <= 1 ? "Dormí muy mal" : Number(value) <= 2 ? "Dormí mal" : Number(value) === 3 ? "Sueño normal" : Number(value) === 4 ? "Dormí bien" : "Dormí muy bien",
+  fatigue: (value: string) => Number(value) <= 1 ? "Nada fatigado" : Number(value) <= 2 ? "Poca fatiga" : Number(value) === 3 ? "Fatiga moderada" : Number(value) === 4 ? "Fatiga alta" : "Fatiga muy alta",
+  soreness: (value: string) => Number(value) <= 1 ? "Sin molestias" : Number(value) <= 2 ? "Molestia leve" : Number(value) === 3 ? "Molestia moderada" : Number(value) === 4 ? "Molestia alta" : "Molestia muy alta",
+  mood: (value: string) => Number(value) <= 1 ? "Ánimo muy bajo" : Number(value) <= 2 ? "Ánimo bajo" : Number(value) === 3 ? "Ánimo normal" : Number(value) === 4 ? "Buen ánimo" : "Ánimo excelente",
+};
 
 function buildTimeline(activities: Activity[], feedback: Feedback[]) {
   const byDay = new Map<string, number>();
@@ -314,16 +321,20 @@ export default function PerformanceIntelligence({
             Carga real de carrera, recuperación y tendencia en un único panel.
           </p>
         </div>
-        <div
-          className="readiness-ring"
-          style={
-            {
-              "--score": `${readiness ?? Math.max(0, Math.min(100, 60 + latest.form))}`,
-            } as React.CSSProperties
-          }
-        >
-          <b>{readiness ?? "—"}</b>
-          <span>disposición</span>
+        <div className="readiness-summary">
+          <div
+            className="readiness-ring"
+            title="0 indica recuperación muy baja y 100 una disposición muy alta para entrenar."
+            style={
+              {
+                "--score": `${readiness ?? Math.max(0, Math.min(100, 60 + latest.form))}`,
+              } as React.CSSProperties
+            }
+          >
+            <b>{readiness ?? "—"}</b>
+            <span>disposición</span>
+          </div>
+          <small className="readiness-help">0 = recuperación baja · 100 = disposición alta</small>
         </div>
       </header>
       <div className="performance-kpis">
@@ -331,11 +342,13 @@ export default function PerformanceIntelligence({
           <small>FORMA</small>
           <b>{latest.fitness.toFixed(0)}</b>
           <span>Carga sostenida · 42 días</span>
+          <em>Tu base de entrenamiento acumulada; cambia lentamente.</em>
         </article>
         <article>
           <small>FATIGA</small>
           <b>{latest.fatigue.toFixed(0)}</b>
           <span>Carga reciente · 7 días</span>
+          <em>Cuanto más sube, mayor carga reciente necesita asimilar el cuerpo.</em>
         </article>
         <article style={{ borderColor: colour(latest.form) }}>
           <small>FRESCURA</small>
@@ -344,6 +357,7 @@ export default function PerformanceIntelligence({
             {latest.form.toFixed(0)}
           </b>
           <span>{label(latest.form)}</span>
+          <em>Forma menos fatiga: negativo indica cansancio; positivo, frescura.</em>
         </article>
         <article>
           <small>CARGA SEMANAL</small>
@@ -353,6 +367,7 @@ export default function PerformanceIntelligence({
               ? `${change >= 0 ? "+" : ""}${change.toFixed(0)}% vs. semana anterior`
               : "Construyendo referencia"}
           </span>
+          <em>Suma de la carga de los últimos 7 días; sirve para comparar semanas.</em>
         </article>
       </div>
       <article className="performance-chart">
@@ -544,6 +559,7 @@ export default function PerformanceIntelligence({
                 value={form.rpe}
                 onChange={(e) => setForm({ ...form, rpe: e.target.value })}
               />
+              <small><b>{scaleText.rpe(form.rpe)}</b> · 1 muy suave · 10 esfuerzo máximo</small>
             </label>
             <label>
               Sueño · {form.sleep}/5
@@ -554,6 +570,7 @@ export default function PerformanceIntelligence({
                 value={form.sleep}
                 onChange={(e) => setForm({ ...form, sleep: e.target.value })}
               />
+              <small><b>{scaleText.sleep(form.sleep)}</b> · 1 muy mal · 5 muy bien</small>
             </label>
             <label>
               Fatiga percibida · {form.fatigue}/5
@@ -564,6 +581,7 @@ export default function PerformanceIntelligence({
                 value={form.fatigue}
                 onChange={(e) => setForm({ ...form, fatigue: e.target.value })}
               />
+              <small><b>{scaleText.fatigue(form.fatigue)}</b> · 1 nada fatigado · 5 fatiga muy alta</small>
             </label>
             <label>
               Molestia muscular · {form.soreness}/5
@@ -574,6 +592,7 @@ export default function PerformanceIntelligence({
                 value={form.soreness}
                 onChange={(e) => setForm({ ...form, soreness: e.target.value })}
               />
+              <small><b>{scaleText.soreness(form.soreness)}</b> · 1 sin molestias · 5 muy altas</small>
             </label>
             <label>
               Ánimo · {form.mood}/5
@@ -584,6 +603,7 @@ export default function PerformanceIntelligence({
                 value={form.mood}
                 onChange={(e) => setForm({ ...form, mood: e.target.value })}
               />
+              <small><b>{scaleText.mood(form.mood)}</b> · 1 muy bajo · 5 excelente</small>
             </label>
             <label className="wide check">
               <input
