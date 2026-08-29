@@ -7,3 +7,4 @@
 .performance-insight .ai-analysis-button:hover{background:#b8ff3d;border-color:#b8ff3d;color:#092c5c}
 .ai-analysis-button:disabled{opacity:.65}
 .ai-analysis-error{display:block;margin-top:9px;color:#ffd0d5;font-size:10px}
+.ai-analysis-status{display:block;margin-top:12px;color:#d8e8fb;font-size:10px;font-weight:800}
