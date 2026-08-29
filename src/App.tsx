@@ -765,8 +765,14 @@ function Portal({
   );
   const [focusedAthleteId, setFocusedAthleteId] = useState("");
   const [adminAthleteId, setAdminAthleteId] = useState(
-    () => new URLSearchParams(window.location.search).get("athleteId") || "",
+    () =>
+      new URLSearchParams(window.location.search).get("athleteId") ||
+      window.sessionStorage.getItem("admin-performance-athlete") ||
+      "",
   );
+  useEffect(() => {
+    if (adminAthleteId) window.sessionStorage.removeItem("admin-performance-athlete");
+  }, [adminAthleteId]);
   const [adminAthleteReturnSection, setAdminAthleteReturnSection] = useState("Atletas");
   const [challengeAthleteId, setChallengeAthleteId] = useState("");
   const [ownAthleteId, setOwnAthleteId] = useState("");

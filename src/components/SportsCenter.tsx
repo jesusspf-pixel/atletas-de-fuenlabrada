@@ -38,6 +38,7 @@ export default function SportsCenter() {
       const { data: profileData } = await client.from("profiles").select("id,email,full_name,role").eq("id", data.session.user.id).maybeSingle();
       const requestedAthleteId = requested().get("athleteId");
       if (profileData && ["owner", "admin"].includes(profileData.role) && requestedAthleteId) {
+        window.sessionStorage.setItem("admin-performance-athlete", requestedAthleteId);
         window.location.replace(`/?access=1&section=Atletas&athleteId=${encodeURIComponent(requestedAthleteId)}`);
         return;
       }
