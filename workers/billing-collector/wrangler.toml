@@ -5,3 +5,7 @@ compatibility_date = "2026-08-24"
 # Verificación temporal de la cuenta de Stripe; no hay cobros elegibles hasta mañana.
 [triggers]
 crons = ["*/5 * * * *"]
+
+[observability]
+enabled = true
+head_sampling_rate = 1
