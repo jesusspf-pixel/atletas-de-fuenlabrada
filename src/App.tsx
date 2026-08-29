@@ -20,6 +20,7 @@ import { withOfficialTrainingSchedules } from "./lib/trainingGroupSchedule";
 import FamilyNotices from "./components/FamilyNotices";
 import ClubChallenge from "./components/ClubChallenge";
 import { AthleteResults } from "./components/AthleteResults";
+import PerformanceIntelligence from "./components/PerformanceIntelligence";
 import {
   CoachGroups as CoachGroupsWorkspace,
   CoachProfile,
@@ -766,6 +767,7 @@ function Portal({
   const [adminAthleteReturnSection, setAdminAthleteReturnSection] = useState("Atletas");
   const [challengeAthleteId, setChallengeAthleteId] = useState("");
   const [ownAthleteId, setOwnAthleteId] = useState("");
+  const [ownAthleteGroupName, setOwnAthleteGroupName] = useState("");
   const [memberAvatarUrl, setMemberAvatarUrl] = useState("");
   const goToSection = (nextSection: string) => {
     setAdminAthleteId("");
@@ -824,15 +826,18 @@ function Portal({
     void (async () => {
       const { data: athleteData } = await supabase
         .from("athletes")
-        .select("id,user_profile_id,families!athletes_family_id_fkey(primary_profile_id)");
-      const own = (athleteData || [])
+        .select("id,user_profile_id,training_groups(name),families!athletes_family_id_fkey(primary_profile_id)");
+      const ownRows = (athleteData || [])
         .filter(
           (athlete: any) =>
             athlete.user_profile_id === profile.id ||
             athlete.families?.primary_profile_id === profile.id,
-        )
-        .map((athlete: any) => athlete.id);
-      setOwnAthleteId(own[0] || "");
+        );
+      const primaryAthlete = ownRows.find((athlete: any) => athlete.user_profile_id === profile.id) || ownRows[0];
+      const own = ownRows.map((athlete: any) => athlete.id);
+      setOwnAthleteId(primaryAthlete?.id || "");
+      const primaryGroup = Array.isArray(primaryAthlete?.training_groups) ? primaryAthlete.training_groups[0] : primaryAthlete?.training_groups;
+      setOwnAthleteGroupName(primaryGroup?.name || "");
       if (!own.length) {
         setChallengeAthleteId("");
         const { data: coachSettings } = await supabase
@@ -858,7 +863,7 @@ function Portal({
   const memberMenu = profile.role === "minor_athlete"
     ? [...baseMenu, "Marcas"]
     : ["parent", "adult_athlete"].includes(profile.role)
-      ? [...baseMenu, "Marcas", "Challenge"]
+      ? [...baseMenu, "Marcas", ...(/running/i.test(ownAthleteGroupName) ? ["Rendimiento"] : []), "Challenge"]
       : baseMenu;
   const menu = memberMenu;
   const notices = useRows<{ id: string; created_by: string }>(
@@ -953,6 +958,14 @@ function Portal({
           </article>
         </>
       )
+    ) : section === "Rendimiento" && ownAthleteId && /running/i.test(ownAthleteGroupName) ? (
+      <>
+        <Header
+          title="Centro de rendimiento"
+          text="Carga, forma, fatiga, recuperación y análisis inteligente de tus entrenamientos."
+        />
+        <PerformanceIntelligence athleteId={ownAthleteId} />
+      </>
     ) : section === "Marcas" && ownAthleteId ? (
       <>
         <Header

@@ -13,7 +13,7 @@ type Result = {
   athletics_events?: EventDef | null;
 };
 type PB = { athlete_id: string; athletics_event_id: string; event_name: string; competition_environment?: "indoor" | "outdoor" | "unknown"; result_text: string; competition_name: string; competition_date: string; source: string; official: boolean };
-type Props = { athleteId: string; athleteName?: string; canAddTraining?: boolean; coachProfileId?: string; canPlanFitness?: boolean; canRecordFitness?: boolean };
+type Props = { athleteId: string; athleteName?: string; canAddTraining?: boolean; coachProfileId?: string; canPlanFitness?: boolean; canRecordFitness?: boolean; showPerformance?: boolean };
 
 type Unit = "seconds" | "minutes_seconds" | "meters" | "centimeters" | "points" | "repetitions" | "position" | "other";
 const unitLabels: Record<Unit, string> = {
@@ -88,7 +88,7 @@ function parseResult(raw: string, unit: Unit) {
   return { value, text: unit === "position" ? `Puesto ${raw.trim()}` : `${raw.trim()}${suffix[unit]}` };
 }
 
-export function AthleteResults({ athleteId, athleteName = "", canAddTraining = false, coachProfileId, canPlanFitness = false, canRecordFitness = true }: Props) {
+export function AthleteResults({ athleteId, athleteName = "", canAddTraining = false, coachProfileId, canPlanFitness = false, canRecordFitness = true, showPerformance = false }: Props) {
   const [events, setEvents] = useState<EventDef[]>([]);
   const [results, setResults] = useState<Result[]>([]);
   const [pbs, setPbs] = useState<PB[]>([]);
@@ -177,7 +177,7 @@ export function AthleteResults({ athleteId, athleteName = "", canAddTraining = f
     <article className="panel"><div className="table-title"><div><h2>Histórico de resultados oficiales</h2><p>Participaciones y resultados obtenidos en competición.</p></div><div className="result-tools"><label>Prueba<select value={resultEventId} onChange={event => setResultEventId(event.target.value)}><option value="">Todas las pruebas</option>{events.map(event => <option value={event.id} key={event.id}>{event.name}</option>)}</select></label><div className="result-sort" aria-label="Ordenar resultados"><span>Ordenar</span><button type="button" className={resultSort === "date" ? "selected" : "outline"} onClick={() => setResultSort("date")}>Fecha ↓</button><button type="button" className={resultSort === "best" ? "selected" : "outline"} onClick={() => setResultSort("best")}>Marca ↑</button></div></div></div>{officialResults.length ? <section className="result-event">{officialResults.map(row => <div className="result-row" key={row.id}><span><b>{row.athletics_events?.name || "Prueba"}</b><small>{row.result_text} · {row.competition_name}</small></span><span>{new Date(row.competition_date).toLocaleDateString("es-ES")}{row.venue ? ` · ${row.venue}` : ""}</span><span>{row.position ? `Puesto ${row.position} · ` : ""}{environmentLabel(row.competition_environment)} · Oficial</span></div>)}</section> : <p>Todavía no hay resultados oficiales asociados a este atleta.</p>}</article>
     <article className="panel training-results-panel"><div className="table-title"><div><h2>Marcas de entrenamiento</h2><p>Resultados registrados durante las sesiones del club.</p></div></div>{trainingResults.length ? <section className="result-event">{trainingResults.map(row => <div className="result-row" key={row.id}><span><b>{row.athletics_events?.name || "Prueba"}</b><small>{row.result_text} · {row.competition_name}</small></span><span>{new Date(row.competition_date).toLocaleDateString("es-ES")}</span><span>Entrenamiento</span></div>)}</section> : <p>Todavía no hay marcas de entrenamiento registradas.</p>}</article>
 
-    <PerformanceIntelligence athleteId={athleteId} canRecord={!canAddTraining} />
+    {showPerformance && <PerformanceIntelligence athleteId={athleteId} canRecord={!canAddTraining} />}
     <ExternalSports athleteId={athleteId} />
     <FitnessTests athleteId={athleteId} canPlan={canPlanFitness} canRecord={canRecordFitness} />
 
