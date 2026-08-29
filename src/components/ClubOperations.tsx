@@ -634,7 +634,7 @@ export function PlanningWorkspace({ profile }: { profile: Profile }) {
   const selectedGroup = groups.find((group) => group.id === form.group);
   const isPilotAccount = profile.email
     .replace(/\s/g, "")
-    .toLowerCase() === "atletismourjc@gmail.com";
+    .toLowerCase() === "eatletismourjc@gmail.com";
   const isRunningAPilot =
     isPilotAccount && /^(?:(?:m[aá]ster\s+)?running\s*a|m[aá]ster\s+running)$/i.test(selectedGroup?.name.trim() || "");
   const updateBuilder = (patch: Partial<typeof builder>) =>

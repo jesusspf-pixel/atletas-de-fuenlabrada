@@ -18,7 +18,7 @@ select g.id, p.id
 from public.training_groups g
 cross join public.profiles p
 where lower(regexp_replace(g.name, '\\s+', ' ', 'g')) in ('running a','máster running a','master running a','máster running','master running')
-  and lower(regexp_replace(p.email, '\\s+', '', 'g')) = 'atletismourjc@gmail.com'
+  and lower(regexp_replace(p.email, '\\s+', '', 'g')) = 'eatletismourjc@gmail.com'
 on conflict (training_group_id) do update set planner_profile_id = excluded.planner_profile_id;
 
 create or replace function public.can_plan_group(group_id uuid)

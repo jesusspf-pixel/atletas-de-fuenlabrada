@@ -14,7 +14,7 @@ export const onRequestPost:PagesFunction<Env>=async({request,env})=>{
   const user=await auth.json().catch(()=>null) as {id?:string;email?:string}|null;
   if(!auth.ok||!user?.id)return json({error:"La sesión ha caducado."},401);
   const email=String(user.email||"").replace(/\s/g,"").toLowerCase();
-  if(email!=="atletismourjc@gmail.com")return json({error:"Este piloto está reservado al responsable de planificación de Running A."},403);
+  if(email!=="eatletismourjc@gmail.com")return json({error:"Este piloto está reservado al responsable de planificación de Running A."},403);
   const input=await request.json().catch(()=>null) as Input|null;
   if(!input?.groupId||!input.weekStartsOn||!clean(input.startingPoint)||!clean(input.objective))return json({error:"Faltan el grupo, la semana, el punto de partida o el objetivo."},400);
   const serviceHeaders=headers(env);
