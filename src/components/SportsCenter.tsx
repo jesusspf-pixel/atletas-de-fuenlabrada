@@ -36,6 +36,11 @@ export default function SportsCenter() {
       const { data } = await client.auth.getSession(); setSession(data.session);
       if (!data.session) { setLoading(false); return; }
       const { data: profileData } = await client.from("profiles").select("id,email,full_name,role").eq("id", data.session.user.id).maybeSingle();
+      const requestedAthleteId = requested().get("athleteId");
+      if (profileData && ["owner", "admin"].includes(profileData.role) && requestedAthleteId) {
+        window.location.replace(`/?access=1&section=Atletas&athleteId=${encodeURIComponent(requestedAthleteId)}`);
+        return;
+      }
       setProfile(profileData as Profile | null); setLoading(false);
     };
     void boot();

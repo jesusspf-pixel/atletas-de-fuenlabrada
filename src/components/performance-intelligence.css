@@ -8,3 +8,4 @@
 .ai-analysis-button:disabled{opacity:.65}
 .ai-analysis-error{display:block;margin-top:9px;color:#ffd0d5;font-size:10px}
 .ai-analysis-status{display:block;margin-top:12px;color:#d8e8fb;font-size:10px;font-weight:800}
+.performance-hero{order:1}.performance-kpis{order:2}.performance-chart{order:3}.performance-advanced{order:4}.performance-insight{order:5}.performance-feedback{order:6}

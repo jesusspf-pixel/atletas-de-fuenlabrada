@@ -764,7 +764,9 @@ function Portal({
     () => new URLSearchParams(window.location.search).get("section") || "Inicio",
   );
   const [focusedAthleteId, setFocusedAthleteId] = useState("");
-  const [adminAthleteId, setAdminAthleteId] = useState("");
+  const [adminAthleteId, setAdminAthleteId] = useState(
+    () => new URLSearchParams(window.location.search).get("athleteId") || "",
+  );
   const [adminAthleteReturnSection, setAdminAthleteReturnSection] = useState("Atletas");
   const [challengeAthleteId, setChallengeAthleteId] = useState("");
   const [ownAthleteId, setOwnAthleteId] = useState("");
