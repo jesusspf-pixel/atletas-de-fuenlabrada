@@ -19,7 +19,7 @@ export const onRequestPost:PagesFunction<Env>=async({request,env})=>{
   if(!input?.groupId||!input.weekStartsOn||!clean(input.startingPoint)||!clean(input.objective))return json({error:"Faltan el grupo, la semana, el punto de partida o el objetivo."},400);
   const serviceHeaders=headers(env);
   const [group]=await rows<{id:string;name:string;schedule_days?:string;starts_at?:string;ends_at?:string}>(`${env.SUPABASE_URL}/rest/v1/training_groups?id=eq.${encodeURIComponent(input.groupId)}&select=id,name,schedule_days,starts_at,ends_at`,{headers:serviceHeaders});
-  if(!group||!/^(m[aá]ster\s+)?running\s*a$/i.test(group.name.trim()))return json({error:"El piloto solo está habilitado para Running A."},403);
+  if(!group||!/^(?:(?:m[aá]ster\s+)?running\s*a|m[aá]ster\s+running)$/i.test(group.name.trim()))return json({error:"El piloto solo está habilitado para el grupo de Running A."},403);
   const assignment=await rows<{training_group_id:string}>(`${env.SUPABASE_URL}/rest/v1/training_group_coaches?training_group_id=eq.${encodeURIComponent(group.id)}&coach_profile_id=eq.${encodeURIComponent(user.id)}&select=training_group_id&limit=1`,{headers:serviceHeaders});
   if(!assignment.length)return json({error:"Tu cuenta no figura como planificadora de Running A."},403);
   const athletes=await rows<{id:string}>(`${env.SUPABASE_URL}/rest/v1/athletes?training_group_id=eq.${encodeURIComponent(group.id)}&club_status=eq.active&select=id`,{headers:serviceHeaders});

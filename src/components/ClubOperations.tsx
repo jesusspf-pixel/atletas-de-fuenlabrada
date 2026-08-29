@@ -636,7 +636,7 @@ export function PlanningWorkspace({ profile }: { profile: Profile }) {
     .replace(/\s/g, "")
     .toLowerCase() === "atletismourjc@gmail.com";
   const isRunningAPilot =
-    isPilotAccount && /^(m[aá]ster\s+)?running\s*a$/i.test(selectedGroup?.name.trim() || "");
+    isPilotAccount && /^(?:(?:m[aá]ster\s+)?running\s*a|m[aá]ster\s+running)$/i.test(selectedGroup?.name.trim() || "");
   const updateBuilder = (patch: Partial<typeof builder>) =>
     setWeekPlan((current) => ({
       ...current,

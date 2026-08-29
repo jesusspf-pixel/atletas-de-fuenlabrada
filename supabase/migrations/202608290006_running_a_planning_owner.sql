@@ -17,7 +17,7 @@ insert into public.training_group_planning_owners(training_group_id, planner_pro
 select g.id, p.id
 from public.training_groups g
 cross join public.profiles p
-where lower(regexp_replace(g.name, '\\s+', ' ', 'g')) in ('running a','máster running a','master running a')
+where lower(regexp_replace(g.name, '\\s+', ' ', 'g')) in ('running a','máster running a','master running a','máster running','master running')
   and lower(regexp_replace(p.email, '\\s+', '', 'g')) = 'atletismourjc@gmail.com'
 on conflict (training_group_id) do update set planner_profile_id = excluded.planner_profile_id;
 
