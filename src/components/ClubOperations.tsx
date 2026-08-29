@@ -596,6 +596,15 @@ export function PlanningWorkspace({ profile }: { profile: Profile }) {
   });
   const [file, setFile] = useState<File | null>(null);
   const [notice, setNotice] = useState("");
+  const [aiContext, setAiContext] = useState({
+    startingPoint: "",
+    objective: "",
+    targetDate: "",
+    constraints: "",
+    previousPlans: "",
+  });
+  const [aiFiles, setAiFiles] = useState<File[]>([]);
+  const [aiLoading, setAiLoading] = useState(false);
   const days = [
     "Lunes",
     "Martes",
@@ -622,6 +631,12 @@ export function PlanningWorkspace({ profile }: { profile: Profile }) {
     Record<string, ReturnType<typeof emptySession>>
   >(() => Object.fromEntries(days.map((day) => [day, emptySession()])));
   const builder = weekPlan[activeDay];
+  const selectedGroup = groups.find((group) => group.id === form.group);
+  const isPilotAccount = profile.email
+    .replace(/\s/g, "")
+    .toLowerCase() === "atletismourjc@gmail.com";
+  const isRunningAPilot =
+    isPilotAccount && /^(m[aá]ster\s+)?running\s*a$/i.test(selectedGroup?.name.trim() || "");
   const updateBuilder = (patch: Partial<typeof builder>) =>
     setWeekPlan((current) => ({
       ...current,
@@ -826,6 +841,61 @@ export function PlanningWorkspace({ profile }: { profile: Profile }) {
       "Semana preparada. Puedes revisarla, generar el PDF o publicarla.",
     );
   };
+  const generateWithAi = async () => {
+    if (!supabase || !form.group || !isRunningAPilot) return;
+    if (!aiContext.startingPoint.trim() || !aiContext.objective.trim()) {
+      return setNotice("Indica el punto de partida y el objetivo antes de generar la semana.");
+    }
+    setAiLoading(true);
+    setNotice("");
+    try {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session) throw new Error("La sesión ha caducado. Entra de nuevo.");
+      const documents = await Promise.all(
+        aiFiles.slice(0, 5).map(
+          (selectedFile) =>
+            new Promise<{ name: string; data: string }>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onerror = () => reject(new Error(`No se pudo leer ${selectedFile.name}.`));
+              reader.onload = () =>
+                resolve({
+                  name: selectedFile.name,
+                  data: String(reader.result || "").split(",")[1] || "",
+                });
+              reader.readAsDataURL(selectedFile);
+            }),
+        ),
+      );
+      const response = await fetch("/api/coach-ai-planner", {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${data.session.access_token}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          groupId: form.group,
+          weekStartsOn: form.week,
+          ...aiContext,
+          documents,
+        }),
+      });
+      const payload = (await response.json().catch(() => null)) as
+        | { title?: string; sessions?: Record<string, ReturnType<typeof emptySession>>; error?: string }
+        | null;
+      if (!response.ok || !payload?.sessions) throw new Error(payload?.error || "No se pudo preparar la propuesta.");
+      const next = Object.fromEntries(
+        days.map((day) => [day, { ...emptySession(), ...(payload.sessions?.[day] || {}) }]),
+      ) as Record<string, ReturnType<typeof emptySession>>;
+      setWeekPlan(next);
+      setForm((current) => ({ ...current, title: payload.title || current.title, body: "" }));
+      setActiveDay(days.find((day) => Object.values(next[day]).some(Boolean)) || "Lunes");
+      setNotice("Borrador inteligente preparado. Revísalo día por día antes de preparar y publicar la semana.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "No se pudo preparar la propuesta.");
+    } finally {
+      setAiLoading(false);
+    }
+  };
   return (
     <>
       <Heading
@@ -885,6 +955,31 @@ export function PlanningWorkspace({ profile }: { profile: Profile }) {
               />
             </label>
           </div>
+          {isRunningAPilot && (
+            <section className="coach-ai-planner" aria-label="Planificador inteligente de Running A">
+              <header>
+                <div>
+                  <small>PILOTO PRIVADO · RUNNING A</small>
+                  <h3>Copiloto de planificación</h3>
+                  <p>Analiza tus referencias y la respuesta reciente del grupo para proponerte una semana editable.</p>
+                </div>
+                <span>Solo visible para ti</span>
+              </header>
+              <div className="coach-ai-context-grid">
+                <label>Punto de partida<textarea value={aiContext.startingPoint} onChange={(e)=>setAiContext({...aiContext,startingPoint:e.target.value})} placeholder="Situación actual del grupo, semanas realizadas, volumen habitual…" /></label>
+                <label>Objetivo<textarea value={aiContext.objective} onChange={(e)=>setAiContext({...aiContext,objective:e.target.value})} placeholder="Objetivo del bloque, prueba o capacidad que queremos desarrollar…" /></label>
+                <label>Fecha objetivo<input type="date" value={aiContext.targetDate} onChange={(e)=>setAiContext({...aiContext,targetDate:e.target.value})} /></label>
+                <label>Condicionantes<input value={aiContext.constraints} onChange={(e)=>setAiContext({...aiContext,constraints:e.target.value})} placeholder="Días disponibles, material, lesiones, competición…" /></label>
+              </div>
+              <label>Planes anteriores y criterio del entrenador<textarea value={aiContext.previousPlans} onChange={(e)=>setAiContext({...aiContext,previousPlans:e.target.value})} placeholder="Pega aquí semanas anteriores o explica tu metodología. También puedes adjuntar PDF." /></label>
+              <div className="coach-ai-files">
+                <label>Planes históricos en PDF<input type="file" accept="application/pdf" multiple onChange={(e)=>setAiFiles(Array.from(e.target.files || []).slice(0,5))} /></label>
+                <small>{aiFiles.length ? `${aiFiles.length} referencia(s) preparada(s)` : "Hasta 5 documentos. Se usan solo para generar esta propuesta."}</small>
+              </div>
+              <button type="button" className="coach-ai-generate" disabled={aiLoading} onClick={()=>void generateWithAi()}>{aiLoading ? "Analizando grupo y referencias…" : "Proponer semana con IA"}</button>
+              <p className="coach-ai-privacy">La propuesta no llega a los atletas. Solo verán el plan final cuando tú lo revises y pulses «Publicar plan».</p>
+            </section>
+          )}
           <nav className="coach-day-tabs">
             {days.map((day) => {
               const filled = Object.values(weekPlan[day]).some(
