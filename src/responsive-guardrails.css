@@ -90,4 +90,41 @@
   }
   .coach-next-shell .club-side nav>.nav-signout,
   .coach-next-shell .club-side nav>.coach-nav-signout{order:9999!important}
+
+  .coach-reference-page[data-coach-screen="Mi grupo"] .cards,
+  .coach-reference-page[data-coach-screen="Mis grupos"] .cards,
+  .coach-next-shell .visual-page-body[data-section="Mi grupo"] .cards,
+  .coach-next-shell .visual-page-body[data-section="Mis grupos"] .cards{
+    display:grid!important;
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+    gap:10px!important;
+    overflow:visible!important;
+    scroll-snap-type:none!important;
+  }
+  .coach-reference-page[data-coach-screen="Mi grupo"] .group-card,
+  .coach-reference-page[data-coach-screen="Mis grupos"] .group-card,
+  .coach-next-shell .visual-page-body[data-section="Mi grupo"] .group-card,
+  .coach-next-shell .visual-page-body[data-section="Mis grupos"] .group-card{
+    width:auto!important;
+    min-width:0!important;
+    min-height:156px!important;
+    padding:14px!important;
+    scroll-snap-align:unset!important;
+  }
+  .coach-reference-page[data-coach-screen] .group-card h2,
+  .coach-next-shell .visual-page-body[data-section="Mi grupo"] .group-card h2,
+  .coach-next-shell .visual-page-body[data-section="Mis grupos"] .group-card h2{
+    margin:18px 0 6px!important;
+    font-size:17px!important;
+    line-height:1.08;
+  }
+  .coach-reference-page[data-coach-screen] .group-card p,
+  .coach-reference-page[data-coach-screen] .group-card small,
+  .coach-next-shell .visual-page-body[data-section="Mi grupo"] .group-card p,
+  .coach-next-shell .visual-page-body[data-section="Mi grupo"] .group-card small,
+  .coach-next-shell .visual-page-body[data-section="Mis grupos"] .group-card p,
+  .coach-next-shell .visual-page-body[data-section="Mis grupos"] .group-card small{
+    font-size:10px!important;
+    line-height:1.25;
+  }
 }
