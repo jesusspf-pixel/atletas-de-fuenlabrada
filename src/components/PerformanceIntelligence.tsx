@@ -20,7 +20,7 @@ function buildTimeline(activities:Activity[],feedback:Feedback[]){
   for(let i=0;i<90;i++){const d=new Date(start);d.setDate(start.getDate()+i);const date=iso(d),load=byDay.get(date)||0;fitness+=(load-fitness)/42;fatigue+=(load-fatigue)/7;days.push({date,load,fitness,fatigue,form:fitness-fatigue});}
   return {days,sources};
 }
-function path(values:number[],width=700,height=180){const min=Math.min(...values,0),max=Math.max(...values,1),range=Math.max(1,max-min);return values.map((v,i)=>`${i?"L":"M"}${(i/(values.length-1))*width},${height-((v-min)/range)*height}`).join(" ");}
+function path(values:number[],width=700,height=180){const min=Math.min(...values,0),max=Math.max(...values,1),range=Math.max(1,max-min),points=values.map((value,index)=>({x:(index/Math.max(1,values.length-1))*width,y:height-((value-min)/range)*height}));if(!points.length)return"";return points.slice(1).reduce((result,point,index)=>{const previous=points[index],distance=(point.x-previous.x)*.38;return`${result} C${previous.x+distance},${previous.y} ${point.x-distance},${point.y} ${point.x},${point.y}`},`M${points[0].x},${points[0].y}`)}
 
 export default function PerformanceIntelligence({athleteId,canRecord=true}:{athleteId:string;canRecord?:boolean}){
   const [activities,setActivities]=useState<Activity[]>([]),[feedback,setFeedback]=useState<Feedback[]>([]),[notice,setNotice]=useState("");
