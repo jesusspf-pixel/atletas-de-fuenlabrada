@@ -1193,7 +1193,7 @@ export function AnnouncementManager({ profile }: { profile: Profile }) {
       supabase
         .from("athletes")
         .select(
-          "id,first_name,last_name,user_profile_id,families(primary_profile_id,profiles(id,email,full_name))",
+          "id,first_name,last_name,user_profile_id,families!athletes_family_id_fkey(primary_profile_id,profiles:profiles!families_primary_profile_id_fkey(id,email,full_name))",
         )
         .order("last_name"),
       supabase

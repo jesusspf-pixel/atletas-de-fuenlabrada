@@ -45,7 +45,7 @@ export default function AdminAthleteDossier({ athleteId, adminProfileId, onBack 
     if (!supabase) return;
     setLoading(true);
     const [athleteResult, avatarResult, chargeResult, noteResult, groupResult] = await Promise.all([
-      supabase.from("athletes").select("id,first_name,last_name,birth_date,club_status,training_group_id,license_status,license_number,user_profile_id,profiles:user_profile_id(full_name,email,phone),training_groups(name,schedule_days,starts_at,ends_at),families(emergency_phone,profiles(full_name,email,phone)),memberships(id,plan,billing_status,enrolment_fee_cents,enrolment_fee_status)").eq("id", athleteId).single(),
+      supabase.from("athletes").select("id,first_name,last_name,birth_date,club_status,training_group_id,license_status,license_number,user_profile_id,profiles:user_profile_id(full_name,email,phone),training_groups(name,schedule_days,starts_at,ends_at),families!athletes_family_id_fkey(emergency_phone,profiles:profiles!families_primary_profile_id_fkey(full_name,email,phone)),memberships(id,plan,billing_status,enrolment_fee_cents,enrolment_fee_status)").eq("id", athleteId).single(),
       supabase.from("athlete_profile_settings").select("avatar_url").eq("athlete_id", athleteId).maybeSingle(),
       supabase.from("billing_charge_drafts").select("id,charge_kind,scheduled_for,approved_amount_cents,calculated_amount_cents,status,period_starts_on,period_ends_on").eq("athlete_id", athleteId).order("scheduled_for", { ascending: false }),
       supabase.from("coach_athlete_notes").select("id,body,created_at,coach_profile_id,profiles:coach_profile_id(full_name)").eq("athlete_id", athleteId).order("created_at", { ascending: false }),

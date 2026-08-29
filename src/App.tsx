@@ -817,7 +817,7 @@ function Portal({
     void (async () => {
       const { data: athleteData } = await supabase
         .from("athletes")
-        .select("id,user_profile_id,families(primary_profile_id)");
+        .select("id,user_profile_id,families!athletes_family_id_fkey(primary_profile_id)");
       const own = (athleteData || [])
         .filter(
           (athlete: any) =>
@@ -1356,7 +1356,7 @@ function Metric({
 function AthletesAdmin({ onOpenAthlete, statusFilter }: { onOpenAthlete: (id: string) => void; statusFilter?: string }) {
   const { rows, loading, error, reload } = useRows<AthleteRecord>(
     "athletes",
-    "*,profiles:user_profile_id(*),training_groups(*),families(*,profiles(*)),memberships(*),consents(*),federation_license_applications(training_category,competition_category,form_data),health_declarations(relevant_condition,relevant_condition_detail,asthma_allergy_medication,injury_limitation,support_needs,additional_notes)",
+    "*,profiles:user_profile_id(*),training_groups(*),families!athletes_family_id_fkey(*,profiles:profiles!families_primary_profile_id_fkey(*)),memberships(*),consents(*),federation_license_applications(training_category,competition_category,form_data),health_declarations(relevant_condition,relevant_condition_detail,asthma_allergy_medication,injury_limitation,support_needs,additional_notes)",
   );
   const groups = useRows<Group>("training_groups");
   const avatarSettings = useRows<{
