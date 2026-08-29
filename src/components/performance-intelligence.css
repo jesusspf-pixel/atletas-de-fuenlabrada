@@ -3,6 +3,7 @@
 @media(max-width:480px){.performance-hero{min-height:220px;align-items:flex-start}.readiness-ring{width:78px;height:78px}.performance-form-grid{grid-template-columns:1fr}.performance-form-grid .wide{grid-column:auto}.performance-insight{grid-template-columns:40px 1fr;padding:18px}.performance-insight>i{width:40px;height:40px}.performance-chart header{display:block}.confidence{display:inline-block;margin-top:10px}}
 .performance-insight.alert{background:linear-gradient(135deg,#64263a,#a53c51)}
 .performance-insight ul{display:grid;gap:5px;margin:12px 0 0;padding-left:18px;color:#e7f0fb}
-.ai-analysis-button{width:auto;margin-top:14px;padding:10px 15px;border:1px solid #ffffff55;border-radius:12px;background:#fff;color:#124b96;font-size:11px}
+.performance-insight .ai-analysis-button{width:auto;margin-top:14px;padding:11px 17px;border:2px solid #fff;border-radius:12px;background:#fff;color:#0b3d7d;font-size:11px;font-weight:900;box-shadow:0 8px 20px #001a3d33}
+.performance-insight .ai-analysis-button:hover{background:#b8ff3d;border-color:#b8ff3d;color:#092c5c}
 .ai-analysis-button:disabled{opacity:.65}
 .ai-analysis-error{display:block;margin-top:9px;color:#ffd0d5;font-size:10px}
