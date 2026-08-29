@@ -39,18 +39,22 @@ export const onRequestPost:PagesFunction<Env>=async({request,env})=>{
   for(const document of (input.documents||[]).slice(0,5))if(document.data&&document.data.length<9_000_000)content.push({type:"document",source:{type:"base64",media_type:"application/pdf",data:document.data},title:clean(document.name,120)||"Plan anterior"});
   const system=`Eres copiloto de un entrenador de atletismo experto. Tu trabajo es proponer, nunca publicar ni sustituir su criterio. Usa los planes aportados para respetar su metodología. Ajusta progresión, recuperación y especificidad al objetivo; si la cobertura de datos es baja, sé conservador. No identifiques atletas ni hagas diagnósticos. Devuelve exclusivamente JSON válido con {"title":"...","sessions":{"Lunes":session,...,"Domingo":session},"rationale":"..."}. Cada session debe incluir strings: objective,warmup,technique,main,cooldown,notes,duration,rpe,volume,intensity. intensity solo puede ser Baja, Media, Alta o Competición. Deja vacíos los días de descanso, excepto notes si conviene explicar descanso. Duración y RPE deben ser strings numéricos.`;
   const callClaude=async(model:string)=>{
-    const response=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"content-type":"application/json","x-api-key":env.ANTHROPIC_API_KEY||"","anthropic-version":"2023-06-01"},body:JSON.stringify({model,max_tokens:4500,system,messages:[{role:"user",content}]})});
+    const response=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"content-type":"application/json","x-api-key":env.ANTHROPIC_API_KEY||"","anthropic-version":"2023-06-01"},body:JSON.stringify({model,max_tokens:3500,thinking:{type:"disabled"},system,messages:[{role:"user",content}]})});
     return {response,result:await response.json().catch(()=>null) as any};
   };
-  let {response,result}=await callClaude("claude-sonnet-5");
-  if(!response.ok){
-    console.error(JSON.stringify({event:"coach_ai_planner_primary_failed",status:response.status,type:result?.error?.type||"unknown",message:result?.error?.message||"unknown"}));
-    ({response,result}=await callClaude("claude-haiku-4-5-20251001"));
+  const models=["claude-sonnet-5","claude-haiku-4-5-20251001","claude-sonnet-4-20250514","claude-3-5-haiku-20241022"];
+  let response:Response|null=null;let result:any=null;
+  for(const model of models){
+    ({response,result}=await callClaude(model));
+    if(response.ok)break;
+    console.error(JSON.stringify({event:"coach_ai_planner_model_failed",model,status:response.status,type:result?.error?.type||"unknown",message:result?.error?.message||"unknown",requestId:response.headers.get("request-id")||response.headers.get("x-request-id")||"unknown"}));
+    if(response.status===401||response.status===403||response.status===429||response.status>=500)break;
   }
-  if(!response.ok){
-    console.error(JSON.stringify({event:"coach_ai_planner_fallback_failed",status:response.status,type:result?.error?.type||"unknown",message:result?.error?.message||"unknown"}));
-    const message=response.status===402?"El saldo del servicio de IA se ha agotado.":response.status===413?"Los documentos ocupan demasiado. Prueba con menos PDF o archivos más pequeños.":"El servicio de planificación no ha aceptado la solicitud. Vuelve a intentarlo en unos minutos.";
-    return json({error:message},503);
+  if(!response?.ok){
+    const status=response?.status||503;
+    const type=String(result?.error?.type||"unknown");
+    const message=status===401?"La conexión segura del copiloto necesita renovarse.":status===403?"El proveedor de IA no ha autorizado este modelo para la cuenta del club.":status===402||type.includes("billing")?"El servicio de IA no tiene saldo disponible.":status===413?"Los documentos ocupan demasiado. Prueba con menos PDF o archivos más pequeños.":status===429?"El servicio está recibiendo demasiadas solicitudes. Espera un minuto y vuelve a intentarlo.":status===400?"El proveedor no ha aceptado el formato de la solicitud. Prueba sin documentos adjuntos.":"El servicio de planificación no ha aceptado la solicitud. Vuelve a intentarlo en unos minutos.";
+    return json({error:message,diagnostic:`IA-${status}-${type}`},503);
   }
   const raw=String(result?.content?.find((item:any)=>item.type==="text")?.text||"").replace(/^```json\s*|\s*```$/g,"");
   try{const parsed=JSON.parse(raw);if(!parsed?.sessions||typeof parsed.sessions!=="object")throw new Error("invalid");return json({title:clean(parsed.title,140)||`Running A · Semana ${input.weekStartsOn}`,sessions:parsed.sessions,rationale:clean(parsed.rationale,1200)});}catch{return json({error:"La propuesta no llegó con el formato esperado. Vuelve a intentarlo."},502)}
