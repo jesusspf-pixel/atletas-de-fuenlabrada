@@ -15,6 +15,7 @@ type Draft = {
   admin_note: string | null; override_reason: string | null; athletes?: { first_name: string; last_name: string } | null;
   memberships?: { season: string; plan: string } | null;
 };
+type AutomationRun = { id: string; started_at: string; completed_at: string | null; status: "running" | "completed" | "failed"; processed_count: number; paid_count: number; failed_count: number; error_message: string | null };
 
 const euro = (cents: number | null | undefined) => new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format((cents || 0) / 100);
 const field = (value: number) => (value / 100).toFixed(2);
@@ -30,18 +31,21 @@ export default function BillingControlCenter() {
   const [busy, setBusy] = useState(false);
   const [selectedMembershipId, setSelectedMembershipId] = useState("");
   const [workspace, setWorkspace] = useState<"fees" | "finance">("fees");
+  const [automationRun, setAutomationRun] = useState<AutomationRun | null>(null);
 
   const load = async () => {
     const client = supabase; if (!client) return;
     setBusy(true);
-    const [rulesResult, membershipsResult, draftsResult] = await Promise.all([
+    const [rulesResult, membershipsResult, draftsResult, automationResult] = await Promise.all([
       client.from("club_billing_rules").select("*").eq("id", true).maybeSingle(),
       client.from("memberships").select("id,season,plan,athletes(first_name,last_name)").order("created_at", { ascending: false }),
       client.from("billing_charge_drafts").select("id,membership_id,charge_kind,scheduled_for,period_starts_on,period_ends_on,calculated_amount_cents,approved_amount_cents,discount_cents,status,admin_note,override_reason,athletes(first_name,last_name),memberships(season,plan)").order("scheduled_for", { ascending: true }),
+      client.from("billing_automation_runs").select("id,started_at,completed_at,status,processed_count,paid_count,failed_count,error_message").order("started_at", { ascending: false }).limit(1).maybeSingle(),
     ]);
     if (rulesResult.data) setRules(rulesResult.data as RuleSet);
     setMemberships((membershipsResult.data ?? []) as unknown as Membership[]);
     setDrafts((draftsResult.data ?? []) as unknown as Draft[]);
+    setAutomationRun((automationResult.data as AutomationRun | null) ?? null);
     setMessage(rulesResult.error?.message || membershipsResult.error?.message || draftsResult.error?.message || "");
     setBusy(false);
   };
@@ -118,6 +122,16 @@ export default function BillingControlCenter() {
     <div className="page-head"><div><small>ADMINISTRACIÓN</small><h1>{workspace === "fees" ? "Centro de cuotas y cobros" : "Control financiero del club"}</h1><p>{workspace === "fees" ? "Al validar un alta se aprueba y programa todo su calendario. Stripe cobra automáticamente cada cuota en su fecha; este panel queda para reglas y excepciones." : "Ingresos, subvenciones, ventas, gastos, previsiones y resultado real en un único lugar."}</p></div><button className="outline" disabled={busy} onClick={() => void load()}>Actualizar</button></div>
     <nav className="billing-workspace-tabs"><button className={workspace === "fees" ? "selected" : ""} onClick={() => setWorkspace("fees")}>Cuotas y cobros</button><button className={workspace === "finance" ? "selected" : ""} onClick={() => setWorkspace("finance")}>Control financiero</button></nav>
     {workspace === "finance" ? <FinancialControlCenter drafts={drafts} /> : <>
+    <section className={`billing-automation-status ${automationRun?.status === "failed" ? "has-error" : ""}`}>
+      <header><div><small>COBROS AUTOMÁTICOS</small><h2>{automationRun?.status === "failed" ? "Necesita revisión" : "Sistema operativo"}</h2><p>El cobrador revisa las cuotas cada hora y solo procesa las que hayan llegado a su fecha.</p></div><span>{automationRun?.status === "failed" ? "Incidencia" : "Activo"}</span></header>
+      <div>
+        <article><small>Última comprobación</small><b>{automationRun ? new Date(automationRun.started_at).toLocaleString("es-ES", { dateStyle: "short", timeStyle: "short" }) : "Pendiente de registro"}</b></article>
+        <article><small>Cuotas revisadas</small><b>{automationRun?.processed_count ?? 0}</b></article>
+        <article><small>Cobradas</small><b>{automationRun?.paid_count ?? 0}</b></article>
+        <article><small>Fallidas</small><b>{automationRun?.failed_count ?? 0}</b></article>
+      </div>
+      {automationRun?.error_message && <aside>{automationRun.error_message}</aside>}
+    </section>
     <section className="metric-grid">
       <article className="metric"><small>Previsión pendiente</small><b>{euro(totals.forecast)}</b></article>
       <article className="metric"><small>Listo para aprobar</small><b>{totals.review}</b></article>
