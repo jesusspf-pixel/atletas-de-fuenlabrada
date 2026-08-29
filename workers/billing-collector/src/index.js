@@ -1,6 +1,7 @@
 const H={"content-type":"application/json",accept:"application/json"};
 const required=(env,name)=>{const value=String(env[name]||"").trim();if(!value)throw new Error(`Falta la configuración ${name}`);return value};
-const db=(env,path,init={})=>{const base=required(env,"SUPABASE_URL").replace(/\/+$/,"");const key=required(env,"SUPABASE_SERVICE_ROLE_KEY");return fetch(`${base}${path}`,{...init,headers:{apikey:key,authorization:`Bearer ${key}`,...H,...(init.headers||{})}})};
+const supabaseBase=(env)=>required(env,"SUPABASE_URL").replace(/\/+$/,"").replace(/\/(?:rest|auth)\/v1$/i,"");
+const db=(env,path,init={})=>{const base=supabaseBase(env);const key=required(env,"SUPABASE_SERVICE_ROLE_KEY");return fetch(`${base}${path}`,{...init,headers:{apikey:key,authorization:`Bearer ${key}`,...H,...(init.headers||{})}})};
 const stripe=async(env,path,params,idempotencyKey)=>{const response=await fetch(`https://api.stripe.com/v1/${path}`,{method:"POST",headers:{authorization:`Bearer ${env.STRIPE_SECRET_KEY}`,"content-type":"application/x-www-form-urlencoded","Idempotency-Key":idempotencyKey},body:params});return{response,data:await response.json().catch(()=>({}))}};
 const mail=async(env,to,subject,html)=>{if(!env.RESEND_API_KEY||!to)return;await fetch("https://api.resend.com/emails",{method:"POST",headers:{authorization:`Bearer ${env.RESEND_API_KEY}`,...H},body:JSON.stringify({from:"Club Atletas de Fuenlabrada <info@atletasdefuenlabrada.com>",to:[to],subject,html})})};
 const patch=(env,id,body)=>db(env,`/rest/v1/billing_charge_drafts?id=eq.${id}`,{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify({...body,updated_at:new Date().toISOString()})});
