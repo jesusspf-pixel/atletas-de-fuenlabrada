@@ -1121,7 +1121,7 @@ function Admin({
   else if (section === "Avisos")
     content = <AnnouncementManager profile={profile} />;
   else if (section === "Rendimiento")
-    content = <CoachPerformanceOverview profileId={profile.id} allGroups onOpenAthlete={openAthlete} />;
+    content = <CoachPerformanceOverview profileId={profile.id} allGroups />;
   else if (section === "Configuración") content = <Settings />;
   else content = <AdminHome profile={profile} go={go} />;
   return (
