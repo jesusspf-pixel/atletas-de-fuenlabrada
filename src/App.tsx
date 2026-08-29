@@ -1374,7 +1374,12 @@ function AthletesAdmin({ onOpenAthlete, statusFilter }: { onOpenAthlete: (id: st
   const [waiveEnrolment, setWaiveEnrolment] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<"monthly" | "term">("term");
   const [enrolmentFee, setEnrolmentFee] = useState("");
-  const visibleRows = statusFilter ? rows.filter((athlete) => athlete.club_status === statusFilter) : rows;
+  const [athleteSearch, setAthleteSearch] = useState("");
+  const baseRows = statusFilter ? rows.filter((athlete) => athlete.club_status === statusFilter) : rows;
+  const normalizedSearch = athleteSearch.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("es");
+  const visibleRows = normalizedSearch
+    ? baseRows.filter((athlete) => `${athlete.first_name} ${athlete.last_name}`.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("es").includes(normalizedSearch))
+    : baseRows;
   useEffect(() => {
     if (selected) {
       const membership = selected.memberships?.[0];
@@ -1541,6 +1546,22 @@ function AthletesAdmin({ onOpenAthlete, statusFilter }: { onOpenAthlete: (id: st
           No se pudieron consultar las solicitudes: {error}
         </p>
       )}
+      <div className="athlete-search-bar">
+        <label htmlFor="admin-athlete-search">Buscar atleta</label>
+        <div>
+          <span aria-hidden="true">⌕</span>
+          <input
+            id="admin-athlete-search"
+            type="search"
+            value={athleteSearch}
+            onChange={(event) => setAthleteSearch(event.target.value)}
+            placeholder="Nombre o apellidos"
+            autoComplete="off"
+          />
+          {athleteSearch && <button type="button" onClick={() => setAthleteSearch("")} aria-label="Limpiar búsqueda">×</button>}
+        </div>
+        <small>{visibleRows.length} de {baseRows.length} atleta{baseRows.length === 1 ? "" : "s"}</small>
+      </div>
       <div className="panel table">
         {loading
           ? "Cargando…"
@@ -1593,7 +1614,7 @@ function AthletesAdmin({ onOpenAthlete, statusFilter }: { onOpenAthlete: (id: st
               </button>
             ))}
         {!loading && !visibleRows.length && !error && (
-          <Empty>{statusFilter === "pending_review" ? "No hay altas pendientes de revisión." : "Aún no hay atletas registrados."}</Empty>
+          <Empty>{athleteSearch ? "No hay atletas que coincidan con la búsqueda." : statusFilter === "pending_review" ? "No hay altas pendientes de revisión." : "Aún no hay atletas registrados."}</Empty>
         )}
       </div>
       {selected && (
