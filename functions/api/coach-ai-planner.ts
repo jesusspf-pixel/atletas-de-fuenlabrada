@@ -1,4 +1,4 @@
-type Env = { ANTHROPIC_API_KEY?: string; SUPABASE_URL?: string; SUPABASE_SERVICE_ROLE_KEY?: string };
+type Env = { ANTHROPIC_API_KEY?: string; ANTHROPIC_WORKSPACE_ID?: string; SUPABASE_URL?: string; SUPABASE_SERVICE_ROLE_KEY?: string };
 type Input = { groupId?:string; weekStartsOn?:string; startingPoint?:string; objective?:string; targetDate?:string; constraints?:string; previousPlans?:string; documents?:Array<{name?:string;data?:string}> };
 const json=(body:unknown,status=200)=>Response.json(body,{status,headers:{"cache-control":"no-store"}});
 const headers=(env:Env)=>({apikey:env.SUPABASE_SERVICE_ROLE_KEY||"",authorization:`Bearer ${env.SUPABASE_SERVICE_ROLE_KEY||""}`});
@@ -39,7 +39,9 @@ export const onRequestPost:PagesFunction<Env>=async({request,env})=>{
   for(const document of (input.documents||[]).slice(0,5))if(document.data&&document.data.length<9_000_000)content.push({type:"document",source:{type:"base64",media_type:"application/pdf",data:document.data},title:clean(document.name,120)||"Plan anterior"});
   const system=`Eres copiloto de un entrenador de atletismo experto. Tu trabajo es proponer, nunca publicar ni sustituir su criterio. Usa los planes aportados para respetar su metodología. Ajusta progresión, recuperación y especificidad al objetivo; si la cobertura de datos es baja, sé conservador. No identifiques atletas ni hagas diagnósticos. Devuelve exclusivamente JSON válido con {"title":"...","sessions":{"Lunes":session,...,"Domingo":session},"rationale":"..."}. Cada session debe incluir strings: objective,warmup,technique,main,cooldown,notes,duration,rpe,volume,intensity. intensity solo puede ser Baja, Media, Alta o Competición. Deja vacíos los días de descanso, excepto notes si conviene explicar descanso. Duración y RPE deben ser strings numéricos.`;
   const callClaude=async(model:string)=>{
-    const response=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"content-type":"application/json","x-api-key":env.ANTHROPIC_API_KEY||"","anthropic-version":"2023-06-01"},body:JSON.stringify({model,max_tokens:3500,system,messages:[{role:"user",content}]})});
+    const anthropicHeaders:Record<string,string>={"content-type":"application/json","x-api-key":env.ANTHROPIC_API_KEY||"","anthropic-version":"2023-06-01"};
+    if(env.ANTHROPIC_WORKSPACE_ID)anthropicHeaders["anthropic-workspace-id"]=env.ANTHROPIC_WORKSPACE_ID;
+    const response=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:anthropicHeaders,body:JSON.stringify({model,max_tokens:3500,system,messages:[{role:"user",content}]})});
     return {response,result:await response.json().catch(()=>null) as any};
   };
   const models=["claude-sonnet-5","claude-haiku-4-5-20251001","claude-sonnet-4-20250514","claude-3-5-haiku-20241022"];
