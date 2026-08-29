@@ -767,6 +767,13 @@ function Portal({
   const [challengeAthleteId, setChallengeAthleteId] = useState("");
   const [ownAthleteId, setOwnAthleteId] = useState("");
   const [memberAvatarUrl, setMemberAvatarUrl] = useState("");
+  const goToSection = (nextSection: string) => {
+    setAdminAthleteId("");
+    if (nextSection !== "Mis atletas" && nextSection !== "Mis menores") {
+      setFocusedAthleteId("");
+    }
+    setSection(nextSection);
+  };
   const coachAssignments = useRows<{ coach_profile_id: string }>(
     "training_group_coaches",
     "coach_profile_id",
@@ -964,7 +971,7 @@ function Portal({
       <Admin
         section={section}
         profile={profile}
-        go={setSection}
+        go={goToSection}
         athleteId={adminAthleteId}
         openAthlete={(id) => {
           setAdminAthleteReturnSection(section);
@@ -977,12 +984,12 @@ function Portal({
         }}
       />
     ) : profile.role === "coach" ? (
-      <Coach section={section} profile={profile} go={setSection} />
+      <Coach section={section} profile={profile} go={goToSection} />
     ) : (
       <Member
         section={section}
         profile={profile}
-        go={setSection}
+        go={goToSection}
         openAthlete={openAthlete}
         focusedAthleteId={focusedAthleteId}
       />
@@ -1017,7 +1024,7 @@ function Portal({
             <button
               className={section === item || (section === "Altas en revisión" && item === "Atletas") ? "selected" : ""}
               key={item}
-              onClick={() => setSection(item)}
+              onClick={() => goToSection(item)}
             >
               <AppNavIcon name={item} />
               <span>{item}</span>
