@@ -21,7 +21,7 @@
           reloadingForUpdate = true;
           window.location.reload();
         });
-        navigator.serviceWorker.register("/sw.js?v=20260830-4", { updateViaCache: "none" })
+        navigator.serviceWorker.register("/sw.js?v=20260830-5", { updateViaCache: "none" })
           .then((registration) => {
             registration.update();
             window.setInterval(() => registration.update(), 15 * 60 * 1000);
