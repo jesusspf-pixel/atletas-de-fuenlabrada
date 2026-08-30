@@ -2845,9 +2845,9 @@ function Attendance({ profile }: { profile: Profile }) {
     : (assigned.rows
         .map((item) => item.training_groups)
         .filter(Boolean) as Group[]);
-  const [groupId, setGroupId] = useState("");
+  const [groupIds, setGroupIds] = useState<string[]>([]);
   const [when, setWhen] = useState(new Date().toISOString().slice(0, 16));
-  const [selectedSession, setSelectedSession] = useState("");
+  const [selectedSessions, setSelectedSessions] = useState<Record<string,string>>({});
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   useEffect(() => {
@@ -2858,14 +2858,7 @@ function Attendance({ profile }: { profile: Profile }) {
     }, 10000);
     return () => window.clearInterval(timer);
   }, []);
-  const visibleSessions = sessions.rows.filter(
-    (s) => !groupId || s.training_group_id === groupId,
-  );
-  const activeSession = selectedSession || visibleSessions[0]?.id || "";
-  const session = sessions.rows.find((s) => s.id === activeSession);
-  const roster = athletes.rows.filter(
-    (a) => a.training_group_id === (session?.training_group_id || groupId),
-  );
+  const roster = athletes.rows.filter((a) => Boolean(a.training_group_id&&groupIds.includes(a.training_group_id)));
   const now = Date.now();
   const activeSessions = sessions.rows
     .filter((item) => {
@@ -2881,22 +2874,23 @@ function Attendance({ profile }: { profile: Profile }) {
   const createSession = async (e: FormEvent) => {
     e.preventDefault();
     setError("");
-    if (!groupId) return setError("Selecciona un grupo.");
+    if (!groupIds.length) return setError("Selecciona al menos un grupo.");
     const { data, error: createError } = await supabase!
       .from("attendance_sessions")
-      .insert({
-        training_group_id: groupId,
+      .insert(groupIds.map(training_group_id=>({
+        training_group_id,
         starts_at: new Date(when).toISOString(),
         created_by: profile.id,
-      })
-      .select("id")
-      .single();
+      })))
+      .select("id,training_group_id");
     if (createError) return setError(createError.message);
-    setSelectedSession(data.id);
+    setSelectedSessions(Object.fromEntries((data||[]).map(item=>[item.training_group_id,item.id])));
     void sessions.reload();
   };
   const mark = async (athleteId: string, attended: boolean) => {
-    if (!activeSession) return;
+    const athlete=athletes.rows.find(item=>item.id===athleteId);
+    const activeSession=athlete?.training_group_id?selectedSessions[athlete.training_group_id]:"";
+    if (!activeSession) return setError("Crea o selecciona primero la lista del grupo de este atleta.");
     setBusy(athleteId);
     const { error: markError } = await supabase!
       .from("attendance_records")
@@ -2962,8 +2956,8 @@ function Attendance({ profile }: { profile: Profile }) {
               className="live-session"
               key={item.id}
               onClick={() => {
-                setGroupId(item.training_group_id);
-                setSelectedSession(item.id);
+                setGroupIds([item.training_group_id]);
+                setSelectedSessions({[item.training_group_id]:item.id});
               }}
             >
               <span>
@@ -2981,25 +2975,12 @@ function Attendance({ profile }: { profile: Profile }) {
           );
         })}
       </section>
-      <form className="panel inline-form" onSubmit={createSession}>
-        <label>
-          Grupo
-          <select
-            required
-            value={groupId}
-            onChange={(e) => {
-              setGroupId(e.target.value);
-              setSelectedSession("");
-            }}
-          >
-            <option value="">Selecciona un grupo</option>
-            {groups.map((g) => (
-              <option key={g.id} value={g.id}>
-                {g.name}
-              </option>
-            ))}
-          </select>
-        </label>
+      <form className="panel attendance-multi-form" onSubmit={createSession}>
+        <fieldset className="attendance-group-picker">
+          <legend>Grupos para pasar lista</legend>
+          <p>Marca uno o varios grupos. Todos sus atletas aparecerán juntos debajo.</p>
+          <div>{groups.map((g) => <label key={g.id} className={groupIds.includes(g.id)?"selected":""}><input type="checkbox" checked={groupIds.includes(g.id)} onChange={()=>{setGroupIds(current=>current.includes(g.id)?current.filter(id=>id!==g.id):[...current,g.id]);setSelectedSessions(current=>{const next={...current};if(groupIds.includes(g.id))delete next[g.id];else{const existing=sessions.rows.find(item=>item.training_group_id===g.id);if(existing)next[g.id]=existing.id}return next})}}/><span><b>{g.name}</b><small>{g.category_label}</small></span></label>)}</div>
+        </fieldset>
         <label>
           Inicio del entrenamiento
           <input
@@ -3008,30 +2989,14 @@ function Attendance({ profile }: { profile: Profile }) {
             onChange={(e) => setWhen(e.target.value)}
           />
         </label>
-        <button>Crear lista de hoy</button>
+        <button disabled={!groupIds.length}>Crear {groupIds.length>1?`${groupIds.length} listas de hoy`:"lista de hoy"}</button>
         {error && <p className="error-note">{error}</p>}
       </form>
-      {groupId && (
+      {groupIds.length>0 && (
         <article className="panel table">
-          <div className="row">
-            <span>
-              <b>Sesiones del grupo</b>
-              <small>Elige una lista ya creada o crea una nueva.</small>
-            </span>
-            <select
-              value={activeSession}
-              onChange={(e) => setSelectedSession(e.target.value)}
-            >
-              <option value="">Selecciona una sesión</option>
-              {visibleSessions.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {new Date(s.starts_at).toLocaleString("es-ES")}
-                </option>
-              ))}
-            </select>
-          </div>
-          {activeSession &&
-            roster.map((a) => {
+          <div className="attendance-session-pickers">{groupIds.map(id=>{const group=groups.find(item=>item.id===id),visible=sessions.rows.filter(item=>item.training_group_id===id);return <label key={id}><span><b>{group?.name||"Grupo"}</b><small>Lista que se utilizará</small></span><select value={selectedSessions[id]||""} onChange={event=>setSelectedSessions(current=>({...current,[id]:event.target.value}))}><option value="">Nueva lista pendiente</option>{visible.map(s=><option key={s.id} value={s.id}>{new Date(s.starts_at).toLocaleString("es-ES")}</option>)}</select></label>})}</div>
+          {roster.map((a) => {
+              const activeSession=a.training_group_id?selectedSessions[a.training_group_id]:"";
               const record = records.rows.find(
                 (r) => r.session_id === activeSession && r.athlete_id === a.id,
               );
@@ -3052,14 +3017,14 @@ function Attendance({ profile }: { profile: Profile }) {
                   </span>
                   <span>
                     <button
-                      disabled={busy === a.id}
+                      disabled={busy === a.id||!activeSession}
                       onClick={() => void mark(a.id, true)}
                     >
                       Ha asistido
                     </button>{" "}
                     <button
                       className="outline"
-                      disabled={busy === a.id}
+                      disabled={busy === a.id||!activeSession}
                       onClick={() => void mark(a.id, false)}
                     >
                       No ha asistido
@@ -3068,8 +3033,8 @@ function Attendance({ profile }: { profile: Profile }) {
                 </div>
               );
             })}
-          {activeSession && !roster.length && (
-            <Empty>No hay atletas asignados a este grupo.</Empty>
+          {!roster.length && (
+            <Empty>No hay atletas asignados a los grupos seleccionados.</Empty>
           )}
         </article>
       )}
