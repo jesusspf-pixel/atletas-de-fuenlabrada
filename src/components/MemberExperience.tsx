@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../lib/supabase";
 import AthleteProfileEditor from "./AthleteProfileEditor";
 
@@ -36,6 +36,7 @@ export default function MemberExperience({ profileId }: { profileId: string }) {
   const [profileSettings, setProfileSettings] = useState<ProfileSettings | null>(null);
   const [planNotice, setPlanNotice] = useState("");
   const [loading, setLoading] = useState(true);
+  const hasLoadedOnce = useRef(false);
   const [refreshVersion, setRefreshVersion] = useState(0);
   const [groupMates, setGroupMates] = useState<GroupMate[]>([]);
   const [groupCoaches, setGroupCoaches] = useState<GroupCoach[]>([]);
@@ -57,11 +58,11 @@ export default function MemberExperience({ profileId }: { profileId: string }) {
   useEffect(() => {
     const load = async () => {
       if (!supabase) return;
-      setLoading(true);
+      if (!hasLoadedOnce.current) setLoading(true);
       const { data: athleteData } = await supabase.from("athletes").select("id,first_name,last_name,club_status,license_status,license_number,federation_license,training_group_id,training_groups(name,category_label)").eq("user_profile_id", profileId).order("created_at");
       const mine = (athleteData ?? []) as unknown as Athlete[];
       setAthletes(mine);
-      if (!mine.length) { setLedger([]); setEntries([]); setPlans([]); setDocuments([]); setProfileSettings(null); setLoading(false); return; }
+      if (!mine.length) { setLedger([]); setEntries([]); setPlans([]); setDocuments([]); setProfileSettings(null); hasLoadedOnce.current = true; setLoading(false); return; }
       const ids = mine.map(a => a.id);
       const groupIds = [...new Set(mine.map(a => a.training_group_id).filter((id): id is string => Boolean(id)))];
       const [{ data: ledgerData }, { data: entryData }, planResult, documentResult, settingsResult] = await Promise.all([
@@ -77,6 +78,7 @@ export default function MemberExperience({ profileId }: { profileId: string }) {
       setDocuments((documentResult.data ?? []) as TrainingDocument[]);
       setProfileSettings((settingsResult.data as ProfileSettings | null) ?? null);
       setLoading(false);
+      hasLoadedOnce.current = true;
     };
     void load();
   }, [profileId, refreshVersion]);
@@ -87,7 +89,7 @@ export default function MemberExperience({ profileId }: { profileId: string }) {
     const onVisibility = () => { if (document.visibilityState === "visible") refresh(); };
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("focus", refresh);
-    const timer = window.setInterval(refresh, 60000);
+    const timer = window.setInterval(refresh, 5 * 60 * 1000);
     const channel = supabase.channel(`member-plans-${profileId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "training_plans" }, refresh)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "club_documents" }, refresh)
