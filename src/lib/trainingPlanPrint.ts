@@ -130,7 +130,7 @@ export function printTrainingPlan(
     <header class="plan-head">
       <div class="brand"><img src="/logo-af-v1.png" alt=""><span>CLUB ATLETAS DE FUENLABRADA</span></div>
       <div class="headline">
-        <h1>${escapeHtml(title)}</h1>
+        <h1>PLAN SEMANAL</h1>
         <div class="meta"><b>${escapeHtml(groupName)}</b><span>Semana ${escapeHtml(formatWeek(week))}</span></div>
       </div>
     </header>
