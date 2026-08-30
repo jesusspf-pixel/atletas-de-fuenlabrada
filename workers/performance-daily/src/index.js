@@ -163,7 +163,7 @@ async function run(env) {
 export default {
   async fetch(request) { if (new URL(request.url).pathname === "/health") return Response.json({ ok: true, service: "club-atletas-performance-daily" }); return new Response("Not found", { status: 404 }); },
   async scheduled(controller, env, ctx) {
-    if (controller.cron === "40 18 * * 0") ctx.waitUntil(generateWeeklyProposal(env));
+    if (controller.cron === "40 18 * * SUN") ctx.waitUntil(generateWeeklyProposal(env));
     else ctx.waitUntil(run(env));
   },
 };
