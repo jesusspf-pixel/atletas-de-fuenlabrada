@@ -621,6 +621,7 @@ export function PlanningWorkspace({ profile }: { profile: Profile }) {
     main: "",
     cooldown: "",
     notes: "",
+    coachNotes: "",
     duration: "60",
     rpe: "5",
     volume: "",
@@ -1091,11 +1092,20 @@ export function PlanningWorkspace({ profile }: { profile: Profile }) {
                 />
               </label>
               <label>
-                Observaciones
+                Observaciones para el grupo
                 <textarea
                   value={builder.notes}
                   onChange={(e) => updateBuilder({ notes: e.target.value })}
                 />
+              </label>
+              <label className="coach-private-notes">
+                Notas privadas del entrenador
+                <textarea
+                  value={builder.coachNotes}
+                  onChange={(e) => updateBuilder({ coachNotes: e.target.value })}
+                  placeholder="Ejercicios concretos, organización, correcciones y aspectos que observar…"
+                />
+                <small>No se incluyen en el plan publicado para los atletas.</small>
               </label>
             </div>
           </section>

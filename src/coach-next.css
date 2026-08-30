@@ -61,3 +61,4 @@
 .design-preview-v2 .design-v2-track,.design-preview-v2 .design-v2-mini-track{opacity:1}
 .design-preview-v2 .design-v2-track>span{display:none}
 @media(max-width:820px){.design-preview-v2 .design-v2-hero:before,.design-preview-v2 .design-v2-inner-hero:before{background-size:auto 100%;background-position:44% center}.design-preview-v2 .design-v2-profile-cover:before{background-size:auto 115%;background-position:48% center}}
+.coach-private-notes{grid-column:1/-1;padding:16px!important;border-radius:18px;background:#102f57!important;color:#fff!important}.coach-private-notes textarea{background:#fff!important;color:#102b4d!important}.coach-private-notes small{color:#d5e7fb!important}
