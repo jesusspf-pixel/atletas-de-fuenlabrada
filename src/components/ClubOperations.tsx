@@ -47,6 +47,19 @@ type ClubDocument = {
   training_plan_id?: string | null;
   created_at: string;
 };
+type PlannerSession = {
+  objective: string;
+  warmup: string;
+  technique: string;
+  main: string;
+  cooldown: string;
+  notes: string;
+  coachNotes: string;
+  duration: string;
+  rpe: string;
+  volume: string;
+  intensity: string;
+};
 const mondayKey = (value = new Date()) => {
   const date = new Date(value);
   date.setHours(12, 0, 0, 0);
@@ -580,6 +593,12 @@ export function PlanningWorkspace({ profile }: { profile: Profile }) {
   });
   const [aiFiles, setAiFiles] = useState<File[]>([]);
   const [aiLoading, setAiLoading] = useState(false);
+  const [aiSettings, setAiSettings] = useState<
+    { training_group_id: string; starting_point: string; objective: string; target_date: string | null; constraints: string; methodology: string }[]
+  >([]);
+  const [aiProposals, setAiProposals] = useState<
+    { id: string; training_group_id: string; week_starts_on: string; title: string; sessions: Record<string, PlannerSession>; rationale: string; aggregate_snapshot: { activeAthletes?: number; participatingAthletes?: number; coveragePercent?: number }; status: string }[]
+  >([]);
   const days = [
     "Lunes",
     "Martes",
@@ -589,7 +608,7 @@ export function PlanningWorkspace({ profile }: { profile: Profile }) {
     "Sábado",
     "Domingo",
   ];
-  const emptySession = () => ({
+  const emptySession = (): PlannerSession => ({
     objective: "",
     warmup: "",
     technique: "",
@@ -620,7 +639,7 @@ export function PlanningWorkspace({ profile }: { profile: Profile }) {
     }));
   const load = async () => {
     if (!supabase) return;
-    const [{ data: assigned }, { data: planData }, { data: docData }] =
+    const [{ data: assigned }, { data: planData }, { data: docData }, { data: settingData }, { data: proposalData }] =
       await Promise.all([
         supabase
           .from("training_group_coaches")
@@ -637,6 +656,14 @@ export function PlanningWorkspace({ profile }: { profile: Profile }) {
           .select("*")
           .eq("document_type", "training_plan")
           .order("created_at", { ascending: false }),
+        supabase
+          .from("training_ai_planner_settings")
+          .select("training_group_id,starting_point,objective,target_date,constraints,methodology"),
+        supabase
+          .from("training_ai_weekly_proposals")
+          .select("id,training_group_id,week_starts_on,title,sessions,rationale,aggregate_snapshot,status")
+          .eq("status", "draft")
+          .order("week_starts_on", { ascending: false }),
       ]);
     const own = (assigned ?? [])
       .map((row: any) => row.training_groups)
@@ -644,10 +671,23 @@ export function PlanningWorkspace({ profile }: { profile: Profile }) {
     setGroups(own);
     setPlans((planData ?? []) as typeof plans);
     setDocuments((docData ?? []) as ClubDocument[]);
+    setAiSettings((settingData ?? []) as typeof aiSettings);
+    setAiProposals((proposalData ?? []) as typeof aiProposals);
   };
   useEffect(() => {
     void load();
   }, []);
+  useEffect(() => {
+    const setting = aiSettings.find((item) => item.training_group_id === form.group);
+    if (!setting) return;
+    setAiContext({
+      startingPoint: setting.starting_point || "",
+      objective: setting.objective || "",
+      targetDate: setting.target_date || "",
+      constraints: setting.constraints || "",
+      previousPlans: setting.methodology || "",
+    });
+  }, [form.group, aiSettings]);
   const preview = (
     title = form.title,
     body = form.body,
@@ -726,6 +766,15 @@ export function PlanningWorkspace({ profile }: { profile: Profile }) {
         return setNotice(
           `Plan guardado, pero no se registró el PDF: ${docError.message}`,
         );
+    }
+    const reviewedProposal = aiProposals.find(
+      (proposal) => proposal.training_group_id === form.group && proposal.week_starts_on === form.week,
+    );
+    if (reviewedProposal) {
+      await supabase
+        .from("training_ai_weekly_proposals")
+        .update({ status: "accepted", reviewed_by: profile.id, reviewed_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+        .eq("id", reviewedProposal.id);
     }
     void pushNotice({
       kind: "plan",
@@ -853,6 +902,21 @@ export function PlanningWorkspace({ profile }: { profile: Profile }) {
     try {
       const { data } = await supabase.auth.getSession();
       if (!data.session) throw new Error("La sesión ha caducado. Entra de nuevo.");
+      const { error: settingError } = await supabase
+        .from("training_ai_planner_settings")
+        .upsert({
+          training_group_id: form.group,
+          planner_profile_id: profile.id,
+          enabled: true,
+          starting_point: aiContext.startingPoint,
+          objective: aiContext.objective,
+          target_date: aiContext.targetDate || null,
+          constraints: aiContext.constraints,
+          methodology: aiContext.previousPlans,
+          updated_at: new Date().toISOString(),
+          updated_by: profile.id,
+        }, { onConflict: "training_group_id" });
+      if (settingError) throw new Error(`No se pudo guardar el criterio del piloto: ${settingError.message}`);
       const documents = await Promise.all(
         aiFiles.slice(0, 5).map(
           (selectedFile) =>
@@ -897,6 +961,27 @@ export function PlanningWorkspace({ profile }: { profile: Profile }) {
     } finally {
       setAiLoading(false);
     }
+  };
+  const currentProposal = aiProposals.find(
+    (proposal) => proposal.training_group_id === form.group && proposal.week_starts_on === form.week,
+  );
+  const loadProposal = (proposal: (typeof aiProposals)[number]) => {
+    const next = Object.fromEntries(
+      days.map((day) => [day, { ...emptySession(), ...(proposal.sessions?.[day] || {}) }]),
+    ) as Record<string, ReturnType<typeof emptySession>>;
+    setWeekPlan(next);
+    setForm((current) => ({ ...current, title: proposal.title, body: "" }));
+    setActiveDay(days.find((day) => Object.values(next[day]).some(Boolean)) || "Lunes");
+    setNotice("Propuesta automática cargada. Revísala, edítala y publica solo cuando esté lista.");
+  };
+  const rejectProposal = async (proposal: (typeof aiProposals)[number]) => {
+    if (!supabase || !window.confirm("¿Descartar esta propuesta automática? No se publicará nada.")) return;
+    const { error } = await supabase
+      .from("training_ai_weekly_proposals")
+      .update({ status: "rejected", reviewed_by: profile.id, reviewed_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+      .eq("id", proposal.id);
+    setNotice(error ? error.message : "Propuesta descartada. No se ha publicado ningún plan.");
+    if (!error) void load();
   };
   return (
     <>
@@ -967,6 +1052,23 @@ export function PlanningWorkspace({ profile }: { profile: Profile }) {
                 </div>
                 <span>Solo visible para ti</span>
               </header>
+              {currentProposal && (
+                <article className="coach-ai-sunday-draft">
+                  <div>
+                    <small>PROPUESTA AUTOMÁTICA DEL DOMINGO · BORRADOR PRIVADO</small>
+                    <h4>{currentProposal.title}</h4>
+                    <p>{currentProposal.rationale}</p>
+                    <span>
+                      Datos de {currentProposal.aggregate_snapshot?.participatingAthletes || 0} de {currentProposal.aggregate_snapshot?.activeAthletes || 0} atletas participantes
+                      {Number.isFinite(currentProposal.aggregate_snapshot?.coveragePercent) ? ` · ${currentProposal.aggregate_snapshot.coveragePercent}% de cobertura` : ""}
+                    </span>
+                  </div>
+                  <div>
+                    <button type="button" onClick={() => loadProposal(currentProposal)}>Revisar propuesta</button>
+                    <button type="button" className="secondary" onClick={() => void rejectProposal(currentProposal)}>Descartar</button>
+                  </div>
+                </article>
+              )}
               <div className="coach-ai-context-grid">
                 <label>Punto de partida<textarea value={aiContext.startingPoint} onChange={(e)=>setAiContext({...aiContext,startingPoint:e.target.value})} placeholder="Situación actual del grupo, semanas realizadas, volumen habitual…" /></label>
                 <label>Objetivo<textarea value={aiContext.objective} onChange={(e)=>setAiContext({...aiContext,objective:e.target.value})} placeholder="Objetivo del bloque, prueba o capacidad que queremos desarrollar…" /></label>
