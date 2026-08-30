@@ -43,6 +43,7 @@ type ClubDocument = {
   document_type: string;
   competition_event_id?: string | null;
   training_group_id?: string | null;
+  training_plan_id?: string | null;
   created_at: string;
 };
 const mondayKey = (value = new Date()) => {
@@ -136,10 +137,27 @@ function printPlan(
   week: string,
   groupName: string,
 ) {
+  const dayBlocks = body
+    .split(/\n\n(?=(?:LUNES|MARTES|MIÉRCOLES|JUEVES|VIERNES|SÁBADO|DOMINGO)\n)/)
+    .map((block) => {
+      const lines = block.split("\n").filter(Boolean);
+      const day = lines.shift() || "Sesión";
+      const load = lines.shift() || "";
+      const details = lines
+        .map((line) => {
+          const separator = line.indexOf(":");
+          const label = separator > 0 ? line.slice(0, separator) : "Detalle";
+          const value = separator > 0 ? line.slice(separator + 1).trim() : line;
+          return `<div class="detail"><strong>${escapeHtml(label)}</strong><p>${escapeHtml(value)}</p></div>`;
+        })
+        .join("");
+      return `<article class="session"><div class="day"><span>SESIÓN</span><h2>${escapeHtml(day.charAt(0) + day.slice(1).toLowerCase())}</h2></div>${load ? `<p class="load">${escapeHtml(load)}</p>` : ""}<div class="details">${details}</div></article>`;
+    })
+    .join("");
   const popup = window.open("", "_blank", "width=900,height=900");
   if (!popup) return false;
   popup.document.write(
-    `<!doctype html><html><head><title>${escapeHtml(title)}</title><style>@page{size:A4;margin:18mm}body{font-family:Arial,sans-serif;color:#0b2447;line-height:1.5}header{border-bottom:4px solid #2563eb;margin-bottom:28px;padding-bottom:16px}.brand{font-size:24px;font-weight:800;letter-spacing:.04em}h1{font-size:28px;margin:22px 0 4px}.meta{color:#52637a}.plan{white-space:pre-wrap;font-size:15px}footer{position:fixed;bottom:0;color:#728096;font-size:11px}</style></head><body><header><div class="brand">AF · ATLETAS DE FUENLABRADA</div><h1>${escapeHtml(title)}</h1><div class="meta">${escapeHtml(groupName)} · Semana del ${escapeHtml(new Date(`${week}T12:00:00`).toLocaleDateString("es-ES"))}</div></header><main class="plan">${escapeHtml(body)}</main><footer>Plan de entrenamiento · atletasdefuenlabrada.com</footer><script>window.onload=()=>window.print()<\/script></body></html>`,
+    `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>@page{size:A4;margin:12mm}*{box-sizing:border-box}body{margin:0;background:#eef4fb;font-family:Arial,sans-serif;color:#0a274f;line-height:1.4}header{position:relative;overflow:hidden;border-radius:22px;background:linear-gradient(135deg,#071d3d 0%,#0c4da2 72%,#1b74d1 100%);color:#fff;padding:25px 28px 28px;margin-bottom:18px}header:after{content:"";position:absolute;width:210px;height:210px;border:28px solid rgba(255,255,255,.10);border-radius:50%;right:-80px;top:-110px}.brand{font-size:12px;font-weight:800;letter-spacing:.16em;color:#bfe0ff}.brand-mark{display:inline-grid;place-items:center;width:31px;height:31px;border-radius:10px;background:#b8ff32;color:#092b59;margin-right:10px;font-size:13px;letter-spacing:0}h1{font-size:28px;line-height:1.05;margin:22px 0 7px;max-width:75%}.meta{color:#dbeaff;font-size:13px}.sessions{display:grid;gap:13px}.session{break-inside:avoid;background:#fff;border:1px solid #d9e6f4;border-radius:18px;padding:16px 18px;box-shadow:0 7px 20px rgba(12,56,106,.08)}.day{display:flex;align-items:end;gap:12px;border-bottom:2px solid #dcecff;padding-bottom:8px;margin-bottom:9px}.day span{font-size:9px;letter-spacing:.18em;color:#2876c7;font-weight:800}.day h2{margin:0;font-size:21px}.load{display:inline-block;margin:0 0 11px;padding:5px 10px;border-radius:999px;background:#e8f3ff;color:#155ba8;font-size:10px;font-weight:700}.details{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px}.detail{border-left:3px solid #2f82d8;padding-left:9px}.detail strong{font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:#3472ae}.detail p{font-size:12px;margin:3px 0 0;color:#203d5f;white-space:pre-wrap}.fallback{white-space:pre-wrap;background:#fff;border-radius:18px;padding:18px}footer{margin-top:16px;display:flex;justify-content:space-between;color:#607895;font-size:9px;padding:0 4px}@media print{body{background:#fff}.session{box-shadow:none}button{display:none}}</style></head><body><header><div class="brand"><span class="brand-mark">AF</span>CLUB ATLETAS DE FUENLABRADA</div><h1>${escapeHtml(title)}</h1><div class="meta">${escapeHtml(groupName)} · Semana del ${escapeHtml(new Date(`${week}T12:00:00`).toLocaleDateString("es-ES"))}</div></header><main class="sessions">${dayBlocks || `<div class="fallback">${escapeHtml(body)}</div>`}</main><footer><span>Plan de entrenamiento</span><span>atletasdefuenlabrada.com</span></footer><script>window.onload=()=>window.print()<\/script></body></html>`,
   );
   popup.document.close();
   return true;
@@ -697,7 +715,7 @@ export function PlanningWorkspace({ profile }: { profile: Profile }) {
         "Prepara el plan semanal o adjunta un PDF antes de publicar.",
       );
     setNotice("");
-    const { error } = await supabase
+    const { data: savedPlan, error } = await supabase
       .from("training_plans")
       .upsert(
         {
@@ -709,8 +727,25 @@ export function PlanningWorkspace({ profile }: { profile: Profile }) {
           created_by: profile.id,
         },
         { onConflict: "training_group_id,week_starts_on" },
-      );
+      )
+      .select("id")
+      .single();
     if (error) return setNotice(error.message);
+    if (!savedPlan) return setNotice("No se pudo identificar el plan publicado.");
+
+    const { data: previousDocs } = await supabase
+      .from("club_documents")
+      .select("id,storage_path")
+      .eq("training_plan_id", savedPlan.id);
+    if (previousDocs?.length) {
+      await supabase.storage
+        .from("club-private-documents")
+        .remove(previousDocs.map((doc) => doc.storage_path));
+      await supabase
+        .from("club_documents")
+        .delete()
+        .eq("training_plan_id", savedPlan.id);
+    }
     if (file) {
       const path = `plans/${form.group}/${fileKey(file)}`;
       const { error: uploadError } = await supabase.storage
@@ -727,6 +762,7 @@ export function PlanningWorkspace({ profile }: { profile: Profile }) {
           title: file.name,
           storage_path: path,
           training_group_id: form.group,
+          training_plan_id: savedPlan.id,
           uploaded_by: profile.id,
         });
       if (docError)
@@ -803,6 +839,14 @@ export function PlanningWorkspace({ profile }: { profile: Profile }) {
     );
     if (confirmation?.trim().toUpperCase() !== "ELIMINAR")
       return setNotice("Eliminación cancelada.");
+    const linkedDocuments = documents.filter(
+      (doc) => doc.training_plan_id === plan.id,
+    );
+    if (linkedDocuments.length) {
+      await supabase.storage
+        .from("club-private-documents")
+        .remove(linkedDocuments.map((doc) => doc.storage_path));
+    }
     const { error } = await supabase
       .from("training_plans")
       .delete()
@@ -1224,7 +1268,7 @@ export function PlanningWorkspace({ profile }: { profile: Profile }) {
               </div>
               {documents
                 .filter(
-                  (doc) => doc.training_group_id === plan.training_group_id,
+                  (doc) => doc.training_plan_id === plan.id,
                 )
                 .map((doc) => (
                   <button
