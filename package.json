@@ -8,15 +8,29 @@
     "security:audit": "node scripts/security-audit.mjs",
     "prebuild": "npm run security:audit",
     "build": "tsc -b && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "mobile:sync": "npm run build && cap sync",
+    "mobile:android": "npm run mobile:sync && cap open android",
+    "mobile:ios": "npm run mobile:sync && cap open ios",
+    "mobile:doctor": "cap doctor",
+    "mobile:android:bundle": "npm run mobile:sync && cd android && ./gradlew bundleRelease"
   },
   "dependencies": {
+    "@capacitor/app": "^8.1.1",
+    "@capacitor/browser": "^8.0.4",
+    "@capacitor/core": "^8.5.0",
+    "@capacitor/push-notifications": "^8.1.2",
+    "@capacitor/splash-screen": "^8.0.2",
+    "@capacitor/status-bar": "^8.0.3",
     "@supabase/supabase-js": "^2.57.4",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "web-push": "^3.6.7"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/cli": "^8.5.0",
+    "@capacitor/ios": "^8.5.0",
     "@types/react": "^19.1.12",
     "@types/react-dom": "^19.1.9",
     "@types/web-push": "^3.6.4",

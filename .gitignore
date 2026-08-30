@@ -3,3 +3,17 @@ dist/
 .env
 .env.local
 .env.*.local
+.android-local/
+.gradle-local/
+.toolchains/
+android/.gradle/
+android/**/build/
+android/keystore.properties
+ios/App/Pods/
+ios/App/DerivedData/
+ios/App/App/public/
+*.jks
+*.keystore
+*.p12
+*.mobileprovision
+mobile/releases/
