@@ -19,6 +19,56 @@
   .visual-next-shell .dossier-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 
+/* Athlete weekly plan: mobile content grows vertically and never beyond the viewport. */
+@media(max-width:820px){
+  .visual-next-shell .member-live-home,
+  .visual-next-shell .member-live-home .design-v2-float,
+  .visual-next-shell .member-week-plan,
+  .visual-next-shell .member-week-plan>div,
+  .visual-next-shell .member-plan-session,
+  .visual-next-shell .member-plan-session>div,
+  .visual-next-shell .member-plan-session>div>article{
+    width:100%!important;
+    max-width:100%!important;
+    min-width:0!important;
+    box-sizing:border-box!important;
+  }
+  .visual-next-shell .member-live-home,
+  .visual-next-shell .member-live-home .design-v2-float,
+  .visual-next-shell .member-week-plan{overflow-x:hidden!important}
+  .visual-next-shell .member-week-plan{
+    display:flex!important;
+    flex-direction:column!important;
+    align-items:stretch!important;
+    padding:16px!important;
+  }
+  .visual-next-shell .member-plan-days{
+    display:grid!important;
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+    width:100%!important;
+    max-width:100%!important;
+    overflow:visible!important;
+  }
+  .visual-next-shell .member-plan-days button{width:100%!important;min-width:0!important}
+  .visual-next-shell .member-plan-session{padding:14px!important}
+  .visual-next-shell .member-plan-session>div{
+    display:grid!important;
+    grid-template-columns:minmax(0,1fr)!important;
+  }
+  .visual-next-shell .member-plan-session :where(h2,h3,p,span,small),
+  .visual-next-shell .member-plan-legacy{
+    max-width:100%!important;
+    white-space:normal!important;
+    overflow-wrap:anywhere!important;
+    word-break:normal!important;
+  }
+  .visual-next-shell .member-week-plan>.member-plan-pdf{
+    width:100%!important;
+    max-width:100%!important;
+    margin-top:0!important;
+  }
+}
+
 @media(max-width:820px){
   .visual-next-shell .page-head{display:grid;grid-template-columns:minmax(0,1fr);align-items:start}
   .visual-next-shell .page-head>:where(button,.button-link){width:max-content;max-width:100%}
