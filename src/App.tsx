@@ -2849,9 +2849,6 @@ function Attendance({ profile }: { profile: Profile }) {
   const [selectedSessions, setSelectedSessions] = useState<Record<string,string>>({});
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
-  const selectedDate = new Date();
-  const selectedWeekday = selectedDate.getDay();
-  const weekdayName = new Intl.DateTimeFormat("es-ES", { weekday: "long" }).format(selectedDate);
   const groupTrainsOn = (group: Group, weekday: number) => {
     const text = `${group.schedule_days || ""} ${group.name}`
       .normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
@@ -2863,6 +2860,19 @@ function Attendance({ profile }: { profile: Profile }) {
     if (weekday === 4) return /jueves|m\s*[-/]\s*j/.test(text);
     return text.includes("viernes");
   };
+  const today = new Date();
+  today.setHours(12,0,0,0);
+  const seasonStart = new Date("2026-09-07T12:00:00");
+  const firstCandidate = today < seasonStart ? seasonStart : today;
+  const selectedDate = Array.from({length:8},(_,offset)=>{
+    const candidate=new Date(firstCandidate);
+    candidate.setDate(firstCandidate.getDate()+offset);
+    return candidate;
+  }).find(candidate=>groups.some(group=>groupTrainsOn(group,candidate.getDay()))) || firstCandidate;
+  const selectedWeekday = selectedDate.getDay();
+  const weekdayName = new Intl.DateTimeFormat("es-ES", { weekday: "long" }).format(selectedDate);
+  const selectedDateLabel = new Intl.DateTimeFormat("es-ES", { weekday:"long", day:"numeric", month:"long" }).format(selectedDate);
+  const isPreview = selectedDate.toDateString() !== today.toDateString();
   const groupsForSelectedDay = groups
     .filter(group => groupTrainsOn(group, selectedWeekday))
     .sort((left, right) => (left.starts_at || "99:99").localeCompare(right.starts_at || "99:99") || left.name.localeCompare(right.name, "es"));
@@ -2890,6 +2900,7 @@ function Attendance({ profile }: { profile: Profile }) {
   const createSession = async (e: FormEvent) => {
     e.preventDefault();
     setError("");
+    if (isPreview) return setError(`La lista se activará automáticamente el ${selectedDateLabel}.`);
     if (!groupIds.length) return setError("Selecciona al menos un grupo.");
     const { data, error: createError } = await supabase!
       .from("attendance_sessions")
@@ -2992,19 +3003,20 @@ function Attendance({ profile }: { profile: Profile }) {
         })}
       </section>
       <form className="panel attendance-multi-form" onSubmit={createSession}>
-        <div className="attendance-day-selector"><b>Asistencia de hoy · {weekdayName}</b><small>La aplicación muestra automáticamente solo tus grupos programados para hoy.</small></div>
+        <div className="attendance-day-selector"><b>{isPreview?"Próxima jornada":"Asistencia de hoy"} · {selectedDateLabel}</b><small>{isPreview?"Vista previa para que conozcas los grupos y atletas antes del entrenamiento. La lista se activará ese día.":"La aplicación muestra automáticamente solo tus grupos programados para hoy."}</small></div>
         <fieldset className="attendance-group-picker">
           <legend>Grupos del {weekdayName}</legend>
           <p>Marca uno o varios grupos del día. Están ordenados por hora para evitar confusiones.</p>
           <div>{groupsForSelectedDay.map((g) => <label key={g.id} className={groupIds.includes(g.id)?"selected":""}><input type="checkbox" checked={groupIds.includes(g.id)} onChange={()=>{setGroupIds(current=>current.includes(g.id)?current.filter(id=>id!==g.id):[...current,g.id]);setSelectedSessions(current=>{const next={...current};if(groupIds.includes(g.id))delete next[g.id];else{const existing=sessions.rows.find(item=>item.training_group_id===g.id&&new Date(item.starts_at).toDateString()===selectedDate.toDateString());if(existing)next[g.id]=existing.id}return next})}}/><span><b>{g.name}</b><small>{g.starts_at?`${g.starts_at.slice(0,5)} · `:""}{g.category_label}</small></span></label>)}</div>
           {!groupsForSelectedDay.length&&<p className="attendance-empty-day">No tienes grupos programados para este día.</p>}
         </fieldset>
-        <button disabled={!groupIds.length}>Crear {groupIds.length>1?`${groupIds.length} listas de hoy`:"lista de hoy"}</button>
+        <button disabled={!groupIds.length||isPreview}>{isPreview?`Disponible el ${selectedDateLabel}`:<>Crear {groupIds.length>1?`${groupIds.length} listas de hoy`:"lista de hoy"}</>}</button>
         {error && <p className="error-note">{error}</p>}
       </form>
       {groupIds.length>0 && (
         <article className="panel table">
-          <div className="attendance-session-pickers">{groupIds.map(id=>{const group=groups.find(item=>item.id===id),visible=sessions.rows.filter(item=>item.training_group_id===id);return <label key={id}><span><b>{group?.name||"Grupo"}</b><small>Lista que se utilizará</small></span><select value={selectedSessions[id]||""} onChange={event=>setSelectedSessions(current=>({...current,[id]:event.target.value}))}><option value="">Nueva lista pendiente</option>{visible.map(s=><option key={s.id} value={s.id}>{new Date(s.starts_at).toLocaleString("es-ES")}</option>)}</select></label>})}</div>
+          {!isPreview&&<div className="attendance-session-pickers">{groupIds.map(id=>{const group=groups.find(item=>item.id===id),visible=sessions.rows.filter(item=>item.training_group_id===id);return <label key={id}><span><b>{group?.name||"Grupo"}</b><small>Lista que se utilizará</small></span><select value={selectedSessions[id]||""} onChange={event=>setSelectedSessions(current=>({...current,[id]:event.target.value}))}><option value="">Nueva lista pendiente</option>{visible.map(s=><option key={s.id} value={s.id}>{new Date(s.starts_at).toLocaleString("es-ES")}</option>)}</select></label>})}</div>}
+          {isPreview&&<div className="attendance-preview-note"><b>Vista previa de la lista</b><small>Podrás marcar asistencia cuando llegue el entrenamiento.</small></div>}
           {roster.map((a) => {
               const activeSession=a.training_group_id?selectedSessions[a.training_group_id]:"";
               const record = records.rows.find(
