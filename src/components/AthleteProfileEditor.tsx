@@ -3,7 +3,7 @@ import { supabase } from "../lib/supabase";
 
 type Settings = { athlete_id: string; avatar_url: string | null; cover_url: string | null; bio: string | null; challenge_opt_in: boolean; show_activity_to_club: boolean };
 
-const maxBytes = 12 * 1024 * 1024;
+const maxBytes = 5 * 1024 * 1024;
 
 export default function AthleteProfileEditor({ athleteId, canEdit }: { athleteId: string; canEdit: boolean }) {
   const [settings, setSettings] = useState<Settings>({ athlete_id: athleteId, avatar_url: null, cover_url: null, bio: "", challenge_opt_in: false, show_activity_to_club: false });
@@ -41,8 +41,8 @@ export default function AthleteProfileEditor({ athleteId, canEdit }: { athleteId
 
   const uploadAvatar = async (event: ChangeEvent<HTMLInputElement>) => {
     const client = supabase; const file = event.target.files?.[0]; if (!client || !file || !canEdit) return;
-    if (file.size > maxBytes) return setNotice("La imagen es demasiado grande. El máximo es 12 MB.");
-    if (!file.type.startsWith("image/")) return setNotice("Selecciona una imagen válida.");
+    if (file.size > maxBytes) return setNotice("La imagen es demasiado grande. El máximo es 5 MB.");
+    if (!["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"].includes(file.type)) return setNotice("Selecciona una imagen JPG, PNG, WEBP, HEIC o HEIF.");
     setBusy(true); setNotice("Subiendo foto de perfil…");
     const { data: sessionData } = await client.auth.getSession();
     const userId = sessionData.session?.user.id; if (!userId) { setBusy(false); return setNotice("Tu sesión ha caducado. Vuelve a iniciar sesión."); }

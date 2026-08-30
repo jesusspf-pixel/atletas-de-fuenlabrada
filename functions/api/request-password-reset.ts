@@ -1,3 +1,5 @@
+import { consumePublicRateLimit } from "./_public-rate-limit";
+
 const json = (body: unknown, status = 200) => Response.json(body, { status });
 const CANONICAL_ORIGIN = "https://atletasdefuenlabrada.com";
 
@@ -9,6 +11,8 @@ export async function onRequestPost(context: any) {
   const payload = await context.request.json().catch(() => ({})) as { email?: string };
   const email = String(payload.email || "").trim().toLowerCase();
   if (!email || !email.includes("@")) return json({ error: "Introduce un correo electrónico válido." }, 400);
+  const allowed = await consumePublicRateLimit(context.request, env, "password-reset", email, 3, 3600);
+  if (!allowed) return json({ error: "Has solicitado demasiados correos. Espera antes de intentarlo de nuevo." }, 429);
 
   const response = await fetch(`${env.SUPABASE_URL}/auth/v1/recover?redirect_to=${encodeURIComponent(`${CANONICAL_ORIGIN}/?reset-password=1`)}`, {
     method: "POST",

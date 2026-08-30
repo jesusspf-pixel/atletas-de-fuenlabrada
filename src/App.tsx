@@ -528,16 +528,17 @@ function Access() {
       return;
     }
     setBusy(true);
-    const { error } = await supabase.auth.resend({
-      type: "signup",
-      email,
-      options: { emailRedirectTo: confirmationRedirect() },
+    const response = await fetch("/api/resend-confirmation", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email }),
     });
+    const result = await response.json().catch(() => ({})) as { error?: string; message?: string };
     setBusy(false);
     setMessage(
-      error
-        ? `No se pudo enviar el nuevo correo: ${error.message}`
-        : "Nuevo correo enviado. Utiliza únicamente el enlace más reciente.",
+      response.ok
+        ? result.message || "Nuevo correo enviado. Utiliza únicamente el enlace más reciente."
+        : result.error || "No se pudo enviar el nuevo correo.",
     );
   };
   return (
@@ -565,12 +566,13 @@ function Access() {
             Contraseña
             <input
               required
-              minLength={8}
+              minLength={kind === "signup" ? 12 : 1}
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
           </label>
+          {kind === "signup" && <small>Usa al menos 12 caracteres y evita contraseñas reutilizadas.</small>}
           <button disabled={busy}>
             {busy
               ? "Creando la cuenta…"

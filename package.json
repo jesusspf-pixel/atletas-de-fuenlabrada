@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "security:audit": "node scripts/security-audit.mjs",
+    "prebuild": "npm run security:audit",
     "build": "tsc -b && vite build",
     "preview": "vite preview"
   },
