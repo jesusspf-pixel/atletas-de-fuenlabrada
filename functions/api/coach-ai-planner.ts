@@ -44,7 +44,13 @@ export const onRequestPost:PagesFunction<Env>=async({request,env})=>{
     const response=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:anthropicHeaders,body:JSON.stringify({model,max_tokens:3500,system,messages:[{role:"user",content}]})});
     return {response,result:await response.json().catch(()=>null) as any};
   };
-  const models=["claude-sonnet-5","claude-haiku-4-5-20251001","claude-sonnet-4-20250514","claude-3-5-haiku-20241022"];
+  const modelHeaders:Record<string,string>={"x-api-key":env.ANTHROPIC_API_KEY||"","anthropic-version":"2023-06-01"};
+  if(env.ANTHROPIC_WORKSPACE_ID)modelHeaders["anthropic-workspace-id"]=env.ANTHROPIC_WORKSPACE_ID;
+  const modelResponse=await fetch("https://api.anthropic.com/v1/models?limit=100",{headers:modelHeaders});
+  const modelPayload=await modelResponse.json().catch(()=>null) as {data?:Array<{id?:string}>}|null;
+  const available=(modelPayload?.data||[]).map(item=>String(item.id||"")).filter(id=>/claude-(?:sonnet|haiku)/.test(id));
+  const priority=(id:string)=>id.includes("sonnet-5")?0:id.includes("sonnet-4-6")?1:id.includes("sonnet-4-5")?2:id.includes("haiku-4-5")?3:9;
+  const models=available.length?available.sort((left,right)=>priority(left)-priority(right)):["claude-sonnet-5","claude-sonnet-4-6","claude-sonnet-4-5-20250929","claude-haiku-4-5-20251001"];
   let response:Response|null=null;let result:any=null;
   for(const model of models){
     ({response,result}=await callClaude(model));
@@ -59,6 +65,7 @@ export const onRequestPost:PagesFunction<Env>=async({request,env})=>{
     const message=status===401?"La conexión segura del copiloto necesita renovarse.":status===403?"El proveedor de IA no ha autorizado este modelo para la cuenta del club.":status===402||type.includes("billing")||/credit|balance|billing/i.test(providerDetail)?"El servicio de IA no tiene saldo disponible.":status===413?"Los documentos ocupan demasiado. Prueba con menos PDF o archivos más pequeños.":status===429?"El servicio está recibiendo demasiadas solicitudes. Espera un minuto y vuelve a intentarlo.":status===400?`Claude ha rechazado la petición: ${providerDetail||"motivo no especificado"}.`:"El servicio de planificación no ha aceptado la solicitud. Vuelve a intentarlo en unos minutos.";
     return json({error:message,diagnostic:`IA-${status}-${type}`},503);
   }
-  const raw=String(result?.content?.find((item:any)=>item.type==="text")?.text||"").replace(/^```json\s*|\s*```$/g,"");
+  const responseText=String(result?.content?.find((item:any)=>item.type==="text")?.text||"").replace(/^```json\s*|\s*```$/g,"");
+  const raw=responseText.slice(responseText.indexOf("{"),responseText.lastIndexOf("}")+1);
   try{const parsed=JSON.parse(raw);if(!parsed?.sessions||typeof parsed.sessions!=="object")throw new Error("invalid");return json({title:clean(parsed.title,140)||`Running A · Semana ${input.weekStartsOn}`,sessions:parsed.sessions,rationale:clean(parsed.rationale,1200)});}catch{return json({error:"La propuesta no llegó con el formato esperado. Vuelve a intentarlo."},502)}
 };
