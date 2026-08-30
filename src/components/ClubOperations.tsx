@@ -627,6 +627,9 @@ export function PlanningWorkspace({ profile }: { profile: Profile }) {
   >(() => Object.fromEntries(days.map((day) => [day, emptySession()])));
   const builder = weekPlan[activeDay];
   const selectedGroup = groups.find((group) => group.id === form.group);
+  const visiblePlans = form.group
+    ? plans.filter((plan) => plan.training_group_id === form.group)
+    : [];
   const isPilotAccount = profile.email
     .replace(/\s/g, "")
     .toLowerCase() === "eatletismourjc@gmail.com";
@@ -679,7 +682,16 @@ export function PlanningWorkspace({ profile }: { profile: Profile }) {
   }, []);
   useEffect(() => {
     const setting = aiSettings.find((item) => item.training_group_id === form.group);
-    if (!setting) return;
+    if (!setting) {
+      setAiContext({
+        startingPoint: "",
+        objective: "",
+        targetDate: "",
+        constraints: "",
+        previousPlans: "",
+      });
+      return;
+    }
     setAiContext({
       startingPoint: setting.starting_point || "",
       objective: setting.objective || "",
@@ -688,6 +700,19 @@ export function PlanningWorkspace({ profile }: { profile: Profile }) {
       previousPlans: setting.methodology || "",
     });
   }, [form.group, aiSettings]);
+  const selectGroup = (group: string) => {
+    setForm((current) => ({
+      ...current,
+      group,
+      title: "",
+      body: "",
+    }));
+    setWeekPlan(Object.fromEntries(days.map((day) => [day, emptySession()])));
+    setActiveDay("Lunes");
+    setFile(null);
+    setAiFiles([]);
+    setNotice("");
+  };
   const preview = (
     title = form.title,
     body = form.body,
@@ -1013,7 +1038,7 @@ export function PlanningWorkspace({ profile }: { profile: Profile }) {
               <select
                 required
                 value={form.group}
-                onChange={(e) => setForm({ ...form, group: e.target.value })}
+                onChange={(e) => selectGroup(e.target.value)}
               >
                 <option value="">Selecciona un grupo</option>
                 {groups.map((g) => (
@@ -1266,12 +1291,9 @@ export function PlanningWorkspace({ profile }: { profile: Profile }) {
           }
         />
       )}
-      <section className="cards">
-        {plans
-          .filter((plan) =>
-            groups.some((group) => group.id === plan.training_group_id),
-          )
-          .map((plan) => (
+      {form.group ? (
+        <section className="cards">
+          {visiblePlans.map((plan) => (
             <article
               className={`panel plan ${plan.published_at ? "" : "plan-unpublished"}`}
               key={plan.id}
@@ -1341,7 +1363,13 @@ export function PlanningWorkspace({ profile }: { profile: Profile }) {
                 ))}
             </article>
           ))}
-      </section>
+          {!visiblePlans.length && (
+            <Message text="Este grupo todavía no tiene planes de entrenamiento." />
+          )}
+        </section>
+      ) : (
+        <Message text="Selecciona un grupo para consultar únicamente sus planes de entrenamiento." />
+      )}
     </>
   );
 }
