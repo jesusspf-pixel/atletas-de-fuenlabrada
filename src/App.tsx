@@ -2875,7 +2875,10 @@ function Attendance({ profile }: { profile: Profile }) {
   const isPreview = selectedDate.toDateString() !== today.toDateString();
   const groupsForSelectedDay = groups
     .filter(group => groupTrainsOn(group, selectedWeekday))
-    .sort((left, right) => (left.starts_at || "99:99").localeCompare(right.starts_at || "99:99") || left.name.localeCompare(right.name, "es"));
+    .sort((left, right) => {
+      const age=(group:Group)=>{const match=`${group.name} ${group.category_label}`.match(/sub\s*[- ]?(\d+)/i);if(match)return Number(match[1]);if(/absolut/i.test(group.name))return 30;if(/running|master|máster/i.test(group.name))return 40;return 99};
+      return age(left)-age(right)||left.name.localeCompare(right.name,"es");
+    });
   useEffect(() => {
     const timer = window.setInterval(() => {
       void sessions.reload();
@@ -3004,12 +3007,12 @@ function Attendance({ profile }: { profile: Profile }) {
       </section>
       <form className="panel attendance-multi-form" onSubmit={createSession}>
         <div className="attendance-day-selector"><b>{isPreview?"Próxima jornada":"Asistencia de hoy"} · {selectedDateLabel}</b><small>{isPreview?"Vista previa para que conozcas los grupos y atletas antes del entrenamiento. La lista se activará ese día.":"La aplicación muestra automáticamente solo tus grupos programados para hoy."}</small></div>
-        <fieldset className="attendance-group-picker">
-          <legend>Grupos del {weekdayName}</legend>
-          <p>Marca uno o varios grupos del día. Están ordenados por hora para evitar confusiones.</p>
+        <details className="attendance-group-picker" open>
+          <summary><span><b>Seleccionar grupos del {weekdayName}</b><small>Ordenados de menor a mayor edad</small></span><strong>{groupIds.length?`${groupIds.length} seleccionado${groupIds.length===1?"":"s"}`:"Abrir lista"}</strong></summary>
+          <p>Marca uno o varios grupos para ver juntos todos sus atletas.</p>
           <div>{groupsForSelectedDay.map((g) => <label key={g.id} className={groupIds.includes(g.id)?"selected":""}><input type="checkbox" checked={groupIds.includes(g.id)} onChange={()=>{setGroupIds(current=>current.includes(g.id)?current.filter(id=>id!==g.id):[...current,g.id]);setSelectedSessions(current=>{const next={...current};if(groupIds.includes(g.id))delete next[g.id];else{const existing=sessions.rows.find(item=>item.training_group_id===g.id&&new Date(item.starts_at).toDateString()===selectedDate.toDateString());if(existing)next[g.id]=existing.id}return next})}}/><span><b>{g.name}</b><small>{g.starts_at?`${g.starts_at.slice(0,5)} · `:""}{g.category_label}</small></span></label>)}</div>
           {!groupsForSelectedDay.length&&<p className="attendance-empty-day">No tienes grupos programados para este día.</p>}
-        </fieldset>
+        </details>
         <button disabled={!groupIds.length||isPreview}>{isPreview?`Disponible el ${selectedDateLabel}`:<>Crear {groupIds.length>1?`${groupIds.length} listas de hoy`:"lista de hoy"}</>}</button>
         {error && <p className="error-note">{error}</p>}
       </form>
