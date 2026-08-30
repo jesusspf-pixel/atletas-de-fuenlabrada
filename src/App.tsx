@@ -2846,10 +2846,26 @@ function Attendance({ profile }: { profile: Profile }) {
         .map((item) => item.training_groups)
         .filter(Boolean) as Group[]);
   const [groupIds, setGroupIds] = useState<string[]>([]);
-  const [when, setWhen] = useState(new Date().toISOString().slice(0, 16));
   const [selectedSessions, setSelectedSessions] = useState<Record<string,string>>({});
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
+  const selectedDate = new Date();
+  const selectedWeekday = selectedDate.getDay();
+  const weekdayName = new Intl.DateTimeFormat("es-ES", { weekday: "long" }).format(selectedDate);
+  const groupTrainsOn = (group: Group, weekday: number) => {
+    const text = `${group.schedule_days || ""} ${group.name}`
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    if (weekday === 0 || weekday === 6) return text.includes(weekday === 6 ? "sabado" : "domingo");
+    if (/lunes\s+a\s+jueves|lunes.*miercoles.*martes.*jueves/.test(text)) return weekday >= 1 && weekday <= 4;
+    if (weekday === 1) return /lunes|l\s*[-/]\s*x/.test(text);
+    if (weekday === 2) return /martes|m\s*[-/]\s*j/.test(text);
+    if (weekday === 3) return /miercoles|l\s*[-/]\s*x/.test(text);
+    if (weekday === 4) return /jueves|m\s*[-/]\s*j/.test(text);
+    return text.includes("viernes");
+  };
+  const groupsForSelectedDay = groups
+    .filter(group => groupTrainsOn(group, selectedWeekday))
+    .sort((left, right) => (left.starts_at || "99:99").localeCompare(right.starts_at || "99:99") || left.name.localeCompare(right.name, "es"));
   useEffect(() => {
     const timer = window.setInterval(() => {
       void sessions.reload();
@@ -2879,7 +2895,7 @@ function Attendance({ profile }: { profile: Profile }) {
       .from("attendance_sessions")
       .insert(groupIds.map(training_group_id=>({
         training_group_id,
-        starts_at: new Date(when).toISOString(),
+        starts_at: new Date().toISOString(),
         created_by: profile.id,
       })))
       .select("id,training_group_id");
@@ -2976,19 +2992,13 @@ function Attendance({ profile }: { profile: Profile }) {
         })}
       </section>
       <form className="panel attendance-multi-form" onSubmit={createSession}>
+        <div className="attendance-day-selector"><b>Asistencia de hoy · {weekdayName}</b><small>La aplicación muestra automáticamente solo tus grupos programados para hoy.</small></div>
         <fieldset className="attendance-group-picker">
-          <legend>Grupos para pasar lista</legend>
-          <p>Marca uno o varios grupos. Todos sus atletas aparecerán juntos debajo.</p>
-          <div>{groups.map((g) => <label key={g.id} className={groupIds.includes(g.id)?"selected":""}><input type="checkbox" checked={groupIds.includes(g.id)} onChange={()=>{setGroupIds(current=>current.includes(g.id)?current.filter(id=>id!==g.id):[...current,g.id]);setSelectedSessions(current=>{const next={...current};if(groupIds.includes(g.id))delete next[g.id];else{const existing=sessions.rows.find(item=>item.training_group_id===g.id);if(existing)next[g.id]=existing.id}return next})}}/><span><b>{g.name}</b><small>{g.category_label}</small></span></label>)}</div>
+          <legend>Grupos del {weekdayName}</legend>
+          <p>Marca uno o varios grupos del día. Están ordenados por hora para evitar confusiones.</p>
+          <div>{groupsForSelectedDay.map((g) => <label key={g.id} className={groupIds.includes(g.id)?"selected":""}><input type="checkbox" checked={groupIds.includes(g.id)} onChange={()=>{setGroupIds(current=>current.includes(g.id)?current.filter(id=>id!==g.id):[...current,g.id]);setSelectedSessions(current=>{const next={...current};if(groupIds.includes(g.id))delete next[g.id];else{const existing=sessions.rows.find(item=>item.training_group_id===g.id&&new Date(item.starts_at).toDateString()===selectedDate.toDateString());if(existing)next[g.id]=existing.id}return next})}}/><span><b>{g.name}</b><small>{g.starts_at?`${g.starts_at.slice(0,5)} · `:""}{g.category_label}</small></span></label>)}</div>
+          {!groupsForSelectedDay.length&&<p className="attendance-empty-day">No tienes grupos programados para este día.</p>}
         </fieldset>
-        <label>
-          Inicio del entrenamiento
-          <input
-            type="datetime-local"
-            value={when}
-            onChange={(e) => setWhen(e.target.value)}
-          />
-        </label>
         <button disabled={!groupIds.length}>Crear {groupIds.length>1?`${groupIds.length} listas de hoy`:"lista de hoy"}</button>
         {error && <p className="error-note">{error}</p>}
       </form>
