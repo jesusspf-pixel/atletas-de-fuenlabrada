@@ -55,6 +55,7 @@ export default function BillingControlCenter() {
     forecast: drafts.filter(d => ["awaiting_admin", "approved", "collecting", "checkout_pending"].includes(d.status)).reduce((sum, d) => sum + (d.approved_amount_cents ?? d.calculated_amount_cents), 0),
     approved: drafts.filter(d => d.status === "approved").reduce((sum, d) => sum + (d.approved_amount_cents ?? 0), 0),
     paid: drafts.filter(d => d.status === "paid").reduce((sum, d) => sum + (d.approved_amount_cents ?? d.calculated_amount_cents), 0),
+    paidEnrolments: drafts.filter(d => d.charge_kind === "enrolment" && d.status === "paid" && (d.approved_amount_cents ?? d.calculated_amount_cents) > 0),
     review: drafts.filter(d => d.status === "awaiting_admin").length,
   }), [drafts]);
 
@@ -133,6 +134,7 @@ export default function BillingControlCenter() {
       {automationRun?.error_message && <aside>{automationRun.error_message}</aside>}
     </section>
     <section className="metric-grid">
+      <article className="metric paid-enrolments-metric"><small>Matrículas cobradas</small><b>{totals.paidEnrolments.length}</b><span>{euro(totals.paidEnrolments.reduce((sum, draft) => sum + (draft.approved_amount_cents ?? draft.calculated_amount_cents), 0))} · solo importes mayores que 0 €</span></article>
       <article className="metric"><small>Previsión pendiente</small><b>{euro(totals.forecast)}</b></article>
       <article className="metric"><small>Listo para aprobar</small><b>{totals.review}</b></article>
       <article className="metric"><small>Programado para cobro automático</small><b>{euro(totals.approved)}</b></article>
