@@ -32,6 +32,7 @@ export default function BillingControlCenter() {
   const [selectedMembershipId, setSelectedMembershipId] = useState("");
   const [workspace, setWorkspace] = useState<"fees" | "finance">("fees");
   const [automationRun, setAutomationRun] = useState<AutomationRun | null>(null);
+  const [showPaidEnrolments, setShowPaidEnrolments] = useState(false);
 
   const load = async () => {
     const client = supabase; if (!client) return;
@@ -134,12 +135,13 @@ export default function BillingControlCenter() {
       {automationRun?.error_message && <aside>{automationRun.error_message}</aside>}
     </section>
     <section className="metric-grid">
-      <article className="metric paid-enrolments-metric"><small>Matrículas cobradas</small><b>{totals.paidEnrolments.length}</b><span>{euro(totals.paidEnrolments.reduce((sum, draft) => sum + (draft.approved_amount_cents ?? draft.calculated_amount_cents), 0))} · solo importes mayores que 0 €</span></article>
+      <button type="button" className="metric paid-enrolments-metric metric-button" aria-expanded={showPaidEnrolments} onClick={() => setShowPaidEnrolments(value => !value)}><small>Matrículas cobradas</small><b>{totals.paidEnrolments.length}</b><span>{euro(totals.paidEnrolments.reduce((sum, draft) => sum + (draft.approved_amount_cents ?? draft.calculated_amount_cents), 0))} · ver detalle {showPaidEnrolments ? "↑" : "→"}</span></button>
       <article className="metric"><small>Previsión pendiente</small><b>{euro(totals.forecast)}</b></article>
       <article className="metric"><small>Listo para aprobar</small><b>{totals.review}</b></article>
       <article className="metric"><small>Programado para cobro automático</small><b>{euro(totals.approved)}</b></article>
       <article className="metric"><small>Registrado como cobrado</small><b>{euro(totals.paid)}</b></article>
     </section>
+    {showPaidEnrolments && <section className="panel paid-enrolments-detail"><header><div><small>SOLO MATRÍCULAS CON IMPORTE</small><h2>Personas con matrícula cobrada</h2></div><button type="button" className="outline" onClick={() => setShowPaidEnrolments(false)}>Cerrar</button></header>{[...totals.paidEnrolments].sort((a,b) => b.scheduled_for.localeCompare(a.scheduled_for)).map(draft => <div className="paid-enrolment-row" key={draft.id}><span><b>{draft.athletes?.first_name} {draft.athletes?.last_name}</b><small>{new Date(`${draft.scheduled_for}T12:00:00`).toLocaleDateString("es-ES")}</small></span><strong>{euro(draft.approved_amount_cents ?? draft.calculated_amount_cents)}</strong></div>)}{!totals.paidEnrolments.length && <p>No hay matrículas con importe cobradas.</p>}</section>}
 
     <section className="two-columns">
       <form className="panel stacked-form" onSubmit={saveRules}>

@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
 import PerformanceAdvanced from "./PerformanceAdvanced";
+import RunningPaceLab from "./RunningPaceLab";
 import "./performance-intelligence.css";
 
 type Activity = {
@@ -479,6 +480,7 @@ export default function PerformanceIntelligence({
           </small>
         </footer>
       </article>
+      <RunningPaceLab activities={activities} />
       <div className={`performance-insight${aiInsight?.alert ? " alert" : ""}`}>
         <i>✦</i>
         <div>
