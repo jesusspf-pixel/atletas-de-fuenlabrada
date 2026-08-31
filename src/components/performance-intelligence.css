@@ -178,6 +178,7 @@
   background: #fff;
   box-shadow: 0 12px 32px #08274c12;
 }
+.performance-hub>.performance-hero{order:1}.performance-hub>.performance-kpis{order:2}.performance-hub>.performance-chart{order:3}.performance-hub>.performance-advanced{order:4}.performance-hub>.performance-feedback-launcher{order:5}.performance-hub>.pace-lab{order:6}.performance-hub>.performance-insight{order:7}.performance-feedback-launcher{display:grid;gap:10px}.feedback-launch-button{display:flex;width:100%;align-items:center;justify-content:space-between;gap:16px;padding:18px 20px;border:1px solid #d7e5f3;border-radius:20px;background:linear-gradient(145deg,#eef6ff,#fff);color:#0d2b53;text-align:left;box-shadow:0 10px 27px #08274c12}.feedback-launch-button span,.feedback-launch-button small,.feedback-launch-button b,.feedback-launch-button em{display:block}.feedback-launch-button small{color:#2c6db9;font-size:8px;letter-spacing:.12em}.feedback-launch-button b{margin:4px 0;font-size:16px}.feedback-launch-button em{color:#718198;font-size:9px;font-style:normal}.feedback-launch-button strong{color:#1761ba;font-size:10px;white-space:nowrap}.performance-feedback-launcher>.performance-feedback{box-shadow:0 12px 32px #08274c12}
 .performance-feedback > header {
   display: flex;
   justify-content: space-between;

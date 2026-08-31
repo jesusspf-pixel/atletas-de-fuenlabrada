@@ -136,6 +136,7 @@ export default function PerformanceIntelligence({
     [aiLoading, setAiLoading] = useState(false),
     [aiError, setAiError] = useState("");
   const [hoveredDay, setHoveredDay] = useState<number | null>(null);
+  const [showFeedback, setShowFeedback] = useState(false);
   const [form, setForm] = useState({
     date: iso(new Date()),
     duration: "",
@@ -313,7 +314,6 @@ export default function PerformanceIntelligence({
   }, [athleteId, dataReady, activities.at(-1)?.id, feedback.at(-1)?.id]);
   return (
     <section className="performance-hub">
-      <PerformanceAdvanced athleteId={athleteId} />
       <header className="performance-hero">
         <div>
           <small>SPORTMED PERFORMANCE · 90 DÍAS</small>
@@ -480,6 +480,7 @@ export default function PerformanceIntelligence({
           </small>
         </footer>
       </article>
+      <PerformanceAdvanced athleteId={athleteId} />
       <RunningPaceLab activities={activities} />
       <div className={`performance-insight${aiInsight?.alert ? " alert" : ""}`}>
         <i>✦</i>
@@ -516,6 +517,9 @@ export default function PerformanceIntelligence({
         </div>
       </div>
       {canRecord && (
+        <section className="performance-feedback-launcher">
+        <button type="button" className="feedback-launch-button" aria-expanded={showFeedback} onClick={() => setShowFeedback(value => !value)}><span><small>DESPUÉS DE ENTRENAR</small><b>Registrar cómo ha ido el entrenamiento de hoy</b><em>Completa únicamente lo que Strava no haya recogido.</em></span><strong>{showFeedback ? "Cerrar ↑" : "Completar →"}</strong></button>
+        {showFeedback && (
         <form className="performance-feedback" onSubmit={save}>
           <header>
             <div>
@@ -648,6 +652,8 @@ export default function PerformanceIntelligence({
             </p>
           )}
         </form>
+        )}
+        </section>
       )}
     </section>
   );
