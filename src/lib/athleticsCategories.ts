@@ -19,6 +19,11 @@ export const trainingCategory = (birthDate: string, seasonYear = trainingSeasonY
   return categoryForBirthYear(Number(birthDate.slice(0, 4)), seasonYear);
 };
 
+export const federationCategory = (birthDate: string, federationYear = new Date().getFullYear()) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) return "";
+  return categoryForBirthYear(Number(birthDate.slice(0, 4)), federationYear);
+};
+
 export const isRunningAge = (birthDate: string, seasonYear = trainingSeasonYear()) => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) return false;
   return seasonYear - Number(birthDate.slice(0, 4)) > 28;

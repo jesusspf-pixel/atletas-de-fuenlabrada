@@ -822,6 +822,7 @@ function Portal({
             "Invitaciones",
             "Tienda",
             "Rendimiento",
+            "Club Challenge",
             "Configuración",
           ]
         : profile.role === "minor_athlete"
