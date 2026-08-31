@@ -17,6 +17,7 @@ import { Shop } from "./components/ProfessionalShop";
 import BillingControlCenter from "./components/BillingControlCenter";
 import MemberFees from "./components/MemberFees";
 import { withOfficialTrainingSchedules } from "./lib/trainingGroupSchedule";
+import { federationCategory, trainingCategory, trainingSeasonYear } from "./lib/athleticsCategories";
 import FamilyNotices from "./components/FamilyNotices";
 import ClubChallenge from "./components/ClubChallenge";
 import { AthleteResults } from "./components/AthleteResults";
@@ -1416,6 +1417,16 @@ function AthletesAdmin({ onOpenAthlete, statusFilter }: { onOpenAthlete: (id: st
   const visibleRows = normalizedSearch
     ? baseRows.filter((athlete) => `${athlete.first_name} ${athlete.last_name}`.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("es").includes(normalizedSearch))
     : baseRows;
+  const normalizeCategory = (value?: string | null) => (value || "").toLowerCase().replace(/[-á]/g, match => match === "á" ? "a" : " ").replace(/\s+/g, " ").trim();
+  const categoryAudit = rows.map(athlete => {
+    const expectedTraining = athlete.birth_date ? trainingCategory(athlete.birth_date) : "";
+    const expectedFederation = athlete.birth_date ? federationCategory(athlete.birth_date) : "";
+    const storedTrainingOk = Boolean(expectedTraining) && normalizeCategory(athlete.training_category) === normalizeCategory(expectedTraining);
+    const storedFederationOk = Boolean(expectedFederation) && normalizeCategory(athlete.official_competition_category) === normalizeCategory(expectedFederation);
+    const assignedGroupOk = Boolean(expectedTraining && athlete.training_groups?.category_label) && normalizeCategory(athlete.training_groups?.category_label).includes(normalizeCategory(expectedTraining));
+    return { athlete, expectedTraining, expectedFederation, ok: storedTrainingOk && storedFederationOk && assignedGroupOk };
+  });
+  const categoryIssues = categoryAudit.filter(item => !item.ok);
   useEffect(() => {
     if (selected) {
       const membership = selected.memberships?.[0];
@@ -1582,6 +1593,11 @@ function AthletesAdmin({ onOpenAthlete, statusFilter }: { onOpenAthlete: (id: st
           No se pudieron consultar las solicitudes: {error}
         </p>
       )}
+      {!loading && !error && <section className={`panel category-audit ${categoryIssues.length ? "category-audit-warning" : "category-audit-ok"}`}>
+        <div><small>CONTROL AUTOMÁTICO DE CATEGORÍAS</small><h2>{categoryIssues.length ? `${categoryIssues.length} ficha${categoryIssues.length === 1 ? "" : "s"} para revisar` : "Todas las categorías son correctas"}</h2></div>
+        <p>Compara el año de nacimiento con entrenamiento {trainingSeasonYear()-1}/{String(trainingSeasonYear()).slice(-2)} y federación {new Date().getFullYear()}.</p>
+        {categoryIssues.length > 0 && <div>{categoryIssues.map(({athlete,expectedTraining,expectedFederation}) => <button type="button" key={athlete.id} onClick={() => onOpenAthlete(athlete.id)}><b>{athlete.first_name} {athlete.last_name}</b><span>Debe figurar: entrenamiento {expectedTraining || "sin calcular"} · federación {expectedFederation || "sin calcular"}</span><small>Ahora: {athlete.training_groups?.name || "sin grupo"} · {athlete.training_category || "sin categoría"} · {athlete.official_competition_category || "sin categoría federativa"}</small></button>)}</div>}
+      </section>}
       <div className="athlete-search-bar">
         <label htmlFor="admin-athlete-search">Buscar atleta</label>
         <div>
