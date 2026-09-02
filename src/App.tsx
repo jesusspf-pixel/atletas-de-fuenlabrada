@@ -125,6 +125,112 @@ const roleName: Record<Role, string> = {
   minor_athlete: "Atleta menor",
 };
 
+function PasswordRecovery() {
+  const [password, setPassword] = useState("");
+  const [confirmation, setConfirmation] = useState("");
+  const [ready, setReady] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+  const [message, setMessage] = useState("Comprobando el enlace seguro…");
+
+  useEffect(() => {
+    if (!supabase) {
+      setMessage("El servicio de acceso no está disponible ahora mismo.");
+      return;
+    }
+    const client = supabase;
+    let active = true;
+    const acceptSession = (session: Session | null) => {
+      if (!active) return;
+      setReady(Boolean(session));
+      setMessage(
+        session
+          ? "Introduce una contraseña nueva para tu cuenta."
+          : "Este enlace no es válido o ha caducado. Solicita uno nuevo desde la pantalla de acceso.",
+      );
+    };
+    void client.auth.getSession().then(({ data }) => acceptSession(data.session));
+    const { data: { subscription } } = client.auth.onAuthStateChange((event, session) => {
+      if (event === "PASSWORD_RECOVERY" || session) acceptSession(session);
+    });
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  const save = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!supabase || busy) return;
+    if (password.length < 12) {
+      setMessage("La contraseña debe tener al menos 12 caracteres.");
+      return;
+    }
+    if (password !== confirmation) {
+      setMessage("Las dos contraseñas no coinciden.");
+      return;
+    }
+    setBusy(true);
+    const { error } = await supabase.auth.updateUser({ password });
+    setBusy(false);
+    if (error) {
+      setMessage(
+        /expired|invalid|session/i.test(error.message)
+          ? "El enlace ha caducado. Solicita uno nuevo desde la pantalla de acceso."
+          : "No hemos podido guardar la contraseña. Inténtalo de nuevo.",
+      );
+      return;
+    }
+    setDone(true);
+    setMessage("Contraseña actualizada correctamente. Ya puedes acceder a tu perfil.");
+    window.history.replaceState({}, "", "/?access=1");
+  };
+
+  return (
+    <main className="secure-screen">
+      <section className="access-box">
+        <Brand />
+        <small>RECUPERACIÓN SEGURA</small>
+        <h1>Nueva contraseña</h1>
+        {!done && ready && (
+          <form onSubmit={save}>
+            <label>
+              Nueva contraseña
+              <input
+                required
+                minLength={12}
+                autoComplete="new-password"
+                type="password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+              />
+            </label>
+            <label>
+              Repite la contraseña
+              <input
+                required
+                minLength={12}
+                autoComplete="new-password"
+                type="password"
+                value={confirmation}
+                onChange={(event) => setConfirmation(event.target.value)}
+              />
+            </label>
+            <small>Usa al menos 12 caracteres.</small>
+            <button disabled={busy}>{busy ? "Guardando…" : "Guardar contraseña"}</button>
+          </form>
+        )}
+        <p className={done ? "success-note" : ready ? "muted" : "error-note"}>{message}</p>
+        {(done || !ready) && (
+          <button type="button" className="outline" onClick={() => window.location.assign("/?access=1")}>
+            {done ? "Entrar en mi perfil" : "Volver al acceso"}
+          </button>
+        )}
+      </section>
+    </main>
+  );
+}
+
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [checking, setChecking] = useState(true);
@@ -137,6 +243,9 @@ export default function App() {
     "invitation",
   );
   const renewal = new URLSearchParams(window.location.search).get("renewal");
+  const recoveryRequested =
+    new URLSearchParams(window.location.search).has("reset-password") ||
+    window.location.hash.includes("type=recovery");
 
   useEffect(() => {
     let subscription: { unsubscribe: () => void } | null = null;
@@ -257,6 +366,7 @@ export default function App() {
     };
   }, []);
 
+  if (recoveryRequested) return <PasswordRecovery />;
   if (checking)
     return (
       <main className="secure-screen">
