@@ -44,8 +44,10 @@ export async function onRequestPost(context: any) {
     }).catch(() => null);
   }
 
-  await fetch(`${env.SUPABASE_URL}/rest/v1/athlete_integration_tokens?integration_id=eq.${encodeURIComponent(integration.id)}`, { method: "DELETE", headers });
-  const response = await fetch(`${env.SUPABASE_URL}/rest/v1/athlete_external_integrations?id=eq.${encodeURIComponent(integration.id)}`, { method: "PATCH", headers: { ...headers, Prefer: "return=minimal" }, body: JSON.stringify({ status: "disconnected", updated_at: new Date().toISOString() }) });
+  // The integration row owns tokens and imported activities through cascading
+  // foreign keys. Removing it guarantees that no Strava data is retained after
+  // the athlete disconnects.
+  const response = await fetch(`${env.SUPABASE_URL}/rest/v1/athlete_external_integrations?id=eq.${encodeURIComponent(integration.id)}`, { method: "DELETE", headers: { ...headers, Prefer: "return=minimal" } });
   if (!response.ok) return json({ error: "No se pudo desconectar Strava." }, 502);
   return json({ ok: true });
 }

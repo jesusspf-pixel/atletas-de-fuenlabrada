@@ -1,48 +1,27 @@
-import { useEffect, useMemo, useState } from "react";
-import { supabase } from "../lib/supabase";
 import "./challenge-icons.css";
 
-type ChallengeRow = { athlete_id:string; first_name:string; last_name:string; group_name:string|null; avatar_url?:string|null; activities:number; distance_m:number; moving_time_s:number; elevation_gain_m:number; pace_seconds_per_km?:number|null; active_days?:number; longest_streak_days?:number };
-type AchievementFeedItem = { athlete_id:string; first_name:string; last_name:string; group_name:string|null; avatar_url:string|null; achievement_key:string; title:string; earned_at:string };
-const distancePins=[50,100,200,300,400,500,750,1000];
-const km=(row?:ChallengeRow)=>Number(row?.distance_m||0)/1000;
-const pace=(seconds?:number|null)=>!seconds||!Number.isFinite(seconds)?"—":`${Math.floor(seconds/60)}:${String(Math.round(seconds%60)).padStart(2,"0")}/km`;
-const initials=(row:ChallengeRow)=>`${row.first_name[0]||""}${row.last_name[0]||""}`.toUpperCase();
-type IconKind="trophy"|"medal"|"diploma"|"track"|"streak"|"distance"|"mountain";
-function ChallengeIcon({kind,className=""}:{kind:IconKind;className?:string}){const paths:Record<IconKind,React.ReactNode>={
-  trophy:<><path d="M8 4h8v5a4 4 0 0 1-8 0V4Z"/><path d="M8 6H5v1a4 4 0 0 0 4 4M16 6h3v1a4 4 0 0 1-4 4M12 13v4m-4 3h8m-6-3h4"/></>,
-  medal:<><circle cx="12" cy="14" r="5"/><path d="m9 9-3-6h4l2 4 2-4h4l-3 6m-5 5 1.3 1.1L14 12.5"/></>,
-  diploma:<><path d="M5 4h14v12H5z"/><path d="M8 8h8m-8 3h5m2 5v5l-2-1.5L11 21v-5"/></>,
-  track:<><path d="M7 20a5 5 0 0 1-5-5V9a5 5 0 0 1 5-5h10a5 5 0 0 1 5 5v6a5 5 0 0 1-5 5H7Z"/><path d="M8 16a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2H8Z"/></>,
-  streak:<><path d="M13 2s1 4-2 6c-2-3-5-2-5-2s-3 3-2 8a8 8 0 0 0 16 0c0-5-3-8-5-10 0 3-1 4-2 5"/><path d="M12 12s-3 2-2 5a2 2 0 0 0 4 0c1-2-2-5-2-5Z"/></>,
-  distance:<><path d="M5 19c3-5 3-9 0-14m14 14c-3-5-3-9 0-14M9 5h6M8 19h8"/><path d="M12 8v8m-2-2 2 2 2-2"/></>,
-  mountain:<><path d="m3 20 7-13 3 5 2-3 6 11H3Z"/><path d="m8 11 2 2 2-2"/></>
-};return <svg className={`challenge-icon ${className}`} viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">{paths[kind]}</svg>}
-
-export default function ClubChallenge({athleteId}:{athleteId?:string}){
-  const [weekly,setWeekly]=useState<ChallengeRow[]>([]); const [season,setSeason]=useState<ChallengeRow[]>([]);
-  const [feed,setFeed]=useState<AchievementFeedItem[]>([]);
-  const [filter,setFilter]=useState<"club"|"group">("club"); const [period,setPeriod]=useState<"week"|"season">("season"); const [groupName,setGroupName]=useState<string|null>(null);
-  useEffect(()=>{const client=supabase;if(!client)return;void Promise.all([
-    client.from("club_challenge_weekly").select("*").order("distance_m",{ascending:false}),
-    client.from("club_challenge_season").select("*").order("distance_m",{ascending:false}),
-    client.from("club_challenge_recent_achievements").select("*").order("earned_at",{ascending:false}).limit(12),
-    athleteId?client.from("athletes").select("training_groups(name)").eq("id",athleteId).maybeSingle():Promise.resolve({data:null}),
-  ]).then(([weekRows,seasonRows,feedRows,athlete])=>{const weekData=(weekRows.data??[]) as ChallengeRow[];setWeekly(weekData);setSeason((seasonRows.data??weekData) as ChallengeRow[]);setFeed((feedRows.data??[]) as AchievementFeedItem[]);const relation=athlete.data as {training_groups?:{name?:string}|{name?:string}[]|null}|null;setGroupName((Array.isArray(relation?.training_groups)?relation.training_groups[0]?.name:relation?.training_groups?.name)??null)})},[athleteId]);
-  const source=period==="season"?season:weekly; const visible=useMemo(()=>filter==="group"&&groupName?source.filter(row=>row.group_name===groupName):source,[source,filter,groupName]);
-  const own=season.find(row=>row.athlete_id===athleteId); const ownKm=km(own); const nextPin=distancePins.find(target=>ownKm<target);
-  const personalGoals=[
-    {key:"activities-10",kind:"diploma" as IconKind,title:"10 entrenamientos",description:"Completa diez actividades sincronizadas.",value:Number(own?.activities||0),target:10,suffix:" actividades"},
-    {key:"activities-25",kind:"medal" as IconKind,title:"25 entrenamientos",description:"Alcanza veinticinco actividades en la temporada.",value:Number(own?.activities||0),target:25,suffix:" actividades"},
-    {key:"active-30",kind:"track" as IconKind,title:"30 días activos",description:"Suma actividad en treinta días diferentes.",value:Number(own?.active_days||0),target:30,suffix:" días"},
-    {key:"elevation-1000",kind:"mountain" as IconKind,title:"1.000 m de desnivel",description:"Acumula mil metros positivos.",value:Number(own?.elevation_gain_m||0),target:1000,suffix:" m"},
-    {key:"elevation-5000",kind:"trophy" as IconKind,title:"Cima de 5.000",description:"Acumula cinco mil metros positivos.",value:Number(own?.elevation_gain_m||0),target:5000,suffix:" m"},
-  ];
-  const runningGroups=useMemo(()=>{const totals=new Map<string,{name:string;distance:number;athletes:number}>();season.filter(row=>/running|m[aá]ster/i.test(row.group_name||"")).forEach(row=>{const name=(row.group_name||"Running").replace(/m[aá]ster/ig,"Running");const current=totals.get(name)||{name,distance:0,athletes:0};current.distance+=km(row);current.athletes+=1;totals.set(name,current)});return [...totals.values()].sort((a,b)=>b.distance-a.distance)},[season]);
-  const leader=runningGroups[0],leaderProgress=Math.min(100,(leader?.distance||0)/5);
-  return <section className="club-challenge challenge-v2-live"><div className="design-v2-challenge"><article><small>RETO COLECTIVO · TEMPORADA 2026/27</small><h2>500 km<br/>en equipo</h2><div className="design-v2-ring" style={{background:`conic-gradient(#b8ff3d ${leaderProgress}%,rgba(255,255,255,.13) 0)`}}><b>{leader?.distance.toFixed(0)||0}</b><span>/ 500 km</span></div><footer><span>{leader?`${leader.name} lidera`:"Esperando actividad"}</span><b>{leaderProgress.toFixed(0)}%</b></footer></article><aside><header><h3>Clasificación por grupos</h3><span>Meta 500 km</span></header>{runningGroups.length?runningGroups.map((group,index)=><div key={group.name}><b>{index+1}</b><i>{group.name.slice(-1)}</i><span><strong>{group.name}</strong><small>{group.athletes} participantes</small></span><strong>{group.distance.toFixed(1)} km</strong></div>):<p>Aún no hay actividad compartida.</p>}</aside></div>
-    <section className="challenge-v2-head"><div><small>ÚLTIMOS LOGROS</small><h2>El esfuerzo se comparte</h2></div></section><div className="design-v2-medals">{feed.length?feed.slice(0,6).map(item=><article key={`${item.athlete_id}-${item.achievement_key}`}><span className="challenge-person">{item.avatar_url?<img src={item.avatar_url} alt=""/>:<i>{`${item.first_name[0]||""}${item.last_name[0]||""}`}</i>}</span><ChallengeIcon kind="medal"/><b>{item.title}</b><small>{item.first_name} {item.last_name}</small></article>):<article><ChallengeIcon kind="diploma"/><b>Próximos logros</b><small>Aparecerán automáticamente</small></article>}</div>
-    <article className="challenge-v2-ranking"><header><div><small>CLASIFICACIÓN CHALLENGE</small><h2>Atletas en movimiento</h2></div><div className="challenge-tabs"><button className={period==="season"?"selected-row":"outline"} onClick={()=>setPeriod("season")}>Temporada</button><button className={period==="week"?"selected-row":"outline"} onClick={()=>setPeriod("week")}>Semana</button><button className={filter==="club"?"selected-row":"outline"} onClick={()=>setFilter("club")}>Club</button>{groupName&&<button className={filter==="group"?"selected-row":"outline"} onClick={()=>setFilter("group")}>Mi grupo</button>}</div></header><div className="challenge-v2-summary"><span><small>KILÓMETROS</small><b>{visible.reduce((sum,row)=>sum+km(row),0).toFixed(1)}</b></span><span><small>ATLETAS</small><b>{visible.length}</b></span><span><small>GRUPOS</small><b>{new Set(visible.map(row=>row.group_name).filter(Boolean)).size}</b></span></div>{visible.length?<div className="challenge-v2-list">{visible.slice(0,50).map((row,index)=><div className={row.athlete_id===athleteId?"is-own":""} key={row.athlete_id}><strong>{index+1}</strong><span className="challenge-person">{row.avatar_url?<img src={row.avatar_url} alt=""/>:<i>{initials(row)}</i>}<span><b>{row.first_name} {row.last_name}</b><small>{(row.group_name||"Sin grupo").replace(/m[aá]ster/ig,"Running")}</small></span></span><span><b>{km(row).toFixed(1)} km</b><small>{row.activities} actividades</small></span><span><b>{pace(row.pace_seconds_per_km)}</b><small>+{Math.round(Number(row.elevation_gain_m||0))} m</small></span></div>)}</div>:<p>Aún no hay actividades compartidas en este periodo.</p>}</article>
-    {athleteId&&<article className="challenge-v2-goals"><header><div><small>MIS LOGROS INDIVIDUALES</small><h2>Tu colección</h2></div>{nextPin&&<b>Próximo · {nextPin} km</b>}</header><div className="achievement-grid"><article className={`achievement ${Number(own?.longest_streak_days||0)>=4?"unlocked":"locked"}`}><ChallengeIcon kind="streak"/><b>Cuatro días seguidos</b><small>{Number(own?.longest_streak_days||0)>=4?"CONSEGUIDO":`Mejor racha: ${own?.longest_streak_days||0} días`}</small></article>{distancePins.map(target=><article className={`achievement ${ownKm>=target?"unlocked":"locked"}`} key={target}><ChallengeIcon kind={target===1000?"trophy":"distance"}/><b>{target} km</b><small>{ownKm>=target?"CONSEGUIDO":`${Math.min(100,ownKm/target*100).toFixed(0)}% completado`}</small></article>)}{personalGoals.map(goal=><article className={`achievement ${goal.value>=goal.target?"unlocked":"locked"}`} key={goal.key}><ChallengeIcon kind={goal.kind}/><b>{goal.title}</b><small>{goal.value>=goal.target?"CONSEGUIDO":`${Math.min(100,goal.value/goal.target*100).toFixed(0)}% completado`}</small></article>)}</div></article>}
-  </section>
+/**
+ * Strava review build.
+ *
+ * Club-wide leaderboards are intentionally disabled because they would expose
+ * Strava-derived metrics to people other than the athlete who authorised the
+ * connection. The production application is not affected by this branch.
+ */
+export default function ClubChallenge(_props: { athleteId?: string }) {
+  return (
+    <section className="club-challenge challenge-v2-live">
+      <article className="panel">
+        <small>PRIVACIDAD DE DATOS CONECTADOS</small>
+        <h2>Challenge independiente de Strava</h2>
+        <p>
+          Las actividades importadas desde Strava son privadas y no se utilizan
+          para clasificaciones, retos colectivos ni perfiles de otros atletas.
+        </p>
+        <p>
+          Los retos del club se alimentarán únicamente de registros propios de
+          la plataforma cuando el atleta decida participar.
+        </p>
+      </article>
+    </section>
+  );
 }

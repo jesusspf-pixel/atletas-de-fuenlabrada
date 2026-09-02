@@ -1,5 +1,4 @@
 const JSON_HEADERS = { "content-type": "application/json" };
-const RUNNING_TYPES = new Set(["run", "trailrun", "virtualrun", "wheelchair"]);
 const database = (env, path, init = {}) => fetch(`${env.SUPABASE_URL}${path}`, { ...init, headers: { apikey: env.SUPABASE_SERVICE_ROLE_KEY, authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`, ...JSON_HEADERS, ...(init.headers || {}) } });
 const isoDate = (date) => date.toISOString().slice(0, 10);
 const finite = (value, fallback = 0) => { const parsed = Number(value); return Number.isFinite(parsed) ? parsed : fallback; };
@@ -7,6 +6,15 @@ async function sha256(value) { const digest = await crypto.subtle.digest("SHA-25
 async function readRows(env, path) { const response = await database(env, path); if (!response.ok) throw new Error(`Supabase ${response.status} en ${path.split("?")[0]}`); return response.json(); }
 const clean = (value, max = 6000) => String(value || "").trim().slice(0, max);
 const DAYS = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
+
+async function purgeExpiredReviewData(env) {
+  const response = await database(env, "/rest/v1/rpc/purge_expired_strava_review_data", {
+    method: "POST",
+    body: "{}",
+  });
+  if (!response.ok) throw new Error(`No se pudo ejecutar la retención de Strava: ${response.status}`);
+  return response.json();
+}
 
 function nextMondayKey(now = new Date()) {
   const date = new Date(now);
@@ -44,28 +52,22 @@ async function generateWeeklyProposal(env) {
   const athleteIds = athletes.map((athlete) => athlete.id);
   const lookback = new Date(); lookback.setUTCDate(lookback.getUTCDate() - 56);
   const participationSince = new Date(); participationSince.setUTCDate(participationSince.getUTCDate() - 14);
-  let activities = [], feedback = [];
+  let feedback = [];
   if (athleteIds.length) {
     const encoded = `(${athleteIds.join(",")})`;
-    [activities, feedback] = await Promise.all([
-      readRows(env, `/rest/v1/external_sport_activities?athlete_id=in.${encodeURIComponent(encoded)}&started_at=gte.${encodeURIComponent(lookback.toISOString())}&select=athlete_id,activity_type,started_at,distance_m,moving_time_s,average_heartrate,relative_effort`),
-      readRows(env, `/rest/v1/athlete_training_feedback?athlete_id=in.${encodeURIComponent(encoded)}&session_date=gte.${isoDate(lookback)}&select=athlete_id,session_date,duration_minutes,rpe,fatigue_feeling,pain_or_discomfort,sleep_quality`),
-    ]);
+    feedback = await readRows(env, `/rest/v1/athlete_training_feedback?athlete_id=in.${encodeURIComponent(encoded)}&session_date=gte.${isoDate(lookback)}&select=athlete_id,session_date,duration_minutes,distance_m,rpe,fatigue_feeling,pain_or_discomfort,sleep_quality`);
   }
-  const runs = activities.filter((item) => RUNNING_TYPES.has(String(item.activity_type || "").toLowerCase()));
   const recentParticipantIds = new Set([
-    ...runs.filter((item) => new Date(item.started_at) >= participationSince).map((item) => item.athlete_id),
     ...feedback.filter((item) => item.session_date >= isoDate(participationSince)).map((item) => item.athlete_id),
   ]);
-  const participantRuns = runs.filter((item) => recentParticipantIds.has(item.athlete_id));
   const participantFeedback = feedback.filter((item) => recentParticipantIds.has(item.athlete_id));
   const aggregate = {
     activeAthletes: athleteIds.length,
     participatingAthletes: recentParticipantIds.size,
     coveragePercent: athleteIds.length ? Math.round(recentParticipantIds.size / athleteIds.length * 100) : 0,
-    runs: participantRuns.length,
-    totalKm: Math.round(participantRuns.reduce((sum, item) => sum + finite(item.distance_m), 0) / 100) / 10,
-    totalMinutes: Math.round(participantRuns.reduce((sum, item) => sum + finite(item.moving_time_s), 0) / 60),
+    manualSessions: participantFeedback.length,
+    totalKm: Math.round(participantFeedback.reduce((sum, item) => sum + finite(item.distance_m), 0) / 100) / 10,
+    totalMinutes: Math.round(participantFeedback.reduce((sum, item) => sum + finite(item.duration_minutes), 0)),
     averageRpe: participantFeedback.length ? Math.round(participantFeedback.reduce((sum, item) => sum + finite(item.rpe), 0) / participantFeedback.length * 10) / 10 : null,
     feedbackEntries: participantFeedback.length,
     painReports: participantFeedback.filter((item) => item.pain_or_discomfort).length,
@@ -82,7 +84,7 @@ async function generateWeeklyProposal(env) {
     required: ["title", "rationale", "sessions"],
   };
   const system = "Eres copiloto privado de un entrenador experto de atletismo. Propones un borrador semanal conservador y progresivo, pero nunca publicas. Trabaja solo con datos agregados de participantes. Los campos públicos deben ser breves, claros y ejecutables por atletas. Reserva ejercicios concretos, organización, correcciones y vigilancia para coachNotes. Los días de descanso deben tener los campos vacíos salvo notes. No hagas diagnósticos.";
-  const userPrompt = `Prepara la semana ${weekStartsOn} para Running A. Punto de partida: ${clean(setting.starting_point)}. Objetivo: ${clean(setting.objective)}. Fecha objetivo: ${clean(setting.target_date, 40) || "no indicada"}. Condiciones: ${clean(setting.constraints)}. Metodología: ${clean(setting.methodology)}. Respuesta agregada de atletas participantes: ${JSON.stringify(aggregate)}. Últimos planes publicados: ${clean(JSON.stringify(previousPlans), 18000)}. Ajusta la progresión a la cobertura real; con pocos datos, sé especialmente prudente.`;
+  const userPrompt = `Prepara la semana ${weekStartsOn} para Running A. Punto de partida: ${clean(setting.starting_point)}. Objetivo: ${clean(setting.objective)}. Fecha objetivo: ${clean(setting.target_date, 40) || "no indicada"}. Condiciones: ${clean(setting.constraints)}. Metodología: ${clean(setting.methodology)}. Respuesta agregada de registros introducidos manualmente por los atletas (sin datos de Strava): ${JSON.stringify(aggregate)}. Últimos planes publicados: ${clean(JSON.stringify(previousPlans), 18000)}. Ajusta la progresión a la cobertura real; con pocos datos, sé especialmente prudente.`;
   const anthropicHeaders = { "content-type": "application/json", "x-api-key": env.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" };
   if (env.ANTHROPIC_WORKSPACE_ID) anthropicHeaders["anthropic-workspace-id"] = env.ANTHROPIC_WORKSPACE_ID;
   const response = await fetch("https://api.anthropic.com/v1/messages", {
@@ -104,13 +106,8 @@ async function generateWeeklyProposal(env) {
   return result;
 }
 
-function metricsFor(activities, feedback) {
+function metricsFor(feedback) {
   const byDay = new Map(), sources = new Set();
-  for (const activity of activities) {
-    if (!RUNNING_TYPES.has(String(activity.activity_type || "").toLowerCase())) continue;
-    const day = String(activity.started_at).slice(0, 10), minutes = finite(activity.moving_time_s) / 60, effort = finite(activity.relative_effort);
-    byDay.set(day, (byDay.get(day) || 0) + (effort || minutes)); sources.add(effort ? "strava-effort" : "strava-duration");
-  }
   for (const entry of feedback) { const duration = finite(entry.duration_minutes), rpe = finite(entry.rpe); if (!duration || !rpe) continue; byDay.set(String(entry.session_date), duration * rpe); sources.add("rpe"); }
   let fitness = 0, fatigue = 0; const days = [], start = new Date(); start.setUTCHours(12, 0, 0, 0); start.setUTCDate(start.getUTCDate() - 89);
   for (let index = 0; index < 90; index += 1) { const date = new Date(start); date.setUTCDate(start.getUTCDate() + index); const load = byDay.get(isoDate(date)) || 0; fitness += (load - fitness) / 42; fatigue += (load - fatigue) / 7; days.push({ load, fitness, fatigue, form: fitness - fatigue }); }
@@ -118,7 +115,7 @@ function metricsFor(activities, feedback) {
   const wellness = feedback.filter((entry) => new Date(`${entry.session_date}T12:00:00Z`) >= new Date(Date.now() - 7 * 86_400_000));
   const readiness = wellness.length ? Math.round((wellness.reduce((sum, entry) => sum + finite(entry.sleep_quality, 3) + (6 - finite(entry.fatigue_feeling, 3)) + (6 - finite(entry.muscle_soreness, 3)) + finite(entry.mood, 3), 0) / (wellness.length * 20)) * 100) : null;
   const recentPain = feedback.some((entry) => entry.pain_or_discomfort && new Date(`${entry.session_date}T12:00:00Z`) >= new Date(Date.now() - 14 * 86_400_000));
-  return { fitness: finite(latest.fitness), fatigue: finite(latest.fatigue), form: finite(latest.form), weekLoad: Math.max(0, weekLoad), previousWeekLoad: Math.max(0, previousWeekLoad), changePercent: previousWeekLoad ? (weekLoad / previousWeekLoad - 1) * 100 : null, readiness, dataConfidence: sources.has("strava-effort") || sources.has("rpe") ? "medium_high" : "initial", sources: [...sources], recentPain, wellnessEntries: wellness.length, runningActivities: activities.filter((activity) => RUNNING_TYPES.has(String(activity.activity_type || "").toLowerCase())).length };
+  return { fitness: finite(latest.fitness), fatigue: finite(latest.fatigue), form: finite(latest.form), weekLoad: Math.max(0, weekLoad), previousWeekLoad: Math.max(0, previousWeekLoad), changePercent: previousWeekLoad ? (weekLoad / previousWeekLoad - 1) * 100 : null, readiness, dataConfidence: sources.has("rpe") ? "medium_high" : "initial", sources: [...sources], recentPain, wellnessEntries: wellness.length, runningActivities: 0 };
 }
 
 function localInsight(metrics) {
@@ -130,7 +127,7 @@ function localInsight(metrics) {
   else if (metrics.form > 12) { headline = "Estado de frescura alto"; summary = "La carga reciente ha bajado respecto a la carga sostenida y el indicador refleja un estado de frescura alto."; actions.push("Revisar con el entrenador el objetivo de la semana"); }
   if (metrics.changePercent !== null && metrics.changePercent > 50) { actions.push("Revisar el aumento semanal de carga"); alert = true; }
   if (metrics.readiness !== null && metrics.readiness < 45) { actions.push("Comentar las sensaciones de recuperación"); alert = true; }
-  if (!metrics.runningActivities && !metrics.wellnessEntries) { headline = "Faltan datos recientes"; summary = "Todavía no hay suficiente actividad de carrera ni sensaciones registradas para valorar la evolución."; actions.push("Sincronizar Strava o registrar el entrenamiento"); confidence = "baja"; alert = false; }
+  if (!metrics.wellnessEntries) { headline = "Faltan datos recientes"; summary = "Todavía no hay suficientes sesiones y sensaciones registradas manualmente para valorar la evolución."; actions.push("Registrar el entrenamiento en la plataforma"); confidence = "baja"; alert = false; }
   if (!actions.length) actions.push("Mantener el seguimiento diario");
   return { headline, summary, actions: [...new Set(actions)].slice(0, 3), confidence, alert };
 }
@@ -145,14 +142,11 @@ async function run(env) {
   const batchSize = Math.max(1, Math.min(30, finite(env.PERFORMANCE_DAILY_BATCH_SIZE, 15))), pending = athletes.filter((athlete) => !completed.has(athlete.id)).slice(0, batchSize);
   if (!pending.length) return { processed: 0, skipped: athletes.length, reason: "all_current" };
   const pendingIds = pending.map((athlete) => athlete.id), since = new Date(); since.setUTCDate(since.getUTCDate() - 120);
-  const [activities, feedback] = await Promise.all([
-    readRows(env, `/rest/v1/external_sport_activities?athlete_id=in.(${pendingIds.join(",")})&started_at=gte.${encodeURIComponent(since.toISOString())}&select=athlete_id,started_at,activity_type,moving_time_s,relative_effort`),
-    readRows(env, `/rest/v1/athlete_training_feedback?athlete_id=in.(${pendingIds.join(",")})&session_date=gte.${isoDate(since)}&select=athlete_id,session_date,duration_minutes,rpe,sleep_quality,fatigue_feeling,muscle_soreness,mood,pain_or_discomfort`),
-  ]);
+  const feedback = await readRows(env, `/rest/v1/athlete_training_feedback?athlete_id=in.(${pendingIds.join(",")})&session_date=gte.${isoDate(since)}&select=athlete_id,session_date,duration_minutes,rpe,sleep_quality,fatigue_feeling,muscle_soreness,mood,pain_or_discomfort`);
   let processed = 0, failed = 0;
   for (const athlete of pending) {
     try {
-      const metrics = metricsFor(activities.filter((item) => item.athlete_id === athlete.id), feedback.filter((item) => item.athlete_id === athlete.id));
+      const metrics = metricsFor(feedback.filter((item) => item.athlete_id === athlete.id));
       const saved = await database(env, "/rest/v1/performance_ai_insights?on_conflict=athlete_id,analysis_date", { method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify({ athlete_id: athlete.id, analysis_date: today, input_signature: await sha256(metrics), insight: localInsight(metrics), model: "performance-engine-v1", input_tokens: null, output_tokens: null }) });
       if (!saved.ok) throw new Error(`No se pudo guardar: ${saved.status}`); processed += 1;
     } catch (error) { failed += 1; console.error(JSON.stringify({ event: "performance_daily_athlete_failed", athleteId: athlete.id, message: error instanceof Error ? error.message : "unknown" })); }
@@ -163,7 +157,10 @@ async function run(env) {
 export default {
   async fetch(request) { if (new URL(request.url).pathname === "/health") return Response.json({ ok: true, service: "club-atletas-performance-daily" }); return new Response("Not found", { status: 404 }); },
   async scheduled(controller, env, ctx) {
-    if (controller.cron === "40 18 * * SUN") ctx.waitUntil(generateWeeklyProposal(env));
-    else ctx.waitUntil(run(env));
+    ctx.waitUntil((async () => {
+      await purgeExpiredReviewData(env);
+      if (controller.cron === "40 18 * * SUN") await generateWeeklyProposal(env);
+      else await run(env);
+    })());
   },
 };

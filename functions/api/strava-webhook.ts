@@ -1,4 +1,5 @@
 const json = (body: unknown, status = 200) => Response.json(body, { status });
+const RUNNING_TYPES = new Set(["run", "trailrun", "virtualrun", "wheelchair"]);
 
 async function refreshAccess(env: any, integrationId: string, token: any, headers: Record<string,string>) {
   if (Number(token.expires_at) > Math.floor(Date.now() / 1000) + 120) return token.access_token as string;
@@ -18,7 +19,8 @@ async function processEvent(env: any, event: any) {
   if (!integration?.id) return;
 
   if (event.object_type === "athlete" && event.updates?.authorized === "false") {
-    await fetch(`${env.SUPABASE_URL}/rest/v1/athlete_external_integrations?id=eq.${encodeURIComponent(integration.id)}`, { method: "PATCH", headers: { ...headers, Prefer: "return=minimal" }, body: JSON.stringify({ status: "revoked", updated_at: new Date().toISOString() }) });
+    // Deleting the integration cascades to tokens and imported activities.
+    await fetch(`${env.SUPABASE_URL}/rest/v1/athlete_external_integrations?id=eq.${encodeURIComponent(integration.id)}`, { method: "DELETE", headers });
     return;
   }
   if (event.object_type !== "activity") return;
@@ -34,6 +36,11 @@ async function processEvent(env: any, event: any) {
   const response = await fetch(`https://api-v3.strava.com/activities/${encodeURIComponent(String(event.object_id))}`, { headers: { authorization: `Bearer ${accessToken}` } });
   const item = await response.json().catch(() => null) as any;
   if (!response.ok || !item?.id) return;
+  const activityType = String(item.sport_type || item.type || "").toLowerCase();
+  if (!RUNNING_TYPES.has(activityType)) {
+    await fetch(`${env.SUPABASE_URL}/rest/v1/external_sport_activities?provider=eq.strava&provider_activity_id=eq.${encodeURIComponent(String(item.id))}`, { method: "DELETE", headers });
+    return;
+  }
   const row = {
     integration_id: integration.id,
     athlete_id: integration.athlete_id,
@@ -44,19 +51,14 @@ async function processEvent(env: any, event: any) {
     started_at: item.start_date || new Date().toISOString(),
     distance_m: item.distance ?? null,
     moving_time_s: item.moving_time ?? null,
-    elapsed_time_s: item.elapsed_time ?? null,
     elevation_gain_m: item.total_elevation_gain ?? null,
-    average_speed_mps: item.average_speed ?? null,
     average_heartrate: item.average_heartrate ?? null,
-    max_heartrate: item.max_heartrate ?? null,
-    relative_effort: item.suffer_score ?? null,
-    average_cadence: item.average_cadence ?? null,
-    max_speed_mps: item.max_speed ?? null,
-    calories: item.calories ?? null,
     source_url: `https://www.strava.com/activities/${item.id}`,
     updated_at: new Date().toISOString(),
   };
   await fetch(`${env.SUPABASE_URL}/rest/v1/external_sport_activities?on_conflict=provider,provider_activity_id`, { method: "POST", headers: { ...headers, Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify(row) });
+  const retentionCutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  await fetch(`${env.SUPABASE_URL}/rest/v1/external_sport_activities?integration_id=eq.${encodeURIComponent(integration.id)}&started_at=lt.${encodeURIComponent(retentionCutoff)}`, { method: "DELETE", headers });
   await fetch(`${env.SUPABASE_URL}/rest/v1/athlete_external_integrations?id=eq.${encodeURIComponent(integration.id)}`, { method: "PATCH", headers: { ...headers, Prefer: "return=minimal" }, body: JSON.stringify({ last_synced_at: new Date().toISOString(), updated_at: new Date().toISOString() }) });
 }
 

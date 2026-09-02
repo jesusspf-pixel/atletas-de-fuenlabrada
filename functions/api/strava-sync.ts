@@ -1,4 +1,5 @@
 const json = (body: unknown, status = 200) => Response.json(body, { status });
+const RUNNING_TYPES = new Set(["run", "trailrun", "virtualrun", "wheelchair"]);
 
 async function validToken(env: any, integrationId: string, tokenRow: { access_token: string; refresh_token: string; expires_at: number }, headers: Record<string,string>) {
   if (tokenRow.expires_at > Math.floor(Date.now() / 1000) + 120) return tokenRow.access_token;
@@ -35,11 +36,12 @@ export async function onRequestPost(context: any) {
 
   try {
     const accessToken = await validToken(env, integration.id, tokens as { access_token: string; refresh_token: string; expires_at: number }, headers);
-    const after = Math.floor((Date.now() - 120 * 24 * 60 * 60 * 1000) / 1000);
+    const retentionCutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const after = Math.floor(retentionCutoff.getTime() / 1000);
     const response = await fetch(`https://www.strava.com/api/v3/athlete/activities?after=${after}&page=1&per_page=100`, { headers: { authorization: `Bearer ${accessToken}` } });
     const activities = await response.json().catch(() => []) as any[];
     if (!response.ok || !Array.isArray(activities)) return json({ error: "Strava no devolvió las actividades." }, 502);
-    const rows = activities.map(item => ({
+    const rows = activities.filter(item => RUNNING_TYPES.has(String(item.sport_type || item.type || "").toLowerCase())).map(item => ({
       integration_id: integration.id,
       athlete_id: athleteId,
       provider: "strava",
@@ -49,15 +51,8 @@ export async function onRequestPost(context: any) {
       started_at: item.start_date || new Date().toISOString(),
       distance_m: item.distance ?? null,
       moving_time_s: item.moving_time ?? null,
-      elapsed_time_s: item.elapsed_time ?? null,
       elevation_gain_m: item.total_elevation_gain ?? null,
-      average_speed_mps: item.average_speed ?? null,
       average_heartrate: item.average_heartrate ?? null,
-      max_heartrate: item.max_heartrate ?? null,
-      relative_effort: item.suffer_score ?? null,
-      average_cadence: item.average_cadence ?? null,
-      max_speed_mps: item.max_speed ?? null,
-      calories: item.calories ?? null,
       source_url: item.id ? `https://www.strava.com/activities/${item.id}` : null,
       updated_at: new Date().toISOString(),
     }));
@@ -65,8 +60,11 @@ export async function onRequestPost(context: any) {
       const save = await fetch(`${env.SUPABASE_URL}/rest/v1/external_sport_activities?on_conflict=provider,provider_activity_id`, { method: "POST", headers: { ...headers, Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify(rows) });
       if (!save.ok) return json({ error: "No se pudieron guardar las actividades de Strava." }, 502);
     }
+    // Data minimisation for the review build: retain only the recent window
+    // used by the athlete-facing activity screen.
+    await fetch(`${env.SUPABASE_URL}/rest/v1/external_sport_activities?integration_id=eq.${encodeURIComponent(integration.id)}&started_at=lt.${encodeURIComponent(retentionCutoff.toISOString())}`, { method: "DELETE", headers });
     await fetch(`${env.SUPABASE_URL}/rest/v1/athlete_external_integrations?id=eq.${encodeURIComponent(integration.id)}`, { method: "PATCH", headers: { ...headers, Prefer: "return=minimal" }, body: JSON.stringify({ last_synced_at: new Date().toISOString(), updated_at: new Date().toISOString() }) });
-    return json({ synced: rows.length });
+    return json({ synced: rows.length, retentionDays: 30 });
   } catch (error) {
     return json({ error: error instanceof Error ? error.message : "No se pudo sincronizar Strava." }, 502);
   }

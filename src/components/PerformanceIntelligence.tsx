@@ -4,19 +4,11 @@ import PerformanceAdvanced from "./PerformanceAdvanced";
 import RunningPaceLab from "./RunningPaceLab";
 import "./performance-intelligence.css";
 
-type Activity = {
-  id: string;
-  activity_type: string | null;
-  started_at: string;
-  distance_m: number | null;
-  moving_time_s: number | null;
-  average_heartrate: number | null;
-  relative_effort: number | null;
-};
 type Feedback = {
   id: string;
   session_date: string;
   duration_minutes: number | null;
+  distance_m: number | null;
   rpe: number | null;
   sleep_quality: number | null;
   fatigue_feeling: number | null;
@@ -39,7 +31,6 @@ type AiInsight = {
   confidence: "baja" | "media" | "alta";
   alert: boolean;
 };
-const runs = new Set(["run", "trailrun", "virtualrun", "wheelchair"]);
 const iso = (date: Date) => date.toISOString().slice(0, 10);
 const label = (value: number) =>
   value > 12
@@ -61,19 +52,9 @@ const scaleText = {
   mood: (value: string) => Number(value) <= 1 ? "Ánimo muy bajo" : Number(value) <= 2 ? "Ánimo bajo" : Number(value) === 3 ? "Ánimo normal" : Number(value) === 4 ? "Buen ánimo" : "Ánimo excelente",
 };
 
-function buildTimeline(activities: Activity[], feedback: Feedback[]) {
+function buildTimeline(feedback: Feedback[]) {
   const byDay = new Map<string, number>();
   const sources = new Set<string>();
-  activities
-    .filter((a) => runs.has(String(a.activity_type || "").toLowerCase()))
-    .forEach((a) => {
-      const day = a.started_at.slice(0, 10);
-      const minutes = Number(a.moving_time_s || 0) / 60;
-      const load = Number(a.relative_effort || 0) || minutes;
-      byDay.set(day, (byDay.get(day) || 0) + load);
-      if (a.relative_effort) sources.add("strava-effort");
-      else sources.add("strava-duration");
-    });
   feedback.forEach((f) => {
     if (!f.rpe || !f.duration_minutes) return;
     byDay.set(f.session_date, Number(f.rpe) * Number(f.duration_minutes));
@@ -128,8 +109,7 @@ export default function PerformanceIntelligence({
   athleteId: string;
   canRecord?: boolean;
 }) {
-  const [activities, setActivities] = useState<Activity[]>([]),
-    [feedback, setFeedback] = useState<Feedback[]>([]),
+  const [feedback, setFeedback] = useState<Feedback[]>([]),
     [notice, setNotice] = useState("");
   const [dataReady, setDataReady] = useState(false);
   const [aiInsight, setAiInsight] = useState<AiInsight | null>(null),
@@ -155,25 +135,14 @@ export default function PerformanceIntelligence({
     setDataReady(false);
     const since = new Date();
     since.setDate(since.getDate() - 120);
-    const [a, f] = await Promise.all([
-      supabase
-        .from("external_sport_activities")
-        .select(
-          "id,activity_type,started_at,distance_m,moving_time_s,average_heartrate,relative_effort",
-        )
-        .eq("athlete_id", athleteId)
-        .gte("started_at", since.toISOString())
-        .order("started_at"),
-      supabase
-        .from("athlete_training_feedback")
-        .select(
-          "id,session_date,duration_minutes,rpe,sleep_quality,fatigue_feeling,muscle_soreness,mood,pain_or_discomfort,sensations",
-        )
-        .eq("athlete_id", athleteId)
-        .gte("session_date", iso(since))
-        .order("session_date"),
-    ]);
-    setActivities((a.data || []) as Activity[]);
+    const f = await supabase
+      .from("athlete_training_feedback")
+      .select(
+        "id,session_date,duration_minutes,distance_m,rpe,sleep_quality,fatigue_feeling,muscle_soreness,mood,pain_or_discomfort,sensations",
+      )
+      .eq("athlete_id", athleteId)
+      .gte("session_date", iso(since))
+      .order("session_date");
     setFeedback((f.data || []) as Feedback[]);
     setDataReady(true);
   };
@@ -183,8 +152,18 @@ export default function PerformanceIntelligence({
     void load();
   }, [athleteId]);
   const timeline = useMemo(
-    () => buildTimeline(activities, feedback),
-    [activities, feedback],
+    () => buildTimeline(feedback),
+    [feedback],
+  );
+  const manualRuns = useMemo(
+    () => feedback.map((item) => ({
+      id: item.id,
+      started_at: `${item.session_date}T12:00:00`,
+      distance_m: item.distance_m,
+      moving_time_s: item.duration_minutes ? item.duration_minutes * 60 : null,
+      activity_type: "run",
+    })),
+    [feedback],
   );
   const latest = timeline.days.at(-1)!;
   const week = timeline.days.slice(-7);
@@ -208,8 +187,7 @@ export default function PerformanceIntelligence({
           100,
       )
     : null;
-  const reliable =
-    timeline.sources.has("strava-effort") || timeline.sources.has("rpe");
+  const reliable = timeline.sources.has("rpe");
   const save = async (e: FormEvent) => {
     e.preventDefault();
     if (!supabase) return;
@@ -280,9 +258,7 @@ export default function PerformanceIntelligence({
             sources: [...timeline.sources],
             recentPain,
             wellnessEntries: wellness.length,
-            runningActivities: activities.filter((item) =>
-              runs.has(String(item.activity_type || "").toLowerCase()),
-            ).length,
+            runningActivities: manualRuns.filter((item) => Number(item.distance_m || 0) > 0).length,
           },
         }),
       });
@@ -306,12 +282,12 @@ export default function PerformanceIntelligence({
   useEffect(() => {
     if (
       dataReady &&
-      (activities.length > 0 || feedback.length > 0) &&
+      feedback.length > 0 &&
       !aiInsight &&
       !aiLoading
     )
       void analyse();
-  }, [athleteId, dataReady, activities.at(-1)?.id, feedback.at(-1)?.id]);
+  }, [athleteId, dataReady, feedback.at(-1)?.id]);
   return (
     <section className="performance-hub">
       <header className="performance-hero">
@@ -319,7 +295,7 @@ export default function PerformanceIntelligence({
           <small>SPORTMED PERFORMANCE · 90 DÍAS</small>
           <h2>Estado de rendimiento</h2>
           <p>
-            Carga real de carrera, recuperación y tendencia en un único panel.
+            Carga registrada por el atleta, recuperación y tendencia en un único panel.
           </p>
         </div>
         <div className="readiness-summary">
@@ -481,7 +457,7 @@ export default function PerformanceIntelligence({
         </footer>
       </article>
       <PerformanceAdvanced athleteId={athleteId} />
-      <RunningPaceLab activities={activities} />
+      <RunningPaceLab activities={manualRuns} />
       <div className={`performance-insight${aiInsight?.alert ? " alert" : ""}`}>
         <i>✦</i>
         <div>
@@ -494,7 +470,7 @@ export default function PerformanceIntelligence({
           <p>
             {aiInsight?.summary ||
               (weekLoad === 0
-                ? "No hay suficiente actividad reciente. Sincroniza Strava o registra el entrenamiento manualmente."
+                ? "No hay suficientes registros manuales recientes. Completa cómo ha ido tu entrenamiento para construir la tendencia."
                 : latest.form < -22
                   ? "La carga reciente supera claramente la carga asimilada. Conviene revisar sensaciones y recuperación antes de aumentar intensidad."
                   : latest.form < -10
@@ -518,7 +494,7 @@ export default function PerformanceIntelligence({
       </div>
       {canRecord && (
         <section className="performance-feedback-launcher">
-        <button type="button" className="feedback-launch-button" aria-expanded={showFeedback} onClick={() => setShowFeedback(value => !value)}><span><small>DESPUÉS DE ENTRENAR</small><b>Registrar cómo ha ido el entrenamiento de hoy</b><em>Completa únicamente lo que Strava no haya recogido.</em></span><strong>{showFeedback ? "Cerrar ↑" : "Completar →"}</strong></button>
+        <button type="button" className="feedback-launch-button" aria-expanded={showFeedback} onClick={() => setShowFeedback(value => !value)}><span><small>DESPUÉS DE ENTRENAR</small><b>Registrar cómo ha ido el entrenamiento de hoy</b><em>Estos datos manuales alimentan el panel de rendimiento y el análisis.</em></span><strong>{showFeedback ? "Cerrar ↑" : "Completar →"}</strong></button>
         {showFeedback && (
         <form className="performance-feedback" onSubmit={save}>
           <header>
@@ -526,7 +502,7 @@ export default function PerformanceIntelligence({
               <small>COMPLETAR LOS DATOS</small>
               <h3>¿Cómo ha ido el entrenamiento?</h3>
             </div>
-            <span>Solo preguntamos lo que el dispositivo no aporta.</span>
+            <span>Tu registro manual se mantiene separado de cualquier conexión externa.</span>
           </header>
           <div className="performance-form-grid">
             <label>
