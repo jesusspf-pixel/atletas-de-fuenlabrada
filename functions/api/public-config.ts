@@ -8,8 +8,10 @@ type Env = {
 };
 
 export const onRequestGet = ({ env }: { env: Env }) => {
-  const url = env.VITE_SUPABASE_URL || env.SUPABASE_URL || "https://refqwgxihcdaeshqdhlq.supabase.co";
-  const key = env.VITE_SUPABASE_PUBLISHABLE_KEY || env.VITE_SUPABASE_ANON_KEY || env.SUPABASE_ANON_KEY || "sb_publishable_CNlB4f3cvFzsOD7QFN7lkA_V2SvLrw_";
+  // Review builds must fail closed when their isolated Supabase variables are
+  // missing. Never fall back to the production project from a preview.
+  const url = env.VITE_SUPABASE_URL || env.SUPABASE_URL;
+  const key = env.VITE_SUPABASE_PUBLISHABLE_KEY || env.VITE_SUPABASE_ANON_KEY || env.SUPABASE_ANON_KEY;
   if (!url || !key) {
     return Response.json({ error: "Configuración pública no disponible." }, {
       status: 503,

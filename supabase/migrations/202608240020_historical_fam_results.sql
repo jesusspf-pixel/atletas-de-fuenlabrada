@@ -105,7 +105,11 @@ $$;
 revoke all on function public.process_federation_import(uuid) from public;
 grant execute on function public.process_federation_import(uuid) to authenticated, service_role;
 
-create or replace view public.club_event_rankings as
+-- The projection adds athlete_name before result_text, so PostgreSQL cannot
+-- replace the previous view in place. Recreate it explicitly for clean
+-- environment bootstraps such as the isolated Strava review project.
+drop view if exists public.club_event_rankings;
+create view public.club_event_rankings as
 with eligible as (
   select r.*,e.code as event_code,e.name as event_name,e.sort_direction,
     coalesce(r.athlete_id::text,upper(trim(r.external_athlete_name))) as athlete_key

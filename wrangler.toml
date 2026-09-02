@@ -1,7 +1,7 @@
-name = "atletas-de-fuenlabrada"
+name = "atletas-strava-review"
 pages_build_output_dir = "dist"
 compatibility_date = "2026-08-23"
 compatibility_flags = ["nodejs_compat"]
 
 [vars]
-PERFORMANCE_AI_MONTHLY_LIMIT = "500"
+REVIEW_ENVIRONMENT = "strava-review"

@@ -38,7 +38,9 @@ declare creator uuid; inserted_count integer;
 begin
   if not public.is_admin() and coalesce(auth.role(),'')<>'service_role' and current_user not in ('postgres','supabase_admin') then raise exception 'Solo administración puede regenerar el calendario.'; end if;
   select id into creator from public.profiles where role in ('owner','admin') order by case when id=auth.uid() then 0 when role='owner' then 1 else 2 end limit 1;
-  if creator is null then raise exception 'No existe un perfil administrador para crear las sesiones.'; end if;
+  -- A fresh review database intentionally starts without real club accounts.
+  -- Leave the calendar empty until the dedicated reviewer account exists.
+  if creator is null then return 0; end if;
   delete from public.attendance_sessions where calendar_generated and starts_at::date between target_from and target_to;
   insert into public.attendance_sessions(training_group_id,starts_at,ends_at,created_by,calendar_generated,calendar_note)
   select g.id,
