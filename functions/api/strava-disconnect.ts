@@ -1,7 +1,7 @@
 const json = (body: unknown, status = 200) => Response.json(body, { status });
 
 export async function onRequestPost(context: any) {
-  const env = context.env as { SUPABASE_URL?: string; SUPABASE_SERVICE_ROLE_KEY?: string };
+  const env = context.env as { STRAVA_CLIENT_ID?: string; STRAVA_CLIENT_SECRET?: string; SUPABASE_URL?: string; SUPABASE_SERVICE_ROLE_KEY?: string };
   if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) return json({ error: "La conexión deportiva no está configurada." }, 503);
   const bearer = context.request.headers.get("authorization");
   if (!bearer) return json({ error: "Inicia sesión primero." }, 401);
@@ -21,6 +21,28 @@ export async function onRequestPost(context: any) {
   const integrationResponse = await fetch(`${env.SUPABASE_URL}/rest/v1/athlete_external_integrations?athlete_id=eq.${encodeURIComponent(athleteId)}&provider=eq.strava&select=id`, { headers });
   const [integration] = await integrationResponse.json().catch(() => []) as { id?: string }[];
   if (!integration?.id) return json({ ok: true });
+
+  // Revoke the authorization in Strava before removing our local tokens. Merely
+  // deleting the local row leaves the athlete attached to the Strava app and can
+  // continue consuming one of the app's athlete-capacity slots.
+  const tokenResponse = await fetch(`${env.SUPABASE_URL}/rest/v1/athlete_integration_tokens?integration_id=eq.${encodeURIComponent(integration.id)}&select=access_token,refresh_token,expires_at`, { headers });
+  const [token] = await tokenResponse.json().catch(() => []) as { access_token?: string; refresh_token?: string; expires_at?: number }[];
+  let accessToken = token?.access_token || "";
+  if (token?.refresh_token && env.STRAVA_CLIENT_ID && env.STRAVA_CLIENT_SECRET && Number(token.expires_at || 0) <= Math.floor(Date.now() / 1000) + 120) {
+    const refresh = await fetch("https://www.strava.com/oauth/token", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ client_id: env.STRAVA_CLIENT_ID, client_secret: env.STRAVA_CLIENT_SECRET, grant_type: "refresh_token", refresh_token: token.refresh_token }),
+    });
+    const refreshed = await refresh.json().catch(() => null) as { access_token?: string } | null;
+    if (refresh.ok && refreshed?.access_token) accessToken = refreshed.access_token;
+  }
+  if (accessToken) {
+    await fetch("https://www.strava.com/oauth/deauthorize", {
+      method: "POST",
+      headers: { authorization: `Bearer ${accessToken}` },
+    }).catch(() => null);
+  }
 
   await fetch(`${env.SUPABASE_URL}/rest/v1/athlete_integration_tokens?integration_id=eq.${encodeURIComponent(integration.id)}`, { method: "DELETE", headers });
   const response = await fetch(`${env.SUPABASE_URL}/rest/v1/athlete_external_integrations?id=eq.${encodeURIComponent(integration.id)}`, { method: "PATCH", headers: { ...headers, Prefer: "return=minimal" }, body: JSON.stringify({ status: "disconnected", updated_at: new Date().toISOString() }) });
