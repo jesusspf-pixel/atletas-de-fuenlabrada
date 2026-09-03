@@ -55,7 +55,7 @@ revoke all on public.club_challenge_season from authenticated;
 revoke all on public.club_challenge_recent_achievements from authenticated;
 
 comment on table public.external_sport_activities is
-  'Review environment: Strava runs are private to the authorizing athlete, retained for at most 30 days, never supplied to AI, and deleted on disconnect/revocation.';
+  'Review environment: Strava runs are private to the authorizing athlete, retained for at most 7 days, never supplied to AI, and deleted on disconnect/revocation.';
 
 create or replace function public.purge_expired_strava_review_data()
 returns integer
@@ -68,7 +68,7 @@ declare
 begin
   delete from public.external_sport_activities
   where provider = 'strava'
-    and started_at < now() - interval '30 days';
+    and started_at < now() - interval '7 days';
   get diagnostics removed = row_count;
 
   delete from public.external_oauth_states

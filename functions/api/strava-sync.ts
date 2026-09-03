@@ -36,7 +36,7 @@ export async function onRequestPost(context: any) {
 
   try {
     const accessToken = await validToken(env, integration.id, tokens as { access_token: string; refresh_token: string; expires_at: number }, headers);
-    const retentionCutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const retentionCutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     const after = Math.floor(retentionCutoff.getTime() / 1000);
     const response = await fetch(`https://www.strava.com/api/v3/athlete/activities?after=${after}&page=1&per_page=100`, { headers: { authorization: `Bearer ${accessToken}` } });
     const activities = await response.json().catch(() => []) as any[];
@@ -64,7 +64,7 @@ export async function onRequestPost(context: any) {
     // used by the athlete-facing activity screen.
     await fetch(`${env.SUPABASE_URL}/rest/v1/external_sport_activities?integration_id=eq.${encodeURIComponent(integration.id)}&started_at=lt.${encodeURIComponent(retentionCutoff.toISOString())}`, { method: "DELETE", headers });
     await fetch(`${env.SUPABASE_URL}/rest/v1/athlete_external_integrations?id=eq.${encodeURIComponent(integration.id)}`, { method: "PATCH", headers: { ...headers, Prefer: "return=minimal" }, body: JSON.stringify({ last_synced_at: new Date().toISOString(), updated_at: new Date().toISOString() }) });
-    return json({ synced: rows.length, retentionDays: 30 });
+    return json({ synced: rows.length, retentionDays: 7 });
   } catch (error) {
     return json({ error: error instanceof Error ? error.message : "No se pudo sincronizar Strava." }, 502);
   }

@@ -8,7 +8,7 @@ or connected to the production Cloudflare/Supabase environment.
 - Only the authenticated athlete can connect, sync, view, or disconnect their
   own Strava account.
 - Only running activities are imported.
-- Imported activities are retained for at most 30 days.
+- Imported activities are retained for at most 7 days.
 - Disconnecting or revoking access deletes the integration, tokens, and all
   imported activities.
 - Strava data and Strava-derived metrics are not sent to Claude or any other AI

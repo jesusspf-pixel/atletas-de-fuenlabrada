@@ -57,7 +57,7 @@ async function processEvent(env: any, event: any) {
     updated_at: new Date().toISOString(),
   };
   await fetch(`${env.SUPABASE_URL}/rest/v1/external_sport_activities?on_conflict=provider,provider_activity_id`, { method: "POST", headers: { ...headers, Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify(row) });
-  const retentionCutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const retentionCutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
   await fetch(`${env.SUPABASE_URL}/rest/v1/external_sport_activities?integration_id=eq.${encodeURIComponent(integration.id)}&started_at=lt.${encodeURIComponent(retentionCutoff)}`, { method: "DELETE", headers });
   await fetch(`${env.SUPABASE_URL}/rest/v1/athlete_external_integrations?id=eq.${encodeURIComponent(integration.id)}`, { method: "PATCH", headers: { ...headers, Prefer: "return=minimal" }, body: JSON.stringify({ last_synced_at: new Date().toISOString(), updated_at: new Date().toISOString() }) });
 }
