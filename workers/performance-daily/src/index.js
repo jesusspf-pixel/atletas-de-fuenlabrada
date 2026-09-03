@@ -7,6 +7,12 @@ async function readRows(env, path) { const response = await database(env, path);
 const clean = (value, max = 6000) => String(value || "").trim().slice(0, max);
 const DAYS = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
 
+function assertReviewEnvironment(env) {
+  if (env.REVIEW_ENVIRONMENT !== "strava-review") {
+    throw new Error("Ejecución bloqueada: este Worker solo puede operar en el entorno aislado de revisión de Strava");
+  }
+}
+
 async function purgeExpiredReviewData(env) {
   const response = await database(env, "/rest/v1/rpc/purge_expired_strava_review_data", {
     method: "POST",
@@ -155,9 +161,15 @@ async function run(env) {
 }
 
 export default {
-  async fetch(request) { if (new URL(request.url).pathname === "/health") return Response.json({ ok: true, service: "club-atletas-performance-daily" }); return new Response("Not found", { status: 404 }); },
+  async fetch(request, env) {
+    if (new URL(request.url).pathname === "/health") {
+      return Response.json({ ok: true, service: "club-atletas-strava-review-daily", isolated: env.REVIEW_ENVIRONMENT === "strava-review" });
+    }
+    return new Response("Not found", { status: 404 });
+  },
   async scheduled(controller, env, ctx) {
     ctx.waitUntil((async () => {
+      assertReviewEnvironment(env);
       await purgeExpiredReviewData(env);
       if (controller.cron === "40 18 * * SUN") await generateWeeklyProposal(env);
       else await run(env);
