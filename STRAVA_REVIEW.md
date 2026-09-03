@@ -25,12 +25,25 @@ or connected to the production Cloudflare/Supabase environment.
    proposals, connected accounts, or imported activities from production.
 2. Create a Cloudflare Pages preview project for this branch only. Do not reuse
    the production project or production secrets.
-3. Configure preview-only Supabase, Strava client, and webhook secrets.
-   Deploy a separate copy of `workers/performance-daily` with those preview
-   secrets so its daily schedule enforces the 30-day retention function.
-4. Set the Strava callback domain to the stable preview host and register
-   `/api/strava-callback` as the callback path.
+3. Configure preview-only Supabase and Strava credentials. Stripe credentials
+   must remain absent from this project.
+4. Use `https://strava-review.atletasdefuenlabrada.com` as the stable preview
+   host. The callback is derived as
+   `https://strava-review.atletasdefuenlabrada.com/api/strava-callback`, which
+   remains within the existing Strava authorization callback domain
+   `atletasdefuenlabrada.com`.
 5. Test with a dedicated reviewer athlete account.
+
+## Deployed isolation
+
+- Pages project: `atletas-strava-review`.
+- Review Worker: `club-atletas-strava-review-daily`; it fails closed unless
+  `REVIEW_ENVIRONMENT=strava-review`.
+- Retention job: Supabase `pg_cron` job `strava-review-retention-daily`, at
+  `01:40 UTC` every day. This is kept in the isolated review database because
+  the Cloudflare Free account already uses its five available cron triggers.
+- The production Pages project, production database, billing Worker, Stripe
+  credentials, and payment schedules are not used by this environment.
 
 ## Acceptance checks
 
