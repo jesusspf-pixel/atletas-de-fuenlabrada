@@ -91,6 +91,17 @@ type Family = {
   emergency_phone: string | null;
   profiles?: Profile | null;
 };
+
+function StravaReviewDemo() {
+  const connected = new URLSearchParams(window.location.search).get("state") === "connected";
+  return <main className="strava-review-demo">
+    <header><Brand/><span>ENTORNO AISLADO PARA REVISIÓN DE STRAVA</span></header>
+    <section className="strava-review-hero"><div><small>CONEXIONES DEPORTIVAS</small><h1>Tu actividad de carrera, en un solo lugar</h1><p>El atleta controla su conexión y consulta únicamente sus propias carreras. No mostramos estos datos a entrenadores, administradores ni otros miembros.</p></div><b>Running A</b></section>
+    <section className="strava-review-card"><div><h2>Conexión con Strava</h2><p>Importamos solo actividades de carrera de los últimos 30 días. Nunca recibimos la contraseña de Strava.</p></div>{connected?<div className="strava-review-actions"><button>Sincronizar Strava</button><button className="outline">Desconectar</button></div>:<a className="strava-connect-review" href="?strava-review-demo=1&state=connected">Connect with Strava</a>}</section>
+    {connected&&<><section className="strava-review-metrics"><article><small>CARRERA · 7 DÍAS</small><b>18,4 km</b><span>3 carreras</span></article><article><small>CARRERA · 30 DÍAS</small><b>74,8 km</b><span>11 carreras</span></article><article><small>PRIVACIDAD</small><b>30 días</b><span>retención máxima</span></article></section><section className="strava-review-card strava-review-list"><div><h2>Tus carreras recientes</h2><p>Datos de muestra para revisión visual. La actividad real solo aparece al atleta que autorizó la conexión.</p></div>{[["Rodaje suave","8,2 km","46:18 · 5:39/km","142 ppm"],["Carrera continua","6,0 km","32:24 · 5:24/km","151 ppm"],["Recuperación","4,2 km","25:37 · 6:06/km","136 ppm"]].map(row=><article key={row[0]}><span><b>{row[0]}</b><small>Carrera · esta semana</small></span><span><b>{row[1]}</b><small>{row[2]}</small></span><em>{row[3]}</em></article>)}</section></>}
+    <footer>Los datos se eliminan al desconectar y nunca se envían al sistema de IA. Este entorno no contiene pagos ni procesos de cobro.</footer>
+  </main>;
+}
 type AthleteRecord = Athlete & {
   families?: Family | null;
   profiles?: Profile | null;
@@ -366,6 +377,7 @@ export default function App() {
     };
   }, []);
 
+  if (new URLSearchParams(window.location.search).has("strava-review-demo")) return <StravaReviewDemo />;
   if (recoveryRequested) return <PasswordRecovery />;
   if (checking)
     return (
