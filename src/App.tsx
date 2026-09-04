@@ -236,7 +236,7 @@ export default function App() {
   const [checking, setChecking] = useState(true);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [registrationAccess, setRegistrationAccess] = useState<
-    "allowed" | "pending"
+    "allowed" | "pending" | "incomplete"
   >("allowed");
   const [register, setRegister] = useState<"family" | "adult" | null>(null);
   const invitation = new URLSearchParams(window.location.search).get(
@@ -322,10 +322,11 @@ export default function App() {
                 athletes = (rows || []) as { club_status: string }[];
               }
               setRegistrationAccess(
-                athletes.length > 0 &&
-                  !athletes.some((item) => item.club_status === "active")
-                  ? "pending"
-                  : "allowed",
+                athletes.length === 0
+                  ? "incomplete"
+                  : !athletes.some((item) => item.club_status === "active")
+                    ? "pending"
+                    : "allowed",
               );
             }
           }
@@ -365,6 +366,62 @@ export default function App() {
       subscription?.unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    if (
+      !session ||
+      !profile ||
+      !["parent", "adult_athlete"].includes(profile.role)
+    )
+      return;
+
+    let cancelled = false;
+    const refreshAccess = async () => {
+      const client = await ensureSupabase();
+      if (!client || cancelled) return;
+      let athletes: { club_status: string }[] = [];
+      if (profile.role === "parent") {
+        const { data: familyRows } = await client
+          .from("families")
+          .select("id")
+          .eq("primary_profile_id", session.user.id);
+        const familyIds = (familyRows || []).map((item) => item.id);
+        if (familyIds.length) {
+          const { data: rows } = await client
+            .from("athletes")
+            .select("club_status")
+            .in("family_id", familyIds);
+          athletes = (rows || []) as { club_status: string }[];
+        }
+      } else {
+        const { data: rows } = await client
+          .from("athletes")
+          .select("club_status")
+          .eq("user_profile_id", session.user.id);
+        athletes = (rows || []) as { club_status: string }[];
+      }
+      if (cancelled) return;
+      setRegistrationAccess(
+        athletes.length === 0
+          ? "incomplete"
+          : athletes.some((item) => item.club_status === "active")
+            ? "allowed"
+            : "pending",
+      );
+    };
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void refreshAccess();
+    };
+    const interval = window.setInterval(() => void refreshAccess(), 60_000);
+    window.addEventListener("focus", refreshAccess);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refreshAccess);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [session, profile]);
 
   if (recoveryRequested) return <PasswordRecovery />;
   if (checking)
@@ -481,6 +538,20 @@ export default function App() {
           if (profileError) throw profileError;
           setProfile(data as Profile);
         }}
+      />
+    );
+  if (profile && registrationAccess === "incomplete")
+    return profile.role === "adult_athlete" ? (
+      <AdultRegistration
+        email={session.user.email ?? ""}
+        renewalToken={renewal}
+        onBack={() => void supabase?.auth.signOut()}
+      />
+    ) : (
+      <FamilyRegistration
+        email={session.user.email ?? ""}
+        renewalToken={renewal}
+        onBack={() => void supabase?.auth.signOut()}
       />
     );
   if (profile && registrationAccess === "pending")
@@ -652,6 +723,30 @@ function Access() {
         : result.error || "No se pudo enviar el nuevo correo.",
     );
   };
+  const requestPasswordReset = async () => {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail || !normalizedEmail.includes("@")) {
+      setMessage("Escribe primero el correo de la cuenta.");
+      return;
+    }
+    setBusy(true);
+    setMessage("");
+    const response = await fetch("/api/request-password-reset", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: normalizedEmail }),
+    });
+    const result = await response.json().catch(() => ({})) as {
+      error?: string;
+      message?: string;
+    };
+    setBusy(false);
+    setMessage(
+      response.ok
+        ? result.message || "Te hemos enviado un enlace para crear una contraseña nueva. Revisa también Spam."
+        : result.error || "No se pudo enviar el correo de recuperación.",
+    );
+  };
   return (
     <main className="secure-screen">
       <section className="access-box">
@@ -696,6 +791,16 @@ function Access() {
         {needsConfirmation && (
           <button className="outline" disabled={busy} onClick={() => void resendConfirmation()}>
             Enviar un nuevo correo de confirmación
+          </button>
+        )}
+        {kind === "login" && (
+          <button
+            type="button"
+            className="plain"
+            disabled={busy}
+            onClick={() => void requestPasswordReset()}
+          >
+            ¿Has olvidado tu contraseña?
           </button>
         )}
         <button
