@@ -51,12 +51,21 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const usersPayload = await usersResponse.json().catch(() => null) as { users?: AuthUser[] } | AuthUser[] | null;
   if (!usersResponse.ok || !usersPayload) return json({ error: "No se pudo obtener la lista de correos." }, 502);
   const users = Array.isArray(usersPayload) ? usersPayload : usersPayload.users || [];
-  const emails = [...new Set(users.filter((item) => item.email && !item.deleted_at).map((item) => item.email!.trim().toLowerCase()))];
-  if (!emails.length) return json({ error: "No hay correos registrados." }, 400);
+  const existingResponse = await fetch(
+    `${env.SUPABASE_URL}/rest/v1/announcement_deliveries?announcement_id=eq.${encodeURIComponent(announcement.id)}&channel=eq.email&delivery_status=eq.sent&select=recipient_profile_id`,
+    { headers: serviceHeaders },
+  );
+  const existing = await existingResponse.json().catch(() => []) as { recipient_profile_id: string }[];
+  const deliveredIds = new Set(existing.map((item) => item.recipient_profile_id));
+  const recipients = users
+    .filter((item) => item.email && !item.deleted_at && !deliveredIds.has(item.id))
+    .filter((item, index, all) => all.findIndex((candidate) => candidate.email?.trim().toLowerCase() === item.email?.trim().toLowerCase()) === index)
+    .map((item) => ({ id: item.id, email: item.email!.trim().toLowerCase() }));
+  if (!recipients.length) return json({ sent: 0, registered: users.filter((item) => item.email && !item.deleted_at).length, alreadySent: true });
 
   const safeTitle = escapeHtml(announcement.title);
   const safeBody = escapeHtml(announcement.body).replace(/\n/g, "<br>");
-  const messages = emails.map((email) => ({
+  const messages = recipients.map(({ email }) => ({
     from: "Club Atletas de Fuenlabrada <info@atletasdefuenlabrada.com>",
     reply_to: "info@atletasdefuenlabrada.com",
     to: [email],
@@ -77,7 +86,19 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       const detail = await response.json().catch(() => null) as { message?: string } | null;
       return json({ error: detail?.message || "El proveedor de correo no aceptó el envío.", sent }, 502);
     }
+    const delivered = recipients.slice(index, index + batch.length).map((recipient) => ({
+      announcement_id: announcement.id,
+      recipient_profile_id: recipient.id,
+      channel: "email",
+      delivery_status: "sent",
+    }));
+    const trackingResponse = await fetch(`${env.SUPABASE_URL}/rest/v1/announcement_deliveries?on_conflict=announcement_id,recipient_profile_id,channel`, {
+      method: "POST",
+      headers: { ...serviceHeaders, "content-type": "application/json", Prefer: "resolution=merge-duplicates" },
+      body: JSON.stringify(delivered),
+    });
+    if (!trackingResponse.ok) return json({ error: "El correo salió, pero no se pudo registrar todo el seguimiento.", sent: sent + batch.length }, 502);
     sent += batch.length;
   }
-  return json({ sent, registered: emails.length });
+  return json({ sent, registered: recipients.length + deliveredIds.size });
 };
