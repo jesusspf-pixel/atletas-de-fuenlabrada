@@ -1770,14 +1770,16 @@ export function AnnouncementManager({ profile }: { profile: Profile }) {
       <article className="panel table">
         <div className="table-title">
           <h2>Comunicaciones enviadas</h2>
-          {isManager && sent.length > 0 && (
+          {isManager && (
             <div>
               <button className="outline" disabled={guidanceSending} onClick={() => void sendUnconfirmedGuidance()}>
                 {guidanceSending ? "Enviando instrucciones…" : "Avisar cuentas sin confirmar"}
               </button>
-              <button className="outline" onClick={() => void clearHistory()}>
-                Limpiar mi historial
-              </button>
+              {sent.length > 0 && (
+                <button className="outline" onClick={() => void clearHistory()}>
+                  Limpiar mi historial
+                </button>
+              )}
             </div>
           )}
         </div>
