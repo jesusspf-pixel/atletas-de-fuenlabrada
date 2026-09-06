@@ -1391,6 +1391,7 @@ export function AnnouncementManager({ profile }: { profile: Profile }) {
   const [notice, setNotice] = useState("");
   const [openedAnnouncement, setOpenedAnnouncement] = useState<string | null>(null);
   const [emailSending, setEmailSending] = useState<string | null>(null);
+  const [guidanceSending, setGuidanceSending] = useState(false);
   const [sent, setSent] = useState<
     {
       id: string;
@@ -1610,6 +1611,27 @@ export function AnnouncementManager({ profile }: { profile: Profile }) {
       setEmailSending(null);
     }
   };
+  const sendUnconfirmedGuidance = async () => {
+    if (!supabase || !isManager || guidanceSending) return;
+    if (!window.confirm("¿Enviar ahora instrucciones a todas las cuentas cuyo correo sigue sin confirmar?")) return;
+    setGuidanceSending(true);
+    setNotice("");
+    try {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session) throw new Error("La sesión ha caducado. Entra de nuevo.");
+      const response = await fetch("/api/send-unconfirmed-guidance", {
+        method: "POST",
+        headers: { authorization: `Bearer ${data.session.access_token}` },
+      });
+      const result = await response.json().catch(() => null) as { sent?: number; active?: number; incomplete?: number; error?: string } | null;
+      if (!response.ok) throw new Error(result?.error || "No se pudieron enviar las instrucciones.");
+      setNotice(`Instrucciones enviadas a ${result?.sent || 0} cuentas: ${result?.active || 0} con inscripción activa y ${result?.incomplete || 0} con registro incompleto.`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "No se pudieron enviar las instrucciones.");
+    } finally {
+      setGuidanceSending(false);
+    }
+  };
   const clearHistory = async () => {
     if (
       !supabase ||
@@ -1749,9 +1771,14 @@ export function AnnouncementManager({ profile }: { profile: Profile }) {
         <div className="table-title">
           <h2>Comunicaciones enviadas</h2>
           {isManager && sent.length > 0 && (
-            <button className="outline" onClick={() => void clearHistory()}>
-              Limpiar mi historial
-            </button>
+            <div>
+              <button className="outline" disabled={guidanceSending} onClick={() => void sendUnconfirmedGuidance()}>
+                {guidanceSending ? "Enviando instrucciones…" : "Avisar cuentas sin confirmar"}
+              </button>
+              <button className="outline" onClick={() => void clearHistory()}>
+                Limpiar mi historial
+              </button>
+            </div>
           )}
         </div>
         {sent.map((item) => (
