@@ -1392,6 +1392,7 @@ export function AnnouncementManager({ profile }: { profile: Profile }) {
   const [openedAnnouncement, setOpenedAnnouncement] = useState<string | null>(null);
   const [emailSending, setEmailSending] = useState<string | null>(null);
   const [guidanceSending, setGuidanceSending] = useState(false);
+  const [correctionSending, setCorrectionSending] = useState(false);
   const [sent, setSent] = useState<
     {
       id: string;
@@ -1632,6 +1633,24 @@ export function AnnouncementManager({ profile }: { profile: Profile }) {
       setGuidanceSending(false);
     }
   };
+  const sendAccountCorrection = async () => {
+    if (!supabase || !isManager || correctionSending) return;
+    if (!window.confirm("¿Enviar la rectificación únicamente a las tres cuentas antiguas identificadas?")) return;
+    setCorrectionSending(true);
+    setNotice("");
+    try {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session) throw new Error("La sesión ha caducado. Entra de nuevo.");
+      const response = await fetch("/api/send-account-correction", { method: "POST", headers: { authorization: `Bearer ${data.session.access_token}` } });
+      const result = await response.json().catch(() => null) as { sent?: number; error?: string } | null;
+      if (!response.ok) throw new Error(result?.error || "No se pudo enviar la rectificación.");
+      setNotice(`Rectificación enviada correctamente a ${result?.sent || 0} cuentas antiguas.`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "No se pudo enviar la rectificación.");
+    } finally {
+      setCorrectionSending(false);
+    }
+  };
   const clearHistory = async () => {
     if (
       !supabase ||
@@ -1774,6 +1793,9 @@ export function AnnouncementManager({ profile }: { profile: Profile }) {
             <div>
               <button className="outline" disabled={guidanceSending} onClick={() => void sendUnconfirmedGuidance()}>
                 {guidanceSending ? "Enviando instrucciones…" : "Avisar cuentas sin confirmar"}
+              </button>
+              <button className="outline" disabled={correctionSending} onClick={() => void sendAccountCorrection()}>
+                {correctionSending ? "Enviando rectificación…" : "Rectificar aviso a cuentas antiguas"}
               </button>
               {sent.length > 0 && (
                 <button className="outline" onClick={() => void clearHistory()}>
