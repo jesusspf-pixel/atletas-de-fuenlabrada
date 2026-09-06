@@ -1389,10 +1389,13 @@ export function AnnouncementManager({ profile }: { profile: Profile }) {
   const [inApp, setInApp] = useState(true);
   const [email, setEmail] = useState(false);
   const [notice, setNotice] = useState("");
+  const [openedAnnouncement, setOpenedAnnouncement] = useState<string | null>(null);
+  const [emailSending, setEmailSending] = useState<string | null>(null);
   const [sent, setSent] = useState<
     {
       id: string;
       title: string;
+      body: string;
       audience: string;
       created_at: string;
       delivery_channels: string[];
@@ -1438,7 +1441,7 @@ export function AnnouncementManager({ profile }: { profile: Profile }) {
         .in("role", ["owner", "admin", "coach"]),
       supabase
         .from("announcements")
-        .select("id,title,audience,created_at,delivery_channels")
+        .select("id,title,body,audience,created_at,delivery_channels")
         .eq("created_by", profile.id)
         .order("created_at", { ascending: false })
         .limit(30),
@@ -1585,6 +1588,28 @@ export function AnnouncementManager({ profile }: { profile: Profile }) {
     );
     void load();
   };
+  const forceClubEmail = async (announcementId: string) => {
+    if (!supabase || !isManager || emailSending) return;
+    if (!window.confirm("¿Enviar ahora este aviso por correo a todas las cuentas registradas del club?")) return;
+    setEmailSending(announcementId);
+    setNotice("");
+    try {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session) throw new Error("La sesión ha caducado. Entra de nuevo.");
+      const response = await fetch("/api/send-announcement-email", {
+        method: "POST",
+        headers: { authorization: `Bearer ${data.session.access_token}`, "content-type": "application/json" },
+        body: JSON.stringify({ announcementId }),
+      });
+      const result = await response.json().catch(() => null) as { sent?: number; error?: string } | null;
+      if (!response.ok) throw new Error(result?.error || "No se pudo completar el envío por correo.");
+      setNotice(`Correo enviado correctamente a ${result?.sent || 0} cuentas registradas.`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "No se pudo completar el envío por correo.");
+    } finally {
+      setEmailSending(null);
+    }
+  };
   const clearHistory = async () => {
     if (
       !supabase ||
@@ -1730,7 +1755,7 @@ export function AnnouncementManager({ profile }: { profile: Profile }) {
           )}
         </div>
         {sent.map((item) => (
-          <div className="row" key={item.id}>
+          <div className="row announcement-history-row" key={item.id}>
             <span>
               <b>{item.title}</b>
               <small>{new Date(item.created_at).toLocaleString("es-ES")}</small>
@@ -1745,10 +1770,23 @@ export function AnnouncementManager({ profile }: { profile: Profile }) {
                     : "Grupo"}
             </span>
             <span>{item.delivery_channels?.join(" + ") || "app"}</span>
+            <button className="outline" onClick={() => setOpenedAnnouncement(openedAnnouncement === item.id ? null : item.id)}>
+              {openedAnnouncement === item.id ? "Cerrar" : "Abrir mensaje"}
+            </button>
             {isManager && (
               <button className="outline" onClick={() => void remove(item.id)}>
                 Quitar de mi historial
               </button>
+            )}
+            {openedAnnouncement === item.id && (
+              <div className="announcement-history-detail">
+                <p>{item.body}</p>
+                {isManager && item.audience === "club" && (
+                  <button type="button" disabled={Boolean(emailSending)} onClick={() => void forceClubEmail(item.id)}>
+                    {emailSending === item.id ? "Enviando a todo el club…" : "Enviar por correo a todas las cuentas"}
+                  </button>
+                )}
+              </div>
             )}
           </div>
         ))}
