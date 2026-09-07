@@ -4,4 +4,5 @@
     <string name="title_activity_main">Atletas de Fuenlabrada</string>
     <string name="package_name">com.sportmed.atletasdefuenlabrada</string>
     <string name="custom_url_scheme">com.sportmed.atletasdefuenlabrada</string>
+    <string name="health_connect_privacy_policy_url">https://atletasdefuenlabrada.com/privacypolicy.html</string>
 </resources>

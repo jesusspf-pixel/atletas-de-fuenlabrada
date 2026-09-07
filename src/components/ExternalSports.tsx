@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Capacitor } from "@capacitor/core";
+import { Health, type Workout } from "@capgo/capacitor-health";
 import { supabase } from "../lib/supabase";
 
 type Integration = { id: string; athlete_id: string; provider: string; provider_athlete_id: string | null; provider_display_name: string | null; provider_avatar_url: string | null; status: string; connected_at: string; last_synced_at: string | null };
@@ -25,7 +27,9 @@ export default function ExternalSports({ athleteId }: { athleteId: string }) {
   const [canConnect, setCanConnect] = useState(false);
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  const [healthConnected, setHealthConnected] = useState(false);
   const autoSyncAttempted = useRef(false);
+  const healthAutoSyncAttempted = useRef(false);
 
   const load = async () => {
     const client = supabase; if (!client) return;
@@ -89,6 +93,60 @@ export default function ExternalSports({ athleteId }: { athleteId: string }) {
     setNotice("Strava desconectado."); void load();
   };
 
+  const healthReadTypes = ["workouts", "heartRate"] as const;
+  const averageHeartRate = async (workout: Workout) => {
+    try {
+      const { samples } = await Health.readSamples({ dataType: "heartRate", startDate: workout.startDate, endDate: workout.endDate, limit: 1000 });
+      if (!samples.length) return null;
+      return samples.reduce((sum, sample) => sum + Number(sample.value || 0), 0) / samples.length;
+    } catch { return null; }
+  };
+
+  const syncDeviceHealth = async () => {
+    setBusy(true); setNotice("");
+    try {
+      const availability = await Health.isAvailable();
+      if (!availability.available) throw new Error("Health Connect no está disponible en este dispositivo. Comprueba que está instalado y actualizado.");
+      const authorization = await Health.requestAuthorization({ read: [...healthReadTypes], write: [] });
+      if (!authorization.readAuthorized.includes("workouts")) throw new Error("Necesitamos permiso para leer los entrenamientos. Puedes cambiarlo en Health Connect.");
+      setHealthConnected(true);
+      const endDate = new Date();
+      const startDate = new Date(Date.now() - 30 * 86400000);
+      const { workouts } = await Health.queryWorkouts({ startDate: startDate.toISOString(), endDate: endDate.toISOString(), limit: 100, ascending: false });
+      const running = workouts.filter(item => ["running", "runningTreadmill", "trackAndField", "wheelchairRunPace"].includes(item.workoutType));
+      const activities = await Promise.all(running.map(async item => ({
+        id: item.platformId || `${item.sourceId || item.sourceName || "device"}:${item.startDate}:${item.duration}`,
+        activityType: "run",
+        name: item.workoutType === "runningTreadmill" ? "Carrera en cinta" : "Carrera",
+        startedAt: item.startDate,
+        endedAt: item.endDate,
+        durationSeconds: Math.round(item.duration),
+        distanceMetres: item.totalDistance ?? null,
+        calories: item.totalEnergyBurned ?? null,
+        averageHeartRate: authorization.readAuthorized.includes("heartRate") ? await averageHeartRate(item) : null,
+        sourceName: item.sourceName ?? null,
+      })));
+      const headers = await authHeaders();
+      if (!headers) throw new Error("No se pudo comprobar tu sesión.");
+      const endpoint = Capacitor.isNativePlatform() ? "https://atletasdefuenlabrada.com/api/device-health-sync" : "/api/device-health-sync";
+      const response = await fetch(endpoint, { method: "POST", headers, body: JSON.stringify({ athleteId, activities }) });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "No se pudieron sincronizar los entrenamientos.");
+      setNotice(`${result.synced ?? 0} carreras revisadas desde Health Connect.`);
+      await load();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "No se pudo conectar Health Connect.");
+    } finally { setBusy(false); }
+  };
+
+  useEffect(() => {
+    if (!canConnect || Capacitor.getPlatform() !== "android" || healthAutoSyncAttempted.current) return;
+    healthAutoSyncAttempted.current = true;
+    void Health.checkAuthorization({ read: [...healthReadTypes], write: [] }).then(status => {
+      if (status.readAuthorized.includes("workouts")) void syncDeviceHealth();
+    }).catch(() => undefined);
+  }, [canConnect, athleteId]);
+
   const now = Date.now();
   const runningActivities = useMemo(() => activities.filter(isRunningActivity), [activities]);
   const excludedActivities = useMemo(() => activities.filter(item => !isRunningActivity(item)), [activities]);
@@ -97,7 +155,7 @@ export default function ExternalSports({ athleteId }: { athleteId: string }) {
   const totalKm = (rows: Activity[]) => rows.reduce((sum, item) => sum + Number(item.distance_m || 0), 0) / 1000;
 
   return <section className="external-sports">
-    <article className="panel"><div className="table-title"><div><h2>Conexiones deportivas</h2><p>Entrenamientos registrados automáticamente desde aplicaciones deportivas.</p></div>{canConnect && (!integration || integration.status !== "connected") && <button disabled={busy} onClick={() => void connect()}>{busy ? "Conectando…" : "Conectar Strava"}</button>}{canConnect && integration?.status === "connected" && <div className="inline-actions"><button disabled={busy} onClick={() => void sync()}>{busy ? "Sincronizando…" : "Sincronizar Strava"}</button><button className="outline" disabled={busy} onClick={() => void disconnect()}>Desconectar</button></div>}</div>{integration?.status === "connected" ? <div className="strava-identity">{integration.provider_avatar_url && <img className="provider-avatar" src={integration.provider_avatar_url} alt="Perfil de Strava" />}<div><p><b>Strava conectado: {integration.provider_display_name || "Cuenta Strava"}</b>{integration.provider_athlete_id ? ` · ID ${integration.provider_athlete_id}` : ""}</p><small>Conectado el {new Date(integration.connected_at).toLocaleDateString("es-ES")}{integration.last_synced_at ? ` · Última sincronización ${new Date(integration.last_synced_at).toLocaleString("es-ES")}` : " · Pendiente de primera sincronización"}</small></div></div> : <p>{canConnect ? "Vas a conectar la cuenta personal de Strava de este atleta. Comprueba antes qué usuario de Strava tienes abierto en el navegador. El club nunca recibe tu contraseña." : "Este atleta todavía no ha conectado Strava."}</p>}{notice && <p className={notice.includes("correctamente") || notice.includes("revisadas") || notice.includes("desconectado") ? "success-note" : "error-note"}>{notice}</p>}</article>
+    <article className="panel"><div className="table-title"><div><h2>Conectar reloj o aplicación</h2><p>Autoriza una vez y recuperaremos automáticamente tus carreras registradas.</p></div>{canConnect && Capacitor.getPlatform() === "android" && <button disabled={busy} onClick={() => void syncDeviceHealth()}>{busy ? "Sincronizando…" : healthConnected ? "Sincronizar Health Connect" : "Conectar Health Connect"}</button>}{canConnect && (!integration || integration.status !== "connected") && <button className="outline" disabled={busy} onClick={() => void connect()}>{busy ? "Conectando…" : "Conectar Strava"}</button>}{canConnect && integration?.status === "connected" && <div className="inline-actions"><button className="outline" disabled={busy} onClick={() => void sync()}>{busy ? "Sincronizando…" : "Sincronizar Strava"}</button><button className="outline" disabled={busy} onClick={() => void disconnect()}>Desconectar</button></div>}</div>{Capacitor.getPlatform() === "android" && <p><b>Health Connect</b> reúne automáticamente los datos que comparten Garmin Connect, Polar Flow, Samsung Health, Fitbit y otros servicios instalados en tu Android.</p>}{integration?.status === "connected" ? <div className="strava-identity">{integration.provider_avatar_url && <img className="provider-avatar" src={integration.provider_avatar_url} alt="Perfil de Strava" />}<div><p><b>Strava conectado: {integration.provider_display_name || "Cuenta Strava"}</b>{integration.provider_athlete_id ? ` · ID ${integration.provider_athlete_id}` : ""}</p><small>Conectado el {new Date(integration.connected_at).toLocaleDateString("es-ES")}{integration.last_synced_at ? ` · Última sincronización ${new Date(integration.last_synced_at).toLocaleString("es-ES")}` : " · Pendiente de primera sincronización"}</small></div></div> : <p>{canConnect ? "Puedes usar Health Connect en Android o conectar Strava. El club nunca recibe las contraseñas de tus servicios deportivos." : "Este atleta todavía no ha conectado una fuente deportiva."}</p>}{notice && <p className={notice.includes("correctamente") || notice.includes("revisadas") || notice.includes("desconectado") ? "success-note" : "error-note"}>{notice}</p>}</article>
 
     {activities.length > 0 && <><section className="metric-grid"><article className="metric"><small>Carrera · últimos 7 días</small><b>{totalKm(week).toFixed(1)} km</b><small>{week.length} carrera(s)</small></article><article className="metric"><small>Carrera · últimos 30 días</small><b>{totalKm(month).toFixed(1)} km</b><small>{month.length} carrera(s)</small></article><article className="metric"><small>Carreras guardadas</small><b>{runningActivities.length}</b><small>{excludedActivities.length} de otros deportes excluidas</small></article></section><article className="panel table"><h2>Carreras recientes</h2><p>Solo las actividades de carrera cuentan para métricas, carga, logros y Club Challenge.</p>{runningActivities.length ? runningActivities.slice(0,20).map(item => <div className="row" key={item.id}><span><b>{item.name || "Carrera"}</b><small>Carrera · {new Date(item.started_at).toLocaleString("es-ES")}</small></span><span><b>{km(item.distance_m)}</b><small>{duration(item.moving_time_s)} · {pace(item.distance_m,item.moving_time_s)}</small></span><span><small>{item.elevation_gain_m != null ? `+${Math.round(item.elevation_gain_m)} m` : ""}{item.average_heartrate != null ? ` · ${Math.round(item.average_heartrate)} ppm` : ""}</small>{item.source_url && <a href={item.source_url} target="_blank" rel="noreferrer">Ver en Strava ↗</a>}</span></div>) : <p>No hay carreras sincronizadas todavía.</p>}</article>{excludedActivities.length > 0 && <details className="panel table"><summary><b>Otros deportes excluidos ({excludedActivities.length})</b></summary><p>Se conservan para identificar correctamente la actividad, pero no suman kilómetros, carga, rachas ni puntos del Challenge.</p>{excludedActivities.slice(0,20).map(item => <div className="row" key={item.id}><span><b>{item.name || item.activity_type || "Actividad"}</b><small>{excludedActivityLabel(item)} · {new Date(item.started_at).toLocaleString("es-ES")}</small></span><span><b>{km(item.distance_m)}</b><small>{duration(item.moving_time_s)}</small></span><span>{item.source_url && <a href={item.source_url} target="_blank" rel="noreferrer">Ver en Strava ↗</a>}</span></div>)}</details>}</>}
   </section>;
