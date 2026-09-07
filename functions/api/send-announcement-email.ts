@@ -32,8 +32,8 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (!userResponse.ok || !user?.id) return json({ error: "La sesión ha caducado." }, 401);
 
   const profileResponse = await fetch(`${env.SUPABASE_URL}/rest/v1/profiles?id=eq.${user.id}&select=role&limit=1`, { headers: serviceHeaders });
-  const profiles = await profileResponse.json().catch(() => []) as { role?: string }[];
-  if (!profiles.some((profile) => ["owner", "admin"].includes(profile.role || "")))
+  const adminProfiles = await profileResponse.json().catch(() => []) as { role?: string }[];
+  if (!adminProfiles.some((profile) => ["owner", "admin"].includes(profile.role || "")))
     return json({ error: "Solo administración puede realizar un envío general." }, 403);
 
   const input = await request.json().catch(() => null) as { announcementId?: string } | null;
