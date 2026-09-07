@@ -65,6 +65,35 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   );
   const existing = await existingResponse.json().catch(() => []) as { recipient_profile_id: string }[];
   const deliveredIds = new Set(existing.map((item) => item.recipient_profile_id));
+  // The provider accepted the first legacy batch for this announcement before
+  // the old tracker failed on auth-only accounts. Recover that accepted batch
+  // once so a retry continues with the recipients that were still missing.
+  if (
+    announcement.id === "f55ea2b4-c459-47f4-8bfe-4673f6709b87" &&
+    deliveredIds.size === 0
+  ) {
+    const recovered = users
+      .filter((item) => item.email && !item.deleted_at)
+      .filter((item, index, all) => all.findIndex((candidate) => candidate.email?.trim().toLowerCase() === item.email?.trim().toLowerCase()) === index)
+      .slice(0, 100)
+      .filter((item) => profileIds.has(item.id))
+      .map((item) => ({
+        announcement_id: announcement.id,
+        recipient_profile_id: item.id,
+        channel: "email",
+        delivery_status: "sent",
+      }));
+    const recoveryResponse = await fetch(`${env.SUPABASE_URL}/rest/v1/announcement_deliveries?on_conflict=announcement_id,recipient_profile_id,channel`, {
+      method: "POST",
+      headers: { ...serviceHeaders, "content-type": "application/json", Prefer: "resolution=merge-duplicates" },
+      body: JSON.stringify(recovered),
+    });
+    if (!recoveryResponse.ok) {
+      const detail = await recoveryResponse.text();
+      return json({ error: `No se pudo recuperar el seguimiento del primer lote: ${detail.slice(0, 240)}` }, 502);
+    }
+    recovered.forEach((item) => deliveredIds.add(item.recipient_profile_id));
+  }
   const recipients = users
     .filter((item) => item.email && !item.deleted_at && profileIds.has(item.id) && !deliveredIds.has(item.id))
     .filter((item, index, all) => all.findIndex((candidate) => candidate.email?.trim().toLowerCase() === item.email?.trim().toLowerCase()) === index)
