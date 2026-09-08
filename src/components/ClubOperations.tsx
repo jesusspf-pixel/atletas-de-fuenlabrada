@@ -672,6 +672,11 @@ export function PlanningWorkspace({ profile }: { profile: Profile }) {
       .map((row: any) => row.training_groups)
       .filter(Boolean) as Group[];
     setGroups(own);
+    if (own.length === 1) {
+      setForm((current) =>
+        current.group ? current : { ...current, group: own[0].id },
+      );
+    }
     setPlans((planData ?? []) as typeof plans);
     setDocuments((docData ?? []) as ClubDocument[]);
     setAiSettings((settingData ?? []) as typeof aiSettings);
