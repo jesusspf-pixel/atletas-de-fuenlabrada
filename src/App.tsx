@@ -3081,7 +3081,8 @@ function Attendance({ profile }: { profile: Profile }) {
         .filter(Boolean) as Group[]);
   const [groupIds, setGroupIds] = useState<string[]>([]);
   const [selectedSessions, setSelectedSessions] = useState<Record<string,string>>({});
-  const [busy, setBusy] = useState("");
+  const [busyAthletes, setBusyAthletes] = useState<string[]>([]);
+  const [attendanceDraft, setAttendanceDraft] = useState<Record<string, boolean>>({});
   const [error, setError] = useState("");
   const groupTrainsOn = (group: Group, weekday: number) => {
     const text = `${group.schedule_days || ""} ${group.name}`
@@ -3165,7 +3166,10 @@ function Attendance({ profile }: { profile: Profile }) {
     const athlete=athletes.rows.find(item=>item.id===athleteId);
     const activeSession=athlete?.training_group_id?selectedSessions[athlete.training_group_id]:"";
     if (!activeSession) return setError("Crea o selecciona primero la lista del grupo de este atleta.");
-    setBusy(athleteId);
+    const draftKey=`${activeSession}:${athleteId}`;
+    const previousDraft=attendanceDraft[draftKey];
+    setAttendanceDraft(current=>({...current,[draftKey]:attended}));
+    setBusyAthletes(current=>Array.from(new Set([...current,athleteId])));
     const { error: markError } = await supabase!
       .from("attendance_records")
       .upsert(
@@ -3192,11 +3196,18 @@ function Attendance({ profile }: { profile: Profile }) {
           `Asistencia guardada, pero no se pudo preparar el aviso: ${notificationError.message}`,
         );
     }
-    setBusy("");
-    if (markError) setError(markError.message);
+    setBusyAthletes(current=>current.filter(id=>id!==athleteId));
+    if (markError) {
+      setAttendanceDraft(current=>{
+        const next={...current};
+        if(previousDraft===undefined)delete next[draftKey];else next[draftKey]=previousDraft;
+        return next;
+      });
+      setError(markError.message);
+    }
     else {
       void records.reload();
-      if (!error) setError("");
+      setError("");
     }
   };
   return (
@@ -3268,6 +3279,8 @@ function Attendance({ profile }: { profile: Profile }) {
               const record = records.rows.find(
                 (r) => r.session_id === activeSession && r.athlete_id === a.id,
               );
+              const draftKey=activeSession?`${activeSession}:${a.id}`:"";
+              const attendanceState=draftKey in attendanceDraft?attendanceDraft[draftKey]:record?.attended;
               return (
                 <div className="row" key={a.id}>
                   <span>
@@ -3277,22 +3290,22 @@ function Attendance({ profile }: { profile: Profile }) {
                     <small>{a.training_groups?.name}</small>
                   </span>
                   <span>
-                    {record?.attended === true
+                    {attendanceState === true
                       ? "Asistencia confirmada"
-                      : record?.attended === false
+                      : attendanceState === false
                         ? "No ha asistido"
                         : "Sin marcar"}
                   </span>
                   <span>
                     <button
-                      disabled={busy === a.id||!activeSession}
+                      disabled={busyAthletes.includes(a.id)||!activeSession}
                       onClick={() => void mark(a.id, true)}
                     >
                       Ha asistido
                     </button>{" "}
                     <button
                       className="outline"
-                      disabled={busy === a.id||!activeSession}
+                      disabled={busyAthletes.includes(a.id)||!activeSession}
                       onClick={() => void mark(a.id, false)}
                     >
                       No ha asistido
