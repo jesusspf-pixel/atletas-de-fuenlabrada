@@ -3083,6 +3083,7 @@ function Attendance({ profile }: { profile: Profile }) {
   const [selectedSessions, setSelectedSessions] = useState<Record<string,string>>({});
   const [busyAthletes, setBusyAthletes] = useState<string[]>([]);
   const [attendanceDraft, setAttendanceDraft] = useState<Record<string, boolean>>({});
+  const [historicalSessionId, setHistoricalSessionId] = useState("");
   const [error, setError] = useState("");
   const groupTrainsOn = (group: Group, weekday: number) => {
     const text = `${group.schedule_days || ""} ${group.name}`
@@ -3145,6 +3146,36 @@ function Attendance({ profile }: { profile: Profile }) {
       (a, b) =>
         new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime(),
     );
+  const canViewHistory = ["owner", "admin"].includes(profile.role);
+  const historicalSessions = sessions.rows
+    .filter((item) => new Date(item.starts_at).getTime() < now - 2 * 60 * 60 * 1000)
+    .sort(
+      (a, b) =>
+        new Date(b.starts_at).getTime() - new Date(a.starts_at).getTime(),
+    )
+    .slice(0, 100);
+  const historicalSession = historicalSessions.find(
+    (item) => item.id === historicalSessionId,
+  );
+  const historicalRecords = historicalSession
+    ? records.rows.filter((record) => record.session_id === historicalSession.id)
+    : [];
+  const historicalRoster = historicalSession
+    ? athletes.rows.filter(
+        (athlete) =>
+          athlete.training_group_id === historicalSession.training_group_id ||
+          historicalRecords.some((record) => record.athlete_id === athlete.id),
+      )
+    : [];
+  useEffect(() => {
+    if (
+      canViewHistory &&
+      historicalSessions.length &&
+      !historicalSessions.some((item) => item.id === historicalSessionId)
+    ) {
+      setHistoricalSessionId(historicalSessions[0].id);
+    }
+  }, [canViewHistory, historicalSessionId, sessions.rows]);
   const createSession = async (e: FormEvent) => {
     e.preventDefault();
     setError("");
@@ -3260,6 +3291,70 @@ function Attendance({ profile }: { profile: Profile }) {
           );
         })}
       </section>
+      {canViewHistory && (
+        <section className="panel attendance-history">
+          <header>
+            <div>
+              <small>HISTORIAL DE ASISTENCIA</small>
+              <h2>Consultar listas anteriores</h2>
+              <p>Selecciona una sesión para revisar quién asistió, quién faltó y quién quedó sin marcar.</p>
+            </div>
+          </header>
+          {historicalSessions.length ? (
+            <>
+              <label>
+                Día y grupo
+                <select
+                  value={historicalSessionId}
+                  onChange={(event) => setHistoricalSessionId(event.target.value)}
+                >
+                  {historicalSessions.map((session) => {
+                    const group = groups.find((item) => item.id === session.training_group_id);
+                    return (
+                      <option key={session.id} value={session.id}>
+                        {new Date(session.starts_at).toLocaleString("es-ES", {
+                          weekday: "long",
+                          day: "numeric",
+                          month: "long",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })} · {group?.name || "Grupo"}
+                      </option>
+                    );
+                  })}
+                </select>
+              </label>
+              <div className="table">
+                {historicalRoster.map((athlete) => {
+                  const record = historicalRecords.find(
+                    (item) => item.athlete_id === athlete.id,
+                  );
+                  return (
+                    <div className="row" key={athlete.id}>
+                      <span>
+                        <b>{athlete.first_name} {athlete.last_name}</b>
+                        <small>{athlete.training_groups?.name || "Grupo"}</small>
+                      </span>
+                      <span>
+                        {record?.attended === true
+                          ? "Ha asistido"
+                          : record?.attended === false
+                            ? "No ha asistido"
+                            : "Sin marcar"}
+                      </span>
+                    </div>
+                  );
+                })}
+                {!historicalRoster.length && (
+                  <Empty>No hay atletas disponibles en esta lista.</Empty>
+                )}
+              </div>
+            </>
+          ) : (
+            <Empty>Aún no hay listas anteriores disponibles.</Empty>
+          )}
+        </section>
+      )}
       <form className="panel attendance-multi-form" onSubmit={createSession}>
         <div className="attendance-day-selector"><b>{isPreview?"Próxima jornada":"Asistencia de hoy"} · {selectedDateLabel}</b><small>{isPreview?"Vista previa para que conozcas los grupos y atletas antes del entrenamiento. La lista se activará ese día.":"La aplicación muestra automáticamente solo tus grupos programados para hoy."}</small></div>
         <details className="attendance-group-select">
