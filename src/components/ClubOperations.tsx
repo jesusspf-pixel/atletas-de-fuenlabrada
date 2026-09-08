@@ -630,6 +630,18 @@ export function PlanningWorkspace({ profile }: { profile: Profile }) {
   const visiblePlans = form.group
     ? plans.filter((plan) => plan.training_group_id === form.group)
     : [];
+  const latestPublishedPlans = groups
+    .map((group) => ({
+      group,
+      plan: plans.find(
+        (plan) =>
+          plan.training_group_id === group.id && Boolean(plan.published_at),
+      ),
+    }))
+    .filter(
+      (item): item is { group: Group; plan: (typeof plans)[number] } =>
+        Boolean(item.plan),
+    );
   const isPilotAccount = profile.email
     .replace(/\s/g, "")
     .toLowerCase() === "eatletismourjc@gmail.com";
@@ -642,18 +654,30 @@ export function PlanningWorkspace({ profile }: { profile: Profile }) {
     }));
   const load = async () => {
     if (!supabase) return;
-    const [{ data: assigned }, { data: planData }, { data: docData }, { data: settingData }, { data: proposalData }] =
-      await Promise.all([
-        supabase
-          .from("training_group_coaches")
-          .select(
-            "training_groups(id,name,category_label,colour,schedule_days,starts_at,ends_at)",
-          )
-          .eq("coach_profile_id", profile.id),
-        supabase
+    const { data: assigned, error: assignedError } = await supabase
+      .from("training_group_coaches")
+      .select(
+        "training_groups(id,name,category_label,colour,schedule_days,starts_at,ends_at)",
+      )
+      .eq("coach_profile_id", profile.id);
+    if (assignedError) {
+      setNotice(`No se pudieron cargar tus grupos: ${assignedError.message}`);
+      return;
+    }
+    const own = (assigned ?? [])
+      .map((row: any) => row.training_groups)
+      .filter(Boolean) as Group[];
+    const groupIds = own.map((group) => group.id);
+    const planRequest = groupIds.length
+      ? supabase
           .from("training_plans")
           .select("*")
-          .order("week_starts_on", { ascending: false }),
+          .in("training_group_id", groupIds)
+          .order("week_starts_on", { ascending: false })
+      : Promise.resolve({ data: [], error: null });
+    const [{ data: planData, error: planError }, { data: docData }, { data: settingData }, { data: proposalData }] =
+      await Promise.all([
+        planRequest,
         supabase
           .from("club_documents")
           .select("*")
@@ -668,16 +692,13 @@ export function PlanningWorkspace({ profile }: { profile: Profile }) {
           .eq("status", "draft")
           .order("week_starts_on", { ascending: false }),
       ]);
-    const own = (assigned ?? [])
-      .map((row: any) => row.training_groups)
-      .filter(Boolean) as Group[];
     setGroups(own);
-    if (own.length === 1) {
-      setForm((current) =>
-        current.group ? current : { ...current, group: own[0].id },
-      );
-    }
+    setForm((current) =>
+      current.group || !own.length ? current : { ...current, group: own[0].id },
+    );
     setPlans((planData ?? []) as typeof plans);
+    if (planError)
+      setNotice(`No se pudieron cargar los planes del grupo: ${planError.message}`);
     setDocuments((docData ?? []) as ClubDocument[]);
     setAiSettings((settingData ?? []) as typeof aiSettings);
     setAiProposals((proposalData ?? []) as typeof aiProposals);
@@ -1019,6 +1040,42 @@ export function PlanningWorkspace({ profile }: { profile: Profile }) {
         title="Planificación"
         text="Crea la semana día a día o publica directamente un PDF preparado."
       />
+      {latestPublishedPlans.length > 0 && (
+        <section className="cards coach-published-plans" aria-label="Planes semanales publicados">
+          {latestPublishedPlans.map(({ group, plan }) => (
+            <article className="panel plan" key={plan.id}>
+              <small>
+                PLAN PUBLICADO · Semana del{" "}
+                {new Date(`${plan.week_starts_on}T12:00:00`).toLocaleDateString("es-ES")}
+              </small>
+              <h2>{group.name}</h2>
+              <h3>{plan.title}</h3>
+              <p>{plan.body}</p>
+              <div className="plan-management-actions">
+                <button
+                  type="button"
+                  onClick={() => {
+                    selectGroup(group.id);
+                    window.setTimeout(
+                      () => document.querySelector(".coach-week-planner")?.scrollIntoView({ behavior: "smooth" }),
+                      0,
+                    );
+                  }}
+                >
+                  Abrir plan del grupo
+                </button>
+                <button
+                  type="button"
+                  className="outline"
+                  onClick={() => preview(plan.title, plan.body, plan.week_starts_on, group.id)}
+                >
+                  Imprimir / guardar PDF
+                </button>
+              </div>
+            </article>
+          ))}
+        </section>
+      )}
       {!groups.length ? (
         <Message
           text="Aún no tienes ningún grupo asignado. Un administrador debe asignártelo desde Invitaciones."
