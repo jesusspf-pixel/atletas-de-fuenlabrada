@@ -1164,7 +1164,7 @@ function Portal({
             title="Club Challenge"
             text="Tu reto semanal, logros y clasificación dentro del club."
           />
-          <ClubChallenge athleteId={challengeAthleteId} />
+          <ClubChallenge athleteId={challengeAthleteId} profileId={profile.id} role={profile.role} />
         </>
       ) : (
         <>
@@ -2879,7 +2879,7 @@ function Coach({
           title="Club Challenge"
           text="Retos, logros y clasificación del club."
         />
-        <ClubChallenge />
+        <ClubChallenge profileId={profile.id} role={profile.role} />
       </>
     );
   else
