@@ -5,6 +5,11 @@ const supabaseBase=(env)=>required(env,"SUPABASE_URL").replace(/\/+$/,"").replac
 const db=(env,path,init={})=>{const base=supabaseBase(env);const key=required(env,"SUPABASE_SERVICE_ROLE_KEY");return fetch(`${base}${path}`,{...init,headers:{apikey:key,authorization:`Bearer ${key}`,...H,...(init.headers||{})}})};
 const stripe=async(env,path,params,idempotencyKey)=>{const response=await fetch(`https://api.stripe.com/v1/${path}`,{method:"POST",headers:{authorization:`Bearer ${env.STRIPE_SECRET_KEY}`,"content-type":"application/x-www-form-urlencoded","Idempotency-Key":idempotencyKey},body:params});return{response,data:await response.json().catch(()=>({}))}};
 const safe=value=>String(value||"").replace(/[&<>"']/g,char=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"})[char]);
+const sendEmailBatch=async(env,messages,idempotencyKey)=>{
+  if(env.RESEND_API_KEY)return fetch("https://api.resend.com/emails/batch",{method:"POST",headers:{authorization:`Bearer ${env.RESEND_API_KEY}`,...H,"Idempotency-Key":idempotencyKey},body:JSON.stringify(messages)});
+  const key=required(env,"SUPABASE_SERVICE_ROLE_KEY");
+  return fetch("https://atletasdefuenlabrada.com/api/internal-notification-batch",{method:"POST",headers:{authorization:`Bearer ${key}`,...H,"Idempotency-Key":idempotencyKey},body:JSON.stringify({messages:messages.map(message=>({to:message.to?.[0]||"",subject:message.subject,text:message.text,html:message.html}))})});
+};
 const trackEmailDelivery=async(env,announcementId,status,error="")=>{
   if(!announcementId)return;
   const response=await db(env,`/rest/v1/announcement_deliveries?announcement_id=eq.${announcementId}&channel=eq.email`,{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify({delivery_status:status,last_error:error?error.slice(0,500):null,updated_at:new Date().toISOString()})});
@@ -21,7 +26,6 @@ const sendFailureEmails=async(env,charge,reason,final)=>{
   try{recipients=await failureRecipients(env,charge)}catch(error){console.error(JSON.stringify({event:"billing_email_recipients_failed",draftId:charge.id,attempt:charge.attempt_number,error:error instanceof Error?error.message:String(error)}));return false}
   const announcementId=recipients[0]?.announcement_id||"";
   if(!recipients.length)return true;
-  if(!env.RESEND_API_KEY){await trackEmailDelivery(env,announcementId,"failed","RESEND_API_KEY no está configurada en el cobrador automático.");console.error(JSON.stringify({event:"billing_email_not_configured",draftId:charge.id,attempt:charge.attempt_number}));return false}
   const familySubject=final?"Cuota pendiente: contacta con el club":`No hemos podido cobrar tu cuota · intento ${charge.attempt_number}`;
   const adminSubject=final?"Baja por falta de pago":`Pago rechazado · intento ${charge.attempt_number}`;
   const familyBody=final?`<p>No ha sido posible cobrar la cuota pendiente de <strong>${safe(charge.athlete_first_name)} ${safe(charge.athlete_last_name)}</strong>.</p><p>Para regularizar la situación, revisa la tarjeta o contacta con el club en el 613 05 00 00.</p>`:`<p>No hemos podido cobrar la cuota de <strong>${safe(charge.athlete_first_name)} ${safe(charge.athlete_last_name)}</strong>.</p><p>Revisa la tarjeta o el saldo. Volveremos a intentarlo dentro de 24 horas.</p>`;
@@ -30,7 +34,7 @@ const sendFailureEmails=async(env,charge,reason,final)=>{
   let lastError="";
   for(let attempt=1;attempt<=3;attempt++){
     try{
-      const response=await fetch("https://api.resend.com/emails/batch",{method:"POST",headers:{authorization:`Bearer ${env.RESEND_API_KEY}`,...H,"Idempotency-Key":idempotencyKey},body:JSON.stringify(messages)});
+      const response=await sendEmailBatch(env,messages,idempotencyKey);
       if(response.ok){await trackEmailDelivery(env,announcementId,"sent");console.log(JSON.stringify({event:"billing_email_sent",draftId:charge.id,attempt:charge.attempt_number,recipients:messages.length}));return true}
       const detail=await response.json().catch(()=>({}));lastError=detail?.message||`Resend respondió ${response.status}`;
       if(response.status<500&&response.status!==429)break;
@@ -52,13 +56,12 @@ const sendRegistrationLifecycleEmails=async(env)=>{
   const rows=await response.json().catch(()=>[]);
   if(!response.ok)throw new Error(`No se pudieron reclamar los correos de inscripción (${response.status}).`);
   if(!rows.length)return 0;
-  if(!env.RESEND_API_KEY){await finishRegistrationEmails(env,rows,"failed","RESEND_API_KEY no está configurada.");return 0}
   const messages=rows.map(row=>({from:"Club Atletas de Fuenlabrada <info@atletasdefuenlabrada.com>",reply_to:"info@atletasdefuenlabrada.com",to:[row.email],subject:row.subject,text:row.body,html:registrationEmailHtml(row)}));
   const keySource=rows.map(row=>`${row.announcement_id}:${row.recipient_profile_id}`).sort().join("|");
   const digest=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(keySource));
   const idempotencyKey=`registration-lifecycle/${Array.from(new Uint8Array(digest)).map(byte=>byte.toString(16).padStart(2,"0")).join("").slice(0,48)}`;
   try{
-    const sent=await fetch("https://api.resend.com/emails/batch",{method:"POST",headers:{authorization:`Bearer ${env.RESEND_API_KEY}`,...H,"Idempotency-Key":idempotencyKey},body:JSON.stringify(messages)});
+    const sent=await sendEmailBatch(env,messages,idempotencyKey);
     if(!sent.ok){const detail=await sent.json().catch(()=>({}));const message=detail?.message||`Resend respondió ${sent.status}`;await finishRegistrationEmails(env,rows,"failed",message);throw new Error(message)}
     await finishRegistrationEmails(env,rows,"sent");
     console.log(JSON.stringify({event:"registration_emails_sent",recipients:rows.length}));
