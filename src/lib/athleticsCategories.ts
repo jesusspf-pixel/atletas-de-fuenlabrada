@@ -31,7 +31,7 @@ export const isRunningAge = (birthDate: string, today = new Date()) => {
     today.getMonth() + 1 > birthMonth ||
     (today.getMonth() + 1 === birthMonth && today.getDate() >= birthDay);
   const age = today.getFullYear() - birthYear - (birthdayAlreadyPassed ? 0 : 1);
-  return age >= 20;
+  return age >= 18;
 };
 
 export const birthYearsFor2027: Record<string, string> = {
@@ -45,5 +45,5 @@ export const birthYearsFor2027: Record<string, string> = {
   "Sub-20": "2008–2009",
   "Sub-23": "2005–2007",
   Absoluto: "1999–2004",
-  Running: "Desde 20 años",
+  Running: "Mayores de 18 años",
 };
