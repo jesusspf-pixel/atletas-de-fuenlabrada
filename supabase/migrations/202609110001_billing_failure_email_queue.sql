@@ -18,10 +18,6 @@ with current_failed_alerts as (
   select cfa.announcement_id, p.id as recipient_profile_id
     from current_failed_alerts cfa
     cross join lateral (
-      select p0.id
-        from public.profiles p0
-       where p0.role in ('owner', 'admin')
-      union
       select cfa.payer_profile_id where cfa.payer_profile_id is not null
       union
       select cfa.user_profile_id where cfa.user_profile_id is not null
@@ -127,6 +123,7 @@ begin
     join public.billing_charge_drafts d on d.id = bfa.draft_id
     join public.athletes a on a.id = d.athlete_id
    where nullif(trim(p.email), '') is not null
+     and p.role not in ('owner', 'admin')
    order by c.announcement_id, c.recipient_profile_id;
 end;
 $$;

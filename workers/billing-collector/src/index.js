@@ -10,9 +10,11 @@ const sendEmailBatch=async(env,messages,idempotencyKey)=>{
   const key=required(env,"SUPABASE_SERVICE_ROLE_KEY");
   return fetch("https://atletasdefuenlabrada.com/api/internal-notification-batch",{method:"POST",headers:{authorization:`Bearer ${key}`,...H,"Idempotency-Key":idempotencyKey},body:JSON.stringify({messages:messages.map(message=>({to:message.to?.[0]||"",subject:message.subject,text:message.text,html:message.html}))})});
 };
-const trackEmailDelivery=async(env,announcementId,status,error="")=>{
-  if(!announcementId)return;
-  const response=await db(env,`/rest/v1/announcement_deliveries?announcement_id=eq.${announcementId}&channel=eq.email`,{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify({delivery_status:status,last_error:error?error.slice(0,500):null,updated_at:new Date().toISOString()})});
+const trackEmailDelivery=async(env,announcementId,recipients,status,error="")=>{
+  if(!announcementId||!recipients.length)return;
+  const recipientIds=recipients.map(recipient=>recipient.recipient_profile_id).filter(Boolean).join(",");
+  if(!recipientIds)return;
+  const response=await db(env,`/rest/v1/announcement_deliveries?announcement_id=eq.${announcementId}&channel=eq.email&recipient_profile_id=in.(${recipientIds})`,{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify({delivery_status:status,last_error:error?error.slice(0,500):null,updated_at:new Date().toISOString()})});
   if(!response.ok)console.error(JSON.stringify({event:"billing_email_tracking_failed",announcementId,status,httpStatus:response.status}));
 };
 const failureRecipients=async(env,charge)=>{
@@ -35,12 +37,12 @@ const sendFailureEmails=async(env,charge,reason,final)=>{
   for(let attempt=1;attempt<=3;attempt++){
     try{
       const response=await sendEmailBatch(env,messages,idempotencyKey);
-      if(response.ok){await trackEmailDelivery(env,announcementId,"sent");console.log(JSON.stringify({event:"billing_email_sent",draftId:charge.id,attempt:charge.attempt_number,recipients:messages.length}));return true}
+      if(response.ok){await trackEmailDelivery(env,announcementId,recipients,"sent");console.log(JSON.stringify({event:"billing_email_sent",draftId:charge.id,attempt:charge.attempt_number,recipients:messages.length}));return true}
       const detail=await response.json().catch(()=>({}));lastError=detail?.message||`Resend respondió ${response.status}`;
       if(response.status<500&&response.status!==429)break;
     }catch(error){lastError=error instanceof Error?error.message:String(error)}
   }
-  await trackEmailDelivery(env,announcementId,"failed",lastError||"El proveedor de correo no aceptó el envío.");
+  await trackEmailDelivery(env,announcementId,recipients,"failed",lastError||"El proveedor de correo no aceptó el envío.");
   console.error(JSON.stringify({event:"billing_email_failed",draftId:charge.id,attempt:charge.attempt_number,error:lastError}));
   return false;
 };
