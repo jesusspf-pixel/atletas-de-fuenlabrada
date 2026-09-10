@@ -24,9 +24,14 @@ export const federationCategory = (birthDate: string, federationYear = new Date(
   return categoryForBirthYear(Number(birthDate.slice(0, 4)), federationYear);
 };
 
-export const isRunningAge = (birthDate: string, seasonYear = trainingSeasonYear()) => {
+export const isRunningAge = (birthDate: string, today = new Date()) => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) return false;
-  return seasonYear - Number(birthDate.slice(0, 4)) > 28;
+  const [birthYear, birthMonth, birthDay] = birthDate.split("-").map(Number);
+  const birthdayAlreadyPassed =
+    today.getMonth() + 1 > birthMonth ||
+    (today.getMonth() + 1 === birthMonth && today.getDate() >= birthDay);
+  const age = today.getFullYear() - birthYear - (birthdayAlreadyPassed ? 0 : 1);
+  return age >= 20;
 };
 
 export const birthYearsFor2027: Record<string, string> = {
@@ -40,5 +45,5 @@ export const birthYearsFor2027: Record<string, string> = {
   "Sub-20": "2008–2009",
   "Sub-23": "2005–2007",
   Absoluto: "1999–2004",
-  Running: "Mayores de 18 años",
+  Running: "Desde 20 años",
 };

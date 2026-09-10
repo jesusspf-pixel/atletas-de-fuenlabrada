@@ -28,8 +28,8 @@ export default function AdultRegistration({ email, renewalToken: renewalTokenPro
   const runningAge = isRunningAge(data.birth_date);
   const trainingCategory = runningAge ? "Running" : coreTrainingCategory;
   const adultCategory = coreTrainingCategory === "Absoluto / Máster";
-  const isMaster = adultCategory;
-  const needsFederation = Boolean(coreTrainingCategory && coreTrainingCategory !== "Sub 6" && (!adultCategory || data.license_option === "with"));
+  const isMaster = runningAge || adultCategory;
+  const needsFederation = Boolean(coreTrainingCategory && coreTrainingCategory !== "Sub 6" && (!isMaster || data.license_option === "with"));
   const availableGroups = groups
     .filter(group => runningAge
       ? /m[aá]ster\s*[ab]|running\s*[ab]/i.test(group.name)
