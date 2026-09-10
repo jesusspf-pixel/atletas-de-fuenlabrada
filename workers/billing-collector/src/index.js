@@ -13,7 +13,10 @@ async function run(env){
   const runId=await startRun(env);let paid=0,failed=0,processed=0;
   try{
     const accountResponse=await fetch("https://api.stripe.com/v1/account",{headers:{authorization:`Bearer ${env.STRIPE_SECRET_KEY}`}});const account=await accountResponse.json().catch(()=>({}));if(!accountResponse.ok)throw new Error(`La clave de Stripe no es válida para el cobrador (${accountResponse.status}).`);if(account.id!==EXPECTED_STRIPE_ACCOUNT_ID)throw new Error(`La clave del cobrador pertenece a otra cuenta de Stripe (${account.id||"desconocida"}).`);
-    const claim=await db(env,"/rest/v1/rpc/claim_due_billing_charges",{method:"POST",body:JSON.stringify({batch_limit:100})});
+    // Keep each run below the Workers Free external-subrequest limit. A charge
+    // touches Supabase and Stripe several times, so claiming 100 up front can
+    // strand most of the batch in `collecting` when the invocation is stopped.
+    const claim=await db(env,"/rest/v1/rpc/claim_due_billing_charges",{method:"POST",body:JSON.stringify({batch_limit:4})});
     const charges=await claim.json().catch(()=>[]);if(!claim.ok)throw new Error(`No se pudieron reclamar los cobros pendientes (${claim.status}): ${JSON.stringify(charges).slice(0,800)}`);processed=charges.length;
   for(const charge of charges){
     const customers=await db(env,`/rest/v1/stripe_customers?profile_id=eq.${charge.payer_profile_id}&select=stripe_customer_id`);const customer=(await customers.json().catch(()=>[]))?.[0]?.stripe_customer_id;

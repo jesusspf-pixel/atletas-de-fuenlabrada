@@ -2,9 +2,10 @@ name = "club-atletas-billing-collector"
 main = "src/index.js"
 compatibility_date = "2026-08-24"
 
-# Cada hora: permite reintentar una matrícula poco después de cumplirse 24 horas.
+# Cada minuto, en lotes pequeños: procesa picos de cuotas sin superar el límite
+# de subpeticiones externas de Workers Free.
 [triggers]
-crons = ["15 * * * *"]
+crons = ["* * * * *"]
 
 [observability]
 enabled = true
