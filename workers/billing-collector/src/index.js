@@ -4,7 +4,42 @@ const required=(env,name)=>{const value=String(env[name]||"").trim();if(!value)t
 const supabaseBase=(env)=>required(env,"SUPABASE_URL").replace(/\/+$/,"").replace(/\/(?:rest|auth)\/v1$/i,"");
 const db=(env,path,init={})=>{const base=supabaseBase(env);const key=required(env,"SUPABASE_SERVICE_ROLE_KEY");return fetch(`${base}${path}`,{...init,headers:{apikey:key,authorization:`Bearer ${key}`,...H,...(init.headers||{})}})};
 const stripe=async(env,path,params,idempotencyKey)=>{const response=await fetch(`https://api.stripe.com/v1/${path}`,{method:"POST",headers:{authorization:`Bearer ${env.STRIPE_SECRET_KEY}`,"content-type":"application/x-www-form-urlencoded","Idempotency-Key":idempotencyKey},body:params});return{response,data:await response.json().catch(()=>({}))}};
-const mail=async(env,to,subject,html)=>{if(!env.RESEND_API_KEY||!to)return;await fetch("https://api.resend.com/emails",{method:"POST",headers:{authorization:`Bearer ${env.RESEND_API_KEY}`,...H},body:JSON.stringify({from:"Club Atletas de Fuenlabrada <info@atletasdefuenlabrada.com>",to:[to],subject,html})})};
+const safe=value=>String(value||"").replace(/[&<>"']/g,char=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"})[char]);
+const trackEmailDelivery=async(env,announcementId,status,error="")=>{
+  if(!announcementId)return;
+  const response=await db(env,`/rest/v1/announcement_deliveries?announcement_id=eq.${announcementId}&channel=eq.email`,{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify({delivery_status:status,last_error:error?error.slice(0,500):null,updated_at:new Date().toISOString()})});
+  if(!response.ok)console.error(JSON.stringify({event:"billing_email_tracking_failed",announcementId,status,httpStatus:response.status}));
+};
+const failureRecipients=async(env,charge)=>{
+  const response=await db(env,"/rest/v1/rpc/billing_failure_notification_recipients",{method:"POST",body:JSON.stringify({target_draft_id:charge.id,target_attempt_number:charge.attempt_number})});
+  const rows=await response.json().catch(()=>[]);
+  if(!response.ok)throw new Error(`No se pudieron resolver los destinatarios del impago (${response.status}).`);
+  return rows;
+};
+const sendFailureEmails=async(env,charge,reason,final)=>{
+  let recipients=[];
+  try{recipients=await failureRecipients(env,charge)}catch(error){console.error(JSON.stringify({event:"billing_email_recipients_failed",draftId:charge.id,attempt:charge.attempt_number,error:error instanceof Error?error.message:String(error)}));return false}
+  const announcementId=recipients[0]?.announcement_id||"";
+  if(!recipients.length)return true;
+  if(!env.RESEND_API_KEY){await trackEmailDelivery(env,announcementId,"failed","RESEND_API_KEY no está configurada en el cobrador automático.");console.error(JSON.stringify({event:"billing_email_not_configured",draftId:charge.id,attempt:charge.attempt_number}));return false}
+  const familySubject=final?"Cuota pendiente: contacta con el club":`No hemos podido cobrar tu cuota · intento ${charge.attempt_number}`;
+  const adminSubject=final?"Baja por falta de pago":`Pago rechazado · intento ${charge.attempt_number}`;
+  const familyBody=final?`<p>No ha sido posible cobrar la cuota pendiente de <strong>${safe(charge.athlete_first_name)} ${safe(charge.athlete_last_name)}</strong>.</p><p>Para regularizar la situación, revisa la tarjeta o contacta con el club en el 613 05 00 00.</p>`:`<p>No hemos podido cobrar la cuota de <strong>${safe(charge.athlete_first_name)} ${safe(charge.athlete_last_name)}</strong>.</p><p>Revisa la tarjeta o el saldo. Volveremos a intentarlo dentro de 24 horas.</p>`;
+  const messages=recipients.map(recipient=>({from:"Club Atletas de Fuenlabrada <info@atletasdefuenlabrada.com>",reply_to:"info@atletasdefuenlabrada.com",to:[recipient.email],subject:recipient.is_admin?`${adminSubject} · ${charge.athlete_first_name} ${charge.athlete_last_name}`:familySubject,text:recipient.is_admin?`Ha fallado el cobro de ${charge.athlete_first_name} ${charge.athlete_last_name}. Motivo: ${reason}`:`No hemos podido cobrar la cuota de ${charge.athlete_first_name} ${charge.athlete_last_name}. Revisa la tarjeta o el saldo.` ,html:recipient.is_admin?`<p>Ha fallado el cobro de <strong>${safe(charge.athlete_first_name)} ${safe(charge.athlete_last_name)}</strong>.</p><p>Motivo: ${safe(reason)}</p>${familyBody}`:familyBody}));
+  const idempotencyKey=`billing-failure/${charge.id}/${charge.attempt_number}`;
+  let lastError="";
+  for(let attempt=1;attempt<=3;attempt++){
+    try{
+      const response=await fetch("https://api.resend.com/emails/batch",{method:"POST",headers:{authorization:`Bearer ${env.RESEND_API_KEY}`,...H,"Idempotency-Key":idempotencyKey},body:JSON.stringify(messages)});
+      if(response.ok){await trackEmailDelivery(env,announcementId,"sent");console.log(JSON.stringify({event:"billing_email_sent",draftId:charge.id,attempt:charge.attempt_number,recipients:messages.length}));return true}
+      const detail=await response.json().catch(()=>({}));lastError=detail?.message||`Resend respondió ${response.status}`;
+      if(response.status<500&&response.status!==429)break;
+    }catch(error){lastError=error instanceof Error?error.message:String(error)}
+  }
+  await trackEmailDelivery(env,announcementId,"failed",lastError||"El proveedor de correo no aceptó el envío.");
+  console.error(JSON.stringify({event:"billing_email_failed",draftId:charge.id,attempt:charge.attempt_number,error:lastError}));
+  return false;
+};
 const patch=(env,id,body)=>db(env,`/rest/v1/billing_charge_drafts?id=eq.${id}`,{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify({...body,updated_at:new Date().toISOString()})});
 const startRun=async(env)=>{const response=await db(env,"/rest/v1/billing_automation_runs",{method:"POST",headers:{Prefer:"return=representation"},body:JSON.stringify({status:"running",trigger_source:"scheduled"})});const rows=await response.json().catch(()=>[]);return response.ok?rows?.[0]?.id||"":""};
 const finishRun=async(env,id,body)=>{if(!id)return;await db(env,`/rest/v1/billing_automation_runs?id=eq.${id}`,{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify({...body,completed_at:new Date().toISOString()})})};
@@ -24,8 +59,7 @@ async function run(env){
     if(customer){const auth={authorization:`Bearer ${env.STRIPE_SECRET_KEY}`};const response=await fetch(`https://api.stripe.com/v1/customers/${customer}`,{headers:auth});const data=await response.json().catch(()=>({}));method=data.invoice_settings?.default_payment_method||"";if(!method){const methodsResponse=await fetch(`https://api.stripe.com/v1/payment_methods?customer=${encodeURIComponent(customer)}&type=card&limit=1`,{headers:auth});const methods=await methodsResponse.json().catch(()=>({}));method=methodsResponse.ok&&Array.isArray(methods.data)?methods.data[0]?.id||"":""}}
     if(customer&&method){const amount=charge.approved_amount_cents??charge.calculated_amount_cents;const params=new URLSearchParams({amount:String(amount),currency:"eur",customer,payment_method:method,confirm:"true",off_session:"true",description:`Cuota · ${charge.athlete_first_name} ${charge.athlete_last_name}`,"metadata[billing_charge_draft_id]":charge.id,"metadata[membership_id]":charge.membership_id});const result=await stripe(env,"payment_intents",params,`club-charge-${charge.id}-${charge.attempt_number}`);if(result.response.ok&&result.data.status==="succeeded"){await patch(env,charge.id,{status:"paid",provider_reference:result.data.id,admin_note:null,next_attempt_at:null});await db(env,`/rest/v1/memberships?id=eq.${charge.membership_id}`,{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify({billing_status:"active",access_suspended_at:null,suspension_reason:null,billing_updated_at:new Date().toISOString()})});await db(env,`/rest/v1/athletes?id=eq.${charge.athlete_id}`,{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify({club_status:"active"})});paid++;continue}reason=result.data?.error?.message||"El banco ha rechazado la cuota."}
     const final=Boolean(charge.is_final_attempt);const next=final?null:new Date(Date.now()+86400000).toISOString();await patch(env,charge.id,{status:"failed",admin_note:reason.slice(0,500),next_attempt_at:next});
-    const profiles=await db(env,`/rest/v1/profiles?or=(id.eq.${charge.payer_profile_id},role.in.(owner,admin))&select=id,email,role`);const recipients=await profiles.json().catch(()=>[]);const payer=recipients.find(x=>x.id===charge.payer_profile_id)?.email;const admins=recipients.filter(x=>["owner","admin"].includes(x.role)).map(x=>x.email).filter(Boolean);
-    const subject=final?"Baja por falta de pago":`Pago rechazado · intento ${charge.attempt_number}`;const body=final?`<p>No ha sido posible cobrar la cuota pendiente. Desde hoy el acceso deportivo queda suspendido por falta de pago.</p><p>Para regularizar la situación, contacta con el club en el 613 05 00 00.</p>`:`<p>No hemos podido cobrar la cuota de ${charge.athlete_first_name} ${charge.athlete_last_name}.</p><p>Revisa la tarjeta o el saldo. Volveremos a intentarlo dentro de 24 horas.</p>`;await Promise.all([mail(env,payer,subject,body),...admins.map(email=>mail(env,email,`${subject} · ${charge.athlete_first_name} ${charge.athlete_last_name}`,`<p>${reason.replace(/[<>&]/g,"")}</p>${body}`))]);
+    await sendFailureEmails(env,charge,reason,final);
     if(final)await db(env,"/rest/v1/rpc/suspend_membership_for_nonpayment",{method:"POST",body:JSON.stringify({target_membership_id:charge.membership_id})});failed++;
   }
     const summary={processed,paid,failed};await finishRun(env,runId,{status:"completed",processed_count:processed,paid_count:paid,failed_count:failed,error_message:null});console.log(JSON.stringify({event:"automatic_billing_completed",...summary}));return summary;
