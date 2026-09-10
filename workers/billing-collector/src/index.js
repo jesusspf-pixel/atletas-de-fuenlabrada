@@ -40,13 +40,39 @@ const sendFailureEmails=async(env,charge,reason,final)=>{
   console.error(JSON.stringify({event:"billing_email_failed",draftId:charge.id,attempt:charge.attempt_number,error:lastError}));
   return false;
 };
+const finishRegistrationEmails=async(env,rows,status,error="")=>{
+  if(!rows.length)return;
+  const claimed=rows.map(row=>({announcement_id:row.announcement_id,recipient_profile_id:row.recipient_profile_id}));
+  const response=await db(env,"/rest/v1/rpc/complete_registration_lifecycle_emails",{method:"POST",body:JSON.stringify({claimed_deliveries:claimed,final_status:status,failure_detail:error||null})});
+  if(!response.ok)console.error(JSON.stringify({event:"registration_email_tracking_failed",status,httpStatus:response.status}));
+};
+const registrationEmailHtml=row=>`<div style="font-family:Arial,sans-serif;line-height:1.55;color:#152235;max-width:620px;margin:auto"><div style="background:#092f61;color:#fff;padding:22px 26px"><strong style="font-size:21px">Club Atletas de Fuenlabrada</strong></div><div style="padding:26px;border:1px solid #dfe7f0;border-top:0"><h1 style="font-size:24px;margin:0 0 18px">${safe(row.subject)}</h1><p>${safe(row.body)}</p><p style="margin-top:24px"><a href="https://atletasdefuenlabrada.com/?access=1" style="background:#0b5ccc;color:#fff;text-decoration:none;padding:12px 18px;border-radius:8px;display:inline-block">Acceder a la aplicación</a></p><p style="color:#66758a;font-size:13px;margin-top:28px">Si necesitas ayuda, responde a este correo.</p></div></div>`;
+const sendRegistrationLifecycleEmails=async(env)=>{
+  const response=await db(env,"/rest/v1/rpc/claim_registration_lifecycle_emails",{method:"POST",body:JSON.stringify({batch_limit:40})});
+  const rows=await response.json().catch(()=>[]);
+  if(!response.ok)throw new Error(`No se pudieron reclamar los correos de inscripción (${response.status}).`);
+  if(!rows.length)return 0;
+  if(!env.RESEND_API_KEY){await finishRegistrationEmails(env,rows,"failed","RESEND_API_KEY no está configurada.");return 0}
+  const messages=rows.map(row=>({from:"Club Atletas de Fuenlabrada <info@atletasdefuenlabrada.com>",reply_to:"info@atletasdefuenlabrada.com",to:[row.email],subject:row.subject,text:row.body,html:registrationEmailHtml(row)}));
+  const keySource=rows.map(row=>`${row.announcement_id}:${row.recipient_profile_id}`).sort().join("|");
+  const digest=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(keySource));
+  const idempotencyKey=`registration-lifecycle/${Array.from(new Uint8Array(digest)).map(byte=>byte.toString(16).padStart(2,"0")).join("").slice(0,48)}`;
+  try{
+    const sent=await fetch("https://api.resend.com/emails/batch",{method:"POST",headers:{authorization:`Bearer ${env.RESEND_API_KEY}`,...H,"Idempotency-Key":idempotencyKey},body:JSON.stringify(messages)});
+    if(!sent.ok){const detail=await sent.json().catch(()=>({}));const message=detail?.message||`Resend respondió ${sent.status}`;await finishRegistrationEmails(env,rows,"failed",message);throw new Error(message)}
+    await finishRegistrationEmails(env,rows,"sent");
+    console.log(JSON.stringify({event:"registration_emails_sent",recipients:rows.length}));
+    return rows.length;
+  }catch(error){const message=error instanceof Error?error.message:String(error);await finishRegistrationEmails(env,rows,"failed",message);throw error}
+};
 const patch=(env,id,body)=>db(env,`/rest/v1/billing_charge_drafts?id=eq.${id}`,{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify({...body,updated_at:new Date().toISOString()})});
 const startRun=async(env)=>{const response=await db(env,"/rest/v1/billing_automation_runs",{method:"POST",headers:{Prefer:"return=representation"},body:JSON.stringify({status:"running",trigger_source:"scheduled"})});const rows=await response.json().catch(()=>[]);return response.ok?rows?.[0]?.id||"":""};
 const finishRun=async(env,id,body)=>{if(!id)return;await db(env,`/rest/v1/billing_automation_runs?id=eq.${id}`,{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify({...body,completed_at:new Date().toISOString()})})};
 async function run(env){
   required(env,"SUPABASE_URL");required(env,"SUPABASE_SERVICE_ROLE_KEY");required(env,"STRIPE_SECRET_KEY");
-  const runId=await startRun(env);let paid=0,failed=0,processed=0;
+  const runId=await startRun(env);let paid=0,failed=0,processed=0,registrationEmails=0;
   try{
+    try{registrationEmails=await sendRegistrationLifecycleEmails(env)}catch(error){console.error(JSON.stringify({event:"registration_email_run_failed",error:error instanceof Error?error.message:String(error)}))}
     const accountResponse=await fetch("https://api.stripe.com/v1/account",{headers:{authorization:`Bearer ${env.STRIPE_SECRET_KEY}`}});const account=await accountResponse.json().catch(()=>({}));if(!accountResponse.ok)throw new Error(`La clave de Stripe no es válida para el cobrador (${accountResponse.status}).`);if(account.id!==EXPECTED_STRIPE_ACCOUNT_ID)throw new Error(`La clave del cobrador pertenece a otra cuenta de Stripe (${account.id||"desconocida"}).`);
     // Keep each run below the Workers Free external-subrequest limit. A charge
     // touches Supabase and Stripe several times, so claiming 100 up front can
@@ -62,7 +88,7 @@ async function run(env){
     await sendFailureEmails(env,charge,reason,final);
     if(final)await db(env,"/rest/v1/rpc/suspend_membership_for_nonpayment",{method:"POST",body:JSON.stringify({target_membership_id:charge.membership_id})});failed++;
   }
-    const summary={processed,paid,failed};await finishRun(env,runId,{status:"completed",processed_count:processed,paid_count:paid,failed_count:failed,error_message:null});console.log(JSON.stringify({event:"automatic_billing_completed",...summary}));return summary;
+    const summary={processed,paid,failed,registrationEmails};await finishRun(env,runId,{status:"completed",processed_count:processed,paid_count:paid,failed_count:failed,error_message:null});console.log(JSON.stringify({event:"automatic_billing_completed",...summary}));return summary;
   }catch(error){const message=error instanceof Error?error.message:String(error);await finishRun(env,runId,{status:"failed",processed_count:processed,paid_count:paid,failed_count:failed,error_message:message.slice(0,1000)});throw error}
 }
 export default{async fetch(request,env){if(new URL(request.url).pathname==="/health"){try{const response=await fetch("https://api.stripe.com/v1/account",{headers:{authorization:`Bearer ${required(env,"STRIPE_SECRET_KEY")}`}});const account=await response.json().catch(()=>({}));const stripeReady=response.ok&&account.id===EXPECTED_STRIPE_ACCOUNT_ID;return new Response(JSON.stringify({ok:stripeReady,service:"club-atletas-billing-collector",stripeReady}),{status:stripeReady?200:503,headers:H})}catch{return new Response(JSON.stringify({ok:false,service:"club-atletas-billing-collector",stripeReady:false}),{status:503,headers:H})}}return new Response("Not found",{status:404})},async scheduled(event,env,ctx){ctx.waitUntil(run(env).catch(error=>{console.error("Automatic billing run failed",error instanceof Error?error.message:String(error));throw error}))}};
