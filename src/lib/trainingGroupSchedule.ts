@@ -8,6 +8,19 @@ type TrainingGroupSchedule = {
 
 export function withOfficialTrainingSchedule<T extends TrainingGroupSchedule>(group: T): T {
   const identity = `${group.name} ${group.category_label}`.toLowerCase();
+
+  if (
+    !identity.includes("running") &&
+    /sub\s*[- ]?(16|18|20|23)|absolut/.test(identity)
+  ) {
+    return {
+      ...group,
+      schedule_days: "Lunes a jueves",
+      starts_at: "19:00",
+      ends_at: "21:00",
+    };
+  }
+
   if (!/sub\s*[- ]?14/.test(identity)) return group;
 
   return {

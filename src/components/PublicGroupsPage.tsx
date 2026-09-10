@@ -8,11 +8,11 @@ const rows=[
  ["Sub-10","Lunes y miércoles o martes y jueves","17:00–18:00","65 €","Licencia FAM incluida"],
  ["Sub-12","Lunes y miércoles o martes y jueves","18:00–19:00","65 €","Licencia FAM incluida"],
  ["Sub-14","Lunes a jueves","19:00–20:00","65 €","Licencia FAM incluida"],
- ["Sub-16","Lunes a jueves","19:30–20:30","65 €","Licencia FAM incluida"],
- ["Sub-18","Lunes a jueves","19:30–20:30","75 €","Licencia FAM incluida"],
- ["Sub-20","Lunes a jueves","19:30–20:30","75 €","Licencia FAM incluida"],
- ["Sub-23","Lunes a jueves","19:30–20:30","95 €","Licencia FAM incluida"],
- ["Absoluto","Lunes a jueves","19:30–20:30","95 €","Licencia FAM incluida"],
+ ["Sub-16","Lunes a jueves","19:00–21:00","65 €","Licencia FAM incluida"],
+ ["Sub-18","Lunes a jueves","19:00–21:00","75 €","Licencia FAM incluida"],
+ ["Sub-20","Lunes a jueves","19:00–21:00","75 €","Licencia FAM incluida"],
+ ["Sub-23","Lunes a jueves","19:00–21:00","95 €","Licencia FAM incluida"],
+ ["Absoluto","Lunes a jueves","19:00–21:00","95 €","Licencia FAM incluida"],
 ];
 export default function PublicGroupsPage({onBack,onSignup}:Props){return <main className="groups-page">
 <header className="groups-top"><button onClick={onBack}>← Club Atletas de Fuenlabrada</button><button className="groups-signup" onClick={onSignup}>Quiero inscribirme</button></header>
