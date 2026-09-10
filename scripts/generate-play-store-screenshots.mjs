@@ -23,7 +23,7 @@ const frame = (title, subtitle, body, active = "Inicio") => `<svg xmlns="http://
   <circle cx="972" cy="120" r="260" fill="#1768d5" opacity=".16"/><circle cx="80" cy="520" r="220" fill="#ec168c" opacity=".08"/>
   <image href="data:image/png;base64,${icon}" x="62" y="64" width="104" height="104"/>
   ${text(190, 108, "ATLETAS", 34, colors.white, 800)}${text(190, 146, "DE FUENLABRADA", 25, colors.muted, 700)}
-  ${pill(828, 76, 190, "DEMO SEGURA", "#16385b", colors.green)}
+  ${pill(828, 76, 190, "APP DEL CLUB", "#16385b", colors.green)}
   ${text(62, 252, title, 56, colors.white, 800)}${text(62, 304, subtitle, 28, colors.muted, 500)}
   ${body}${nav(active)}
 </svg>`;
