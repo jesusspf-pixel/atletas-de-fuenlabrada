@@ -2979,7 +2979,7 @@ function Plans({ profile }: { profile: Profile }) {
   const [error, setError] = useState("");
   const save = async (e: FormEvent) => {
     e.preventDefault();
-    const { error: insertError } = await supabase!
+    const { data: savedPlan, error: insertError } = await supabase!
       .from("training_plans")
       .upsert(
         {
@@ -2991,8 +2991,23 @@ function Plans({ profile }: { profile: Profile }) {
           created_by: profile.id,
         },
         { onConflict: "training_group_id,week_starts_on" },
-      );
+      )
+      .select("id")
+      .single();
     if (insertError) return setError(insertError.message);
+    const { data: sessionData } = await supabase!.auth.getSession();
+    if (savedPlan?.id && sessionData.session?.access_token) {
+      const notificationResponse = await apiFetch("/api/send-event-notification", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${sessionData.session.access_token}`,
+        },
+        body: JSON.stringify({ announcementId: savedPlan.id }),
+      }).catch(() => null);
+      if (!notificationResponse?.ok)
+        setError("El plan se ha publicado, pero el correo queda pendiente de reintento.");
+    }
     setForm({
       group: "",
       title: "",
