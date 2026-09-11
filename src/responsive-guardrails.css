@@ -105,6 +105,27 @@
   }
 }
 
+/* El plan semanal conserva el calendario completo y una sola sesión legible en móvil. */
+@media(max-width:820px){
+  .visual-next-shell .member-week-plan{margin-left:13px!important;margin-right:13px!important;padding:0!important;border-radius:24px!important}
+  .visual-next-shell .member-plan-heading{display:block;min-height:0;padding:22px 18px 14px}
+  .visual-next-shell .member-plan-heading h2{font-size:1.35rem!important}
+  .visual-next-shell .member-plan-summary{margin-top:14px}
+  .visual-next-shell .member-plan-summary strong{min-width:0;flex:1;padding:9px 12px;font-size:1.05rem}
+  .visual-next-shell .member-plan-days{display:flex!important;gap:7px!important;padding:8px 14px 15px!important;overflow-x:auto!important;scroll-snap-type:x mandatory}
+  .visual-next-shell .member-plan-days button{display:grid!important;flex:0 0 56px!important;width:56px!important;min-width:56px!important;min-height:67px!important;padding:7px 3px!important;scroll-snap-align:start}
+  .visual-next-shell .member-plan-session{margin:0 13px!important;padding:17px!important}
+  .visual-next-shell .member-plan-session>header{display:grid!important;grid-template-columns:43px minmax(0,1fr)!important;gap:11px!important}
+  .visual-next-shell .member-plan-session>header>em{grid-column:2;justify-self:start}
+  .visual-next-shell .member-workout-mark{width:43px!important;height:43px!important}
+  .visual-next-shell .member-plan-facts{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:10px!important}
+  .visual-next-shell .member-plan-facts>span{padding:0!important;border:0!important}
+  .visual-next-shell .member-plan-blocks{display:block!important}
+  .visual-next-shell .member-plan-blocks>article{grid-template-columns:31px minmax(0,1fr)!important;padding:12px 0!important}
+  .visual-next-shell .member-plan-actions{padding:14px 13px 18px}
+  .visual-next-shell .member-plan-actions button{flex:1 1 180px;width:auto!important}
+}
+
 @media(max-width:820px){
   .visual-next-shell .page-head{display:grid;grid-template-columns:minmax(0,1fr);align-items:start}
   .visual-next-shell .page-head>:where(button,.button-link){width:max-content;max-width:100%}

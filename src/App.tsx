@@ -1,3 +1,4 @@
+import { apiFetch, publicClubOrigin } from "./lib/clubApi";
 import { FormEvent, ReactNode, useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import PwaInstall from "./components/PwaInstall";
@@ -149,7 +150,17 @@ function PasswordRecovery() {
           : "Este enlace no es válido o ha caducado. Solicita uno nuevo desde la pantalla de acceso.",
       );
     };
-    void client.auth.getSession().then(({ data }) => acceptSession(data.session));
+    void client.auth.getSession().then(async ({ data }) => {
+      if (data.session) return acceptSession(data.session);
+      const code = new URLSearchParams(window.location.search).get("code");
+      if (!code) return acceptSession(null);
+      const { data: exchanged, error } = await client.auth.exchangeCodeForSession(code);
+      if (error) {
+        const current = await client.auth.getSession();
+        if (current.data.session) return acceptSession(current.data.session);
+      }
+      acceptSession(exchanged?.session || null);
+    });
     const { data: { subscription } } = client.auth.onAuthStateChange((event, session) => {
       if (event === "PASSWORD_RECOVERY" || session) acceptSession(session);
     });
@@ -653,7 +664,7 @@ function Access() {
   const needsConfirmation = /email not confirmed|confirmar el correo|confirm.*email/i.test(message);
   const confirmationRedirect = () => {
     const current = new URL(window.location.href);
-    const redirect = new URL("/?access=1", window.location.origin);
+    const redirect = new URL("/?access=1", publicClubOrigin());
     const invitationToken = current.searchParams.get("invitation");
     const renewalToken = current.searchParams.get("renewal");
     if (invitationToken) redirect.searchParams.set("invitation", invitationToken);
@@ -710,7 +721,7 @@ function Access() {
       return;
     }
     setBusy(true);
-    const response = await fetch("/api/resend-confirmation", {
+    const response = await apiFetch("/api/resend-confirmation", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ email }),
@@ -731,21 +742,26 @@ function Access() {
     }
     setBusy(true);
     setMessage("");
-    const response = await fetch("/api/request-password-reset", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: normalizedEmail }),
-    });
-    const result = await response.json().catch(() => ({})) as {
-      error?: string;
-      message?: string;
-    };
-    setBusy(false);
-    setMessage(
-      response.ok
-        ? result.message || "Te hemos enviado un enlace para crear una contraseña nueva. Revisa también Spam."
-        : result.error || "No se pudo enviar el correo de recuperación.",
-    );
+    try {
+      const response = await apiFetch("/api/request-password-reset", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email: normalizedEmail }),
+      });
+      const result = await response.json().catch(() => ({})) as {
+        error?: string;
+        message?: string;
+      };
+      setMessage(
+        response.ok
+          ? result.message || "Te hemos enviado un enlace para crear una contraseña nueva. Revisa también Spam."
+          : result.error || "No se pudo enviar el correo de recuperación.",
+      );
+    } catch {
+      setMessage("No hemos podido contactar con el servicio de recuperación. Comprueba la conexión e inténtalo de nuevo.");
+    } finally {
+      setBusy(false);
+    }
   };
   return (
     <main className="secure-screen">
@@ -1706,7 +1722,7 @@ function AthletesAdmin({ onOpenAthlete, statusFilter }: { onOpenAthlete: (id: st
         const {
           data: { session },
         } = await supabase.auth.getSession();
-        const response = await fetch("/api/collect-approved-charge", {
+        const response = await apiFetch("/api/collect-approved-charge", {
           method: "POST",
           headers: {
             "content-type": "application/json",
@@ -2424,7 +2440,7 @@ function Invitations() {
       const item = (data as { invitation_token: string }[] | null)?.[0];
       if (!item?.invitation_token)
         return setError("No se pudo crear el enlace de renovación.");
-      setLink(window.location.origin + "/?renewal=" + item.invitation_token);
+      setLink(publicClubOrigin() + "/?renewal=" + item.invitation_token);
       setEmail("");
       void renewalLinks.reload();
       return;
@@ -2436,7 +2452,7 @@ function Invitations() {
       );
       if (rpcError) return setError(rpcError.message);
       setLink(
-        window.location.origin +
+        publicClubOrigin() +
           "/?invitation=" +
           (data as { token: string }).token,
       );
@@ -2454,7 +2470,7 @@ function Invitations() {
     );
     if (rpcError) return setError(rpcError.message);
     setLink(
-      window.location.origin +
+      publicClubOrigin() +
         "/?invitation=" +
         (data as { token: string }).token,
     );
@@ -2753,7 +2769,7 @@ function Fees({ profile }: { profile: Profile }) {
       );
       return;
     }
-    const response = await fetch("/api/create-payment-method-setup", {
+    const response = await apiFetch("/api/create-payment-method-setup", {
       method: "POST",
       headers: { authorization: `Bearer ${session.access_token}` },
     });
@@ -3731,7 +3747,7 @@ function Settings() {
       const { data } = await supabase.auth.getSession();
       if (!data.session)
         throw new Error("La sesión ha caducado. Vuelve a iniciar sesión.");
-      const response = await fetch("/api/strava-webhook-setup", {
+      const response = await apiFetch("/api/strava-webhook-setup", {
         method: "POST",
         headers: { authorization: `Bearer ${data.session.access_token}` },
       });

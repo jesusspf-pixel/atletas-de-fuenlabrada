@@ -21,7 +21,7 @@
           reloadingForUpdate = true;
           window.location.reload();
         });
-        navigator.serviceWorker.register("/sw.js?v=20260830-9", { updateViaCache: "none" })
+        navigator.serviceWorker.register("/sw.js?v=20260911-1", { updateViaCache: "none" })
           .then((registration) => {
             registration.update();
             window.setInterval(() => registration.update(), 15 * 60 * 1000);
@@ -30,6 +30,5 @@
       }
     </script>
     <script type="module" src="/src/main.tsx"></script>
-    <script src="/auth-recovery.js?v=20260824-2" defer></script>
   </body>
 </html>

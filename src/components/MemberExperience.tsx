@@ -68,8 +68,29 @@ type GroupCoach = {
 type PlanDay = {
   day: string;
   load: string;
+  duration: number | null;
+  rpe: number | null;
+  intensity: string;
+  volume: string;
   sections: { label: string; value: string }[];
 };
+
+const weekDays = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
+const normalizedDay = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+const dateKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+const planDayDate = (weekStartsOn: string, index: number) => {
+  const date = new Date(`${weekStartsOn}T12:00:00`);
+  date.setDate(date.getDate() + index);
+  return date;
+};
+
+function WorkoutMark({ resting = false }: { resting?: boolean }) {
+  return resting ? (
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.4 15.6A7.7 7.7 0 0 1 8.4 5.6 7.7 7.7 0 1 0 18.4 15.6Z" /></svg>
+  ) : (
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 17.5 9.2 13l2.5 2.3 4.9-6.2M14.2 9.1h2.4v2.4M4 20h16" /></svg>
+  );
+}
 
 const euro = (cents: number) =>
   new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(
@@ -88,6 +109,10 @@ const parseWeeklyPlan = (body: string): PlanDay[] =>
       if (!/^(LUNES|MARTES|MIÉRCOLES|JUEVES|VIERNES|SÁBADO|DOMINGO)$/.test(day))
         return null;
       const load = lines.shift() || "";
+      const duration = Number(load.match(/Duraci[oó]n:\s*(\d+)/i)?.[1] || "") || null;
+      const rpe = Number(load.match(/RPE:\s*(\d+)/i)?.[1] || "") || null;
+      const intensity = load.match(/Intensidad:\s*([^·]+)/i)?.[1]?.trim() || "";
+      const volume = load.match(/Volumen:\s*([^·]+)/i)?.[1]?.trim() || "";
       const sections = lines.map((line) => {
         const separator = line.indexOf(":");
         return separator > 0
@@ -100,6 +125,10 @@ const parseWeeklyPlan = (body: string): PlanDay[] =>
       return {
         day: day.charAt(0) + day.slice(1).toLowerCase(),
         load,
+        duration,
+        rpe,
+        intensity,
+        volume,
         sections,
       };
     })
@@ -247,7 +276,19 @@ export default function MemberExperience({ profileId }: { profileId: string }) {
   const upcomingCompetition = useMemo(() => entries.map(entry => ({ entry, event: entry.competition_events?.[0] })).filter(item => item.event && new Date(item.event.starts_at).getTime() >= Date.now()).sort((a, b) => new Date(a.event!.starts_at).getTime() - new Date(b.event!.starts_at).getTime())[0] || null, [entries]);
   const currentPlan = useMemo(() => athlete?.training_group_id ? plans.find(plan => plan.training_group_id === athlete.training_group_id) || null : null, [athlete, plans]);
   const planDays = useMemo(() => currentPlan ? parseWeeklyPlan(currentPlan.body) : [], [currentPlan]);
-  useEffect(() => { setActivePlanDay(0); }, [currentPlan?.id]);
+  const calendarDays = useMemo(() => currentPlan ? weekDays.map((day, index) => {
+    const planned = planDays.find(item => normalizedDay(item.day) === normalizedDay(day));
+    return { day, date: planDayDate(currentPlan.week_starts_on, index), planned: planned || null };
+  }) : [], [currentPlan, planDays]);
+  const plannedMinutes = useMemo(() => planDays.reduce((total, item) => total + (item.duration || 0), 0), [planDays]);
+  useEffect(() => {
+    if (!currentPlan) return setActivePlanDay(0);
+    const today = dateKey(new Date());
+    const todayIndex = calendarDays.findIndex(item => dateKey(item.date) === today);
+    const nextIndex = calendarDays.findIndex(item => item.date >= new Date(new Date().setHours(0, 0, 0, 0)) && item.planned);
+    setActivePlanDay(todayIndex >= 0 ? todayIndex : nextIndex >= 0 ? nextIndex : Math.max(0, calendarDays.findIndex(item => item.planned)));
+  }, [currentPlan?.id]);
+  const selectedCalendarDay = calendarDays[activePlanDay] || null;
   const currentPlanDocument = useMemo(() => {
     if (!currentPlan) return null;
     return documents.find((doc) => doc.training_plan_id === currentPlan.id) || null;
@@ -284,7 +325,7 @@ export default function MemberExperience({ profileId }: { profileId: string }) {
 
   if (mode === "home") return <section className="design-v2-stage member-live-home"><header className="design-v2-hero"><div><small>INICIO · MI TEMPORADA</small><h1>Todo empieza<br/>aquí.</h1><p>{athlete.training_groups?.name || "Grupo pendiente"} · Licencia {licenseText(athlete)}</p></div></header><section className="design-v2-float">
     <div className="design-v2-title"><div><small>ESTA SEMANA</small><h2>Tu entrenamiento</h2></div><button onClick={() => [...document.querySelectorAll<HTMLButtonElement>(".club-side nav button")].find(item => item.textContent?.trim().startsWith("Mi perfil"))?.click()}>Mi perfil →</button></div>
-    <article className="member-live-plan member-week-plan"><div><small>PLAN DE ENTRENAMIENTO</small>{currentPlan?<><h2>{currentPlan.title}</h2><span>Semana del {new Date(`${currentPlan.week_starts_on}T12:00:00`).toLocaleDateString("es-ES")}</span>{planDays.length?<><nav className="member-plan-days">{planDays.map((item,index)=><button type="button" key={item.day} className={activePlanDay===index?"active":""} onClick={()=>setActivePlanDay(index)}><b>{item.day}</b></button>)}</nav><section className="member-plan-session"><header><div><small>SESIÓN</small><h3>{planDays[activePlanDay]?.day}</h3></div><span>{planDays[activePlanDay]?.load}</span></header><div>{planDays[activePlanDay]?.sections.map(section=><article key={section.label}><small>{section.label.toUpperCase()}</small><p>{section.value}</p></article>)}</div></section></>:<p className="member-plan-legacy">{currentPlan.body}</p>}<div className="member-plan-actions"><button type="button" onClick={openGeneratedPlanPdf}>PDF · Abrir o guardar</button>{currentPlanDocument&&<button type="button" onClick={()=>void openPlanPdf()}>PDF adjunto del entrenador</button>}</div></>:<><h2>Sin plan publicado todavía</h2><p>Cuando tu entrenador publique el plan aparecerá aquí automáticamente.</p></>}</div>{planNotice&&<p className="error-note">{planNotice}</p>}</article>
+    <article className="member-live-plan member-week-plan"><div>{currentPlan?<><header className="member-plan-heading"><div><small>MI PLAN · {athlete.training_groups?.name || "GRUPO"}</small><h2>{currentPlan.title}</h2><span>Semana del {new Date(`${currentPlan.week_starts_on}T12:00:00`).toLocaleDateString("es-ES", { day: "numeric", month: "long" })}</span></div><div className="member-plan-summary"><strong>{planDays.length}<small>sesiones</small></strong><strong>{plannedMinutes || "—"}<small>minutos</small></strong></div></header>{planDays.length?<><nav className="member-plan-days" aria-label="Días del plan semanal">{calendarDays.map((item,index)=>{const today=dateKey(item.date)===dateKey(new Date());return <button type="button" key={item.day} className={`${activePlanDay===index?"active ":""}${item.planned?"planned":"rest"}`} onClick={()=>setActivePlanDay(index)} aria-label={`${item.day} ${item.date.getDate()}${item.planned?", entrenamiento planificado":", descanso"}`}><small>{item.day.slice(0,3)}</small><b>{item.date.getDate()}</b><i>{today?"HOY":item.planned?"":"—"}</i></button>})}</nav><section className={`member-plan-session ${selectedCalendarDay?.planned?"has-workout":"is-rest"}`}>{selectedCalendarDay?.planned?<><header><span className="member-workout-mark"><WorkoutMark /></span><div><small>{selectedCalendarDay.day.toUpperCase()} · SESIÓN PLANIFICADA</small><h3>{selectedCalendarDay.planned.sections.find(section=>/objetivo/i.test(section.label))?.value || "Entrenamiento del grupo"}</h3></div><em className={`intensity-${selectedCalendarDay.planned.intensity.toLowerCase()}`}>{selectedCalendarDay.planned.intensity || "Plan"}</em></header><div className="member-plan-facts">{selectedCalendarDay.planned.duration&&<span><small>DURACIÓN</small><b>{selectedCalendarDay.planned.duration} min</b></span>}{selectedCalendarDay.planned.rpe&&<span><small>ESFUERZO</small><b>RPE {selectedCalendarDay.planned.rpe}/10</b></span>}{selectedCalendarDay.planned.volume&&<span><small>VOLUMEN</small><b>{selectedCalendarDay.planned.volume}</b></span>}</div><div className="member-plan-blocks">{selectedCalendarDay.planned.sections.filter(section=>!/objetivo/i.test(section.label)).map((section,index)=><article key={`${section.label}-${index}`}><i>{String(index+1).padStart(2,"0")}</i><span><small>{section.label.toUpperCase()}</small><p>{section.value}</p></span></article>)}</div></>:<div className="member-rest-day"><span className="member-workout-mark"><WorkoutMark resting /></span><div><small>{selectedCalendarDay?.day.toUpperCase()}</small><h3>Día sin sesión programada</h3><p>Recupera y sigue las indicaciones de tu entrenador.</p></div></div>}</section></>:<p className="member-plan-legacy">{currentPlan.body}</p>}<div className="member-plan-actions"><button type="button" onClick={openGeneratedPlanPdf}>Guardar plan en PDF</button>{currentPlanDocument&&<button type="button" onClick={()=>void openPlanPdf()}>Abrir documento del entrenador</button>}</div></>:<><small>PLAN DE ENTRENAMIENTO</small><h2>Sin plan publicado todavía</h2><p>Cuando tu entrenador publique el plan aparecerá aquí automáticamente.</p></>}</div>{planNotice&&<p className="error-note">{planNotice}</p>}</article>
     <header className="design-v2-section-head"><div><small>RESUMEN</small><h2>Tu actividad en el club</h2></div></header><section className={`member-live-cards${/running/i.test(athlete.training_groups?.name||"")?" has-performance":""}`}><article><i>✓</i><small>ESTADO</small><b>{athlete.club_status==="active"?"Activo":"En revisión"}</b><span>Alta en el club</span></article><article><i>◎</i><small>LICENCIA</small><b>{licenseText(athlete)}</b><span>{athlete.license_status==="active"?"Licencia activa":"Pendiente de tramitar"}</span></article><button className="member-summary-action" onClick={() => setMode("group")}><i>↗</i><small>GRUPO</small><b>{athlete.training_groups?.name||"Pendiente"}</b><span>{athlete.training_groups?.category_label||"Sin asignar"} · Ver grupo</span></button>{/running/i.test(athlete.training_groups?.name||"")&&<button className="member-summary-action member-performance-action" onClick={()=>goTo("Rendimiento")}><i>⌁</i><small>RENDIMIENTO</small><b>Mi evolución</b><span>Forma, fatiga y carga · Ver análisis</span></button>}</section>
     <section className="design-v2-bottom member-live-bottom"><button className="member-bottom-action" onClick={() => goTo("Cuotas")}><header><div><small>PRÓXIMA CUOTA</small><h3>{upcomingFee?upcomingFee.charge_kind==="enrolment"?"Matrícula":"Cuota del club":"Sin cuotas programadas"}</h3></div></header>{upcomingFee?<div><i>€</i><span><b>{euro(upcomingFee.approved_amount_cents??upcomingFee.calculated_amount_cents)}</b><small>{upcomingFee.scheduled_for?new Date(upcomingFee.scheduled_for).toLocaleDateString("es-ES"):"Fecha pendiente"}</small></span><em>›</em></div>:<p>Las próximas cuotas aparecerán aquí.</p>}</button><article><header><div><small>PRÓXIMA COMPETICIÓN</small><h3>{upcomingCompetition?.event?.title||"Sin próxima competición"}</h3></div></header>{upcomingCompetition?.event?<div><i>↗</i><span><b>{upcomingCompetition.event.venue||"Ubicación pendiente"}</b><small>{new Date(upcomingCompetition.event.starts_at).toLocaleDateString("es-ES")}</small></span><em/></div>:<p>Las competiciones confirmadas aparecerán aquí.</p>}</article></section>
   </section></section>;
