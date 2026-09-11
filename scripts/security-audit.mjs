@@ -31,7 +31,7 @@ const appSource = readFileSync("src/App.tsx", "utf8");
 const resetEndpoint = readFileSync("functions/api/request-password-reset.ts", "utf8");
 const recoveryChecks = [
   ["password recovery button", appSource.includes("¿Has olvidado tu contraseña?")],
-  ["password recovery request", appSource.includes('fetch("/api/request-password-reset"')],
+  ["password recovery request", appSource.includes('apiFetch("/api/request-password-reset"') && appSource.includes('from "./lib/clubApi"')],
   ["password recovery endpoint", resetEndpoint.includes("/auth/v1/recover")],
   ["password recovery redirect", resetEndpoint.includes("reset-password=1")],
 ];
