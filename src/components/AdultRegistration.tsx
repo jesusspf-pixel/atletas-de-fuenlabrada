@@ -26,15 +26,21 @@ export default function AdultRegistration({ email, renewalToken: renewalTokenPro
   const update = (key: keyof typeof data, value: string | boolean) => setData(current => ({ ...current, [key]: value }));
   const coreTrainingCategory = categoryFromBirthDate(data.birth_date);
   const runningAge = isRunningAge(data.birth_date);
-  const trainingCategory = runningAge ? "Running" : coreTrainingCategory;
   const adultCategory = coreTrainingCategory === "Absoluto / Máster";
+  const trainingCategory = adultCategory ? "Adultos · elige especialidad" : coreTrainingCategory;
   const isMaster = runningAge || adultCategory;
   const needsFederation = Boolean(coreTrainingCategory && coreTrainingCategory !== "Sub 6" && (!isMaster || data.license_option === "with"));
   const availableGroups = groups
-    .filter(group => runningAge
-      ? /m[aá]ster\s*[ab]|running\s*[ab]/i.test(group.name)
-      : group.category_label.toLowerCase().includes(coreTrainingCategory.toLowerCase()) || (/sub 23|absoluto/.test(coreTrainingCategory.toLowerCase()) && /m[aá]ster|master|running|absoluto/.test(`${group.name} ${group.category_label}`.toLowerCase())))
-    .map(group => runningAge ? { ...group, name: group.name.replace(/m[aá]ster/ig, "Running") } : group);
+    .filter(group => {
+      const description = `${group.name} ${group.category_label}`.toLowerCase();
+      if (adultCategory) {
+        return /running|m[aá]ster|master|absoluto/.test(description)
+          || (/sub\s*23/.test(description) && /velocidad|concurso|medio\s*fondo|fondo/.test(description));
+      }
+      return group.category_label.toLowerCase().includes(coreTrainingCategory.toLowerCase())
+        || (/sub 23/.test(coreTrainingCategory.toLowerCase()) && /running|m[aá]ster|master|absoluto/.test(description));
+    })
+    .map(group => runningAge && /m[aá]ster/i.test(group.name) ? { ...group, name: group.name.replace(/m[aá]ster/ig, "Running") } : group);
   const valid = Boolean(data.first_name.trim() && data.last_name.trim() && validSpanishId(data.dni_nie) && validPhone(data.phone) && validBirthDate(data.birth_date) && data.training_group_id && (!needsFederation || (data.nationality.trim() && data.birthplace.trim())));
   const acceptAll = Object.values(consents).every(Boolean);
   useEffect(() => { sessionStorage.setItem(storageKey, JSON.stringify({ step, data, plan, consents, cardReady, renewalToken })); }, [storageKey, step, data, plan, consents, cardReady, renewalToken]);
