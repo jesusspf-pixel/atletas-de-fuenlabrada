@@ -113,6 +113,8 @@ type AthleteRecord = Athlete & {
     plan: "monthly" | "term";
     enrolment_fee_cents?: number | null;
     enrolment_fee_status?: string | null;
+    first_recurring_charge_mode?: "prorated" | "full" | "custom";
+    first_recurring_charge_cents?: number | null;
   }[];
   consents?: { consent_type: string; accepted_at: string }[];
 };
@@ -1642,6 +1644,8 @@ function AthletesAdmin({ onOpenAthlete, statusFilter }: { onOpenAthlete: (id: st
   const [waiveEnrolment, setWaiveEnrolment] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<"monthly" | "term">("term");
   const [enrolmentFee, setEnrolmentFee] = useState("");
+  const [firstChargeMode, setFirstChargeMode] = useState<"prorated" | "full" | "custom">("prorated");
+  const [customFirstCharge, setCustomFirstCharge] = useState("");
   const [athleteSearch, setAthleteSearch] = useState("");
   const baseRows = statusFilter ? rows.filter((athlete) => athlete.club_status === statusFilter) : rows;
   const normalizedSearch = athleteSearch.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("es");
@@ -1674,6 +1678,12 @@ function AthletesAdmin({ onOpenAthlete, statusFilter }: { onOpenAthlete: (id: st
         ((membership?.enrolment_fee_cents || 0) / 100).toFixed(2),
       );
       setWaiveEnrolment(membership?.enrolment_fee_status === "paid");
+      setFirstChargeMode(membership?.first_recurring_charge_mode || "prorated");
+      setCustomFirstCharge(
+        membership?.first_recurring_charge_cents == null
+          ? ""
+          : (membership.first_recurring_charge_cents / 100).toFixed(2),
+      );
       setMessage("");
     }
   }, [selectedId]);
@@ -1698,11 +1708,29 @@ function AthletesAdmin({ onOpenAthlete, statusFilter }: { onOpenAthlete: (id: st
         setChanging("");
         return setMessage("Indica un importe de matrícula válido.");
       }
+      const customFirstChargeCents = firstChargeMode === "custom"
+        ? Math.round(Number(customFirstCharge.replace(",", ".")) * 100)
+        : null;
+      if (firstChargeMode === "custom" && (!Number.isFinite(customFirstChargeCents) || customFirstChargeCents! < 0)) {
+        setChanging("");
+        return setMessage("Indica un importe válido para la primera cuota.");
+      }
+      const firstChargeDescription = firstChargeMode === "prorated"
+        ? "reducida automáticamente según la fecha de alta"
+        : firstChargeMode === "full"
+          ? `completa (${selectedPlan === "monthly" ? "35 €" : "70 €"})`
+          : `personalizada (${(customFirstChargeCents! / 100).toLocaleString("es-ES", { style: "currency", currency: "EUR" })})`;
+      if (!window.confirm(`Vas a validar el alta. Primera cuota: ${firstChargeDescription}. Solo esta primera cuota usará esa regla; las siguientes mantendrán el calendario normal. ¿Continuar?`)) {
+        setChanging("");
+        return;
+      }
       const { error: economicError } = await supabase
         .from("memberships")
         .update({
           plan: selectedPlan,
           enrolment_fee_cents: finalEnrolmentCents,
+          first_recurring_charge_mode: firstChargeMode,
+          first_recurring_charge_cents: customFirstChargeCents,
         })
         .eq("id", membership.id);
       if (economicError) {
@@ -2004,6 +2032,14 @@ function AthletesAdmin({ onOpenAthlete, statusFilter }: { onOpenAthlete: (id: st
                   ? "Exenta / ya abonada"
                   : (enrolmentFee || "0.00") + " €"}
               </p>
+              <p>
+                Primera cuota:{" "}
+                {firstChargeMode === "prorated"
+                  ? "reducida según la fecha de alta"
+                  : firstChargeMode === "full"
+                    ? selectedPlan === "monthly" ? "mes completo" : "trimestre completo"
+                    : `${customFirstCharge || "0,00"} € (importe personalizado)`}
+              </p>
               <small>
                 Al validar, el plan e importe final quedan aprobados y se
                 programa automáticamente todo el calendario. No habrá que
@@ -2076,6 +2112,33 @@ function AthletesAdmin({ onOpenAthlete, statusFilter }: { onOpenAthlete: (id: st
                       />
                       Matrícula ya abonada / exenta
                     </label>
+                    <label>
+                      Primera cuota
+                      <select
+                        value={firstChargeMode}
+                        onChange={(e) => setFirstChargeMode(e.target.value as "prorated" | "full" | "custom")}
+                      >
+                        <option value="prorated">Reducida según fecha de alta</option>
+                        <option value="full">{selectedPlan === "monthly" ? "Mes completo · 35 €" : "Trimestre completo · 70 €"}</option>
+                        <option value="custom">Importe personalizado</option>
+                      </select>
+                      <small>Solo afecta al primer cobro; después se conserva el calendario normal.</small>
+                    </label>
+                    {firstChargeMode === "custom" && (
+                      <label>
+                        Primera cuota personalizada (€)
+                        <input
+                          required
+                          min="0"
+                          step="0.01"
+                          inputMode="decimal"
+                          value={customFirstCharge}
+                          onChange={(e) => setCustomFirstCharge(e.target.value)}
+                          placeholder="Ej. 35,00"
+                        />
+                        <small>Este importe exacto será el aprobado y enviado al cobro.</small>
+                      </label>
+                    )}
                   </>
                 )}
               <label>
