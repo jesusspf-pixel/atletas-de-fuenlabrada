@@ -39,7 +39,15 @@ type Athlete = {
   birth_date?: string;
   training_category?: string | null;
   user_profile_id?: string | null;
+  federation_license_requested?: boolean;
   training_groups?: Group | null;
+  memberships?: {
+    id: string;
+    season: string;
+    enrolment_fee_cents: number | null;
+    enrolment_fee_status: string;
+    created_at: string;
+  }[];
 };
 type Attendance = {
   athlete_id: string;
@@ -146,7 +154,7 @@ export function GroupManager({ onOpenAthlete }: { onOpenAthlete?: (id: string) =
       supabase
         .from("athletes")
         .select(
-          "id,first_name,last_name,club_status,license_status,license_number,training_group_id,family_id",
+          "id,first_name,last_name,club_status,license_status,license_number,training_group_id,family_id,federation_license_requested,memberships(id,season,enrolment_fee_cents,enrolment_fee_status,created_at)",
         )
         .order("last_name"),
       supabase.from("athlete_profile_settings").select("athlete_id,avatar_url"),
@@ -270,6 +278,31 @@ export function GroupManager({ onOpenAthlete }: { onOpenAthlete?: (id: string) =
   const roster = athletes.filter(
     (athlete) => athlete.training_group_id === selectedId,
   );
+  const isRunningGroup = Boolean(
+    selected && /running/i.test(`${selected.name} ${selected.category_label}`),
+  );
+  const membershipFor = (athlete: Athlete) =>
+    [...(athlete.memberships || [])].sort((a, b) =>
+      b.created_at.localeCompare(a.created_at),
+    )[0];
+  const runningEnrolmentRows = roster.map((athlete) => ({
+    athlete,
+    membership: membershipFor(athlete),
+    withLicense: athlete.federation_license_requested !== false,
+  }));
+  const paidEnrolments = runningEnrolmentRows.filter(
+    ({ membership }) =>
+      membership?.enrolment_fee_status === "paid" &&
+      (membership.enrolment_fee_cents || 0) > 0,
+  ).length;
+  const exemptEnrolments = runningEnrolmentRows.filter(
+    ({ membership }) =>
+      membership?.enrolment_fee_status === "paid" &&
+      (membership.enrolment_fee_cents || 0) === 0,
+  ).length;
+  const pendingEnrolments = runningEnrolmentRows.filter(
+    ({ membership }) => membership?.enrolment_fee_status !== "paid",
+  ).length;
   const groupOrder = (group: Group) => {
     const label = `${group.category_label} ${group.name}`
       .normalize("NFD")
@@ -538,6 +571,86 @@ export function GroupManager({ onOpenAthlete }: { onOpenAthlete?: (id: string) =
             </p>
           )}
         </form>
+        {isRunningGroup && (
+          <article className="panel running-enrolment-panel">
+            <header>
+              <div>
+                <small>CONTROL ECONÓMICO DEL GRUPO</small>
+                <h2>Matrícula y licencia</h2>
+                <p>
+                  Estado real de la matrícula de cada atleta y modalidad de
+                  licencia solicitada.
+                </p>
+              </div>
+              <div className="running-enrolment-summary">
+                <span>
+                  <b>{paidEnrolments}</b>
+                  <small>pagadas</small>
+                </span>
+                <span>
+                  <b>{exemptEnrolments}</b>
+                  <small>exentas</small>
+                </span>
+                <span className={pendingEnrolments ? "has-pending" : ""}>
+                  <b>{pendingEnrolments}</b>
+                  <small>pendientes</small>
+                </span>
+              </div>
+            </header>
+            <div className="running-enrolment-table">
+              <div className="running-enrolment-head" aria-hidden="true">
+                <span>Atleta</span>
+                <span>Modalidad</span>
+                <span>Matrícula</span>
+                <span>Importe</span>
+              </div>
+              {runningEnrolmentRows.map(({ athlete, membership, withLicense }) => {
+                const paid = membership?.enrolment_fee_status === "paid";
+                const exempt = paid && (membership?.enrolment_fee_cents || 0) === 0;
+                return (
+                  <button
+                    type="button"
+                    className="running-enrolment-row"
+                    key={athlete.id}
+                    onClick={() => onOpenAthlete?.(athlete.id)}
+                  >
+                    <span>
+                      <b>{athlete.first_name} {athlete.last_name}</b>
+                      <small>{membership?.season || "Temporada sin indicar"}</small>
+                    </span>
+                    <span>
+                      <em className={withLicense ? "with-license" : "without-license"}>
+                        {withLicense ? "Con licencia" : "Sin licencia"}
+                      </em>
+                      <small>
+                        {withLicense
+                          ? athlete.license_status === "active"
+                            ? `Activa${athlete.license_number ? ` · ${athlete.license_number}` : ""}`
+                            : "Tramitación pendiente"
+                          : "No solicitada"}
+                      </small>
+                    </span>
+                    <span>
+                      <em className={paid ? "is-paid" : "is-pending"}>
+                        {exempt ? "Exenta / renovación" : paid ? "Pagada" : "Pendiente"}
+                      </em>
+                    </span>
+                    <strong>
+                      {membership?.enrolment_fee_cents == null
+                        ? "Sin datos"
+                        : exempt
+                          ? "0 €"
+                          : euro(membership.enrolment_fee_cents)}
+                    </strong>
+                  </button>
+                );
+              })}
+              {!runningEnrolmentRows.length && (
+                <p className="empty">No hay atletas en este grupo.</p>
+              )}
+            </div>
+          </article>
+        )}
       </section>
     </section>
   );
