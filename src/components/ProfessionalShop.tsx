@@ -14,14 +14,14 @@ const euro = (cents: number) => new Intl.NumberFormat("es-ES", { style: "currenc
 const emptyForm = { name: "", description: "", price: "", sizes: "XS,S,M,L,XL", active: true, image_url: "", backorder_message: "Te avisaremos en cuanto llegue." };
 const fileKey = (file: File) => `${Date.now()}-${crypto.randomUUID()}-${file.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9._-]/g, "-")}`;
 
-export function Shop({ profile }: { profile: Profile }) {
+export function Shop({ profile, initialOrderId = "" }: { profile: Profile; initialOrderId?: string }) {
   const manager = profile.role === "owner" || profile.role === "admin";
   const [products, setProducts] = useState<Product[]>([]);
   const [productImages, setProductImages] = useState<ProductImage[]>([]);
   const [variants, setVariants] = useState<Variant[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [selectedId, setSelectedId] = useState("");
-  const [selectedOrderId, setSelectedOrderId] = useState("");
+  const [selectedOrderId, setSelectedOrderId] = useState(initialOrderId);
   const [selectedImageId, setSelectedImageId] = useState<Record<string, string>>({});
   const [form, setForm] = useState(emptyForm);
   const [stock, setStock] = useState<Record<string, string>>({});
@@ -59,6 +59,9 @@ export function Shop({ profile }: { profile: Profile }) {
   };
 
   useEffect(() => { void load(); }, []);
+  useEffect(() => {
+    if (initialOrderId) setSelectedOrderId(initialOrderId);
+  }, [initialOrderId]);
   useEffect(() => {
     if (!selected) { setForm(emptyForm); setStock({}); return; }
     setForm({ name: selected.name, description: selected.description || "", price: String(selected.price_cents / 100).replace(".", ","), sizes: variantsFor(selected.id).map(item => item.size).join(","), active: selected.active, image_url: selected.image_url || "", backorder_message: variantsFor(selected.id)[0]?.backorder_message || "Te avisaremos en cuanto llegue." });
@@ -183,6 +186,10 @@ export function Shop({ profile }: { profile: Profile }) {
   const totalStock = variants.reduce((total, item) => total + item.stock_on_hand, 0);
   const publicProducts = useMemo(() => products.filter(item => item.active), [products]);
   const selectedOrder = orders.find(item => item.id === selectedOrderId);
+  useEffect(() => {
+    if (!selectedOrder || selectedOrder.id !== initialOrderId) return;
+    window.requestAnimationFrame(() => document.getElementById("shop-order-detail")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }, [initialOrderId, selectedOrder?.id]);
 
   if (!manager) return <>
     <div className="page-head shop-page-head"><div><h1>Tienda del club</h1><p>Equipación oficial y pedidos del Club Atletas de Fuenlabrada.</p></div><button className="shop-cart-button" onClick={() => setCartOpen(!cartOpen)} aria-label="Abrir carrito">Carrito <b>{cart.reduce((sum, item) => sum + item.quantity, 0)}</b></button></div>
@@ -210,4 +217,4 @@ export function Shop({ profile }: { profile: Profile }) {
 
 function orderStatus(order: Order) { if (order.status === "ready") return "Listo para recoger"; if (order.status === "reviewing") return "En preparación"; if (order.status === "paid" || order.payment_status === "paid") return "Pagado"; if (order.status === "cancelled") return "Cancelado"; return "Pendiente de revisión"; }
 function Orders({ orders, manager = false, onUpdate, onSelect }: { orders: Order[]; manager?: boolean; onUpdate?: (order: Order, status: string) => void; onSelect?: (id: string) => void }) { return <article className="panel table"><h2>{manager ? "Pedidos recibidos" : "Mis pedidos"}</h2>{orders.map(order => <div className="row" key={order.id}><button className="order-open" onClick={() => onSelect?.(order.id)}><b>{order.club_order_items?.map(item => `${item.product_name}${item.size ? ` · ${item.size}` : ""}`).join(", ") || "Pedido"}</b><small>{new Date(order.created_at).toLocaleDateString("es-ES")} · {order.payment_method === "card" ? "Tarjeta" : "Recogida"}{manager && order.profiles?.full_name ? ` · ${order.profiles.full_name}` : ""} · Ver detalle →</small></button><span>{euro(order.total_cents)}</span><span>{orderStatus(order)}</span>{manager && <select value={order.status} onChange={e => onUpdate?.(order, e.target.value)}><option value="requested">Pendiente</option><option value="reviewing">En preparación</option><option value="ready">Listo para recoger</option><option value="paid">Pagado</option><option value="cancelled">Cancelado</option></select>}</div>)}{!orders.length && <p className="empty">Aún no hay pedidos.</p>}</article>; }
-function OrderDetail({ order, manager = false, onClose }: { order: Order; manager?: boolean; onClose: () => void }) { return <article className="panel order-detail"><div><small>DETALLE DEL PEDIDO</small><h2>{orderStatus(order)}</h2>{manager && <p>{order.profiles?.full_name || "Comprador sin nombre"}<br />{order.profiles?.email || "Correo no disponible"}{order.profiles?.phone ? ` · ${order.profiles.phone}` : ""}</p>}<p>{order.status === "ready" ? "Puedes pasar a recogerlo por el club." : order.status === "reviewing" ? "El club está preparando este pedido." : order.status === "cancelled" ? "Este pedido ha sido cancelado." : "El club revisará tu pedido y te avisará del siguiente paso."}</p></div><div><h3>Artículos</h3>{order.club_order_items?.map((item, index) => <p key={index}>{item.product_name} · talla {item.size || "única"} · {item.quantity} unidad(es)</p>)}<p><b>{euro(order.total_cents)}</b> · {order.payment_method === "card" ? "Pago con tarjeta" : "Pago al recoger"}{order.payment_status === "paid" ? " · Pagado" : ""}</p></div><button className="outline" onClick={onClose}>Cerrar detalle</button></article>; }
+function OrderDetail({ order, manager = false, onClose }: { order: Order; manager?: boolean; onClose: () => void }) { return <article id="shop-order-detail" className="panel order-detail"><div><small>DETALLE DEL PEDIDO</small><h2>{orderStatus(order)}</h2>{manager && <p>{order.profiles?.full_name || "Comprador sin nombre"}<br />{order.profiles?.email || "Correo no disponible"}{order.profiles?.phone ? ` · ${order.profiles.phone}` : ""}</p>}<p>{order.status === "ready" ? "Puedes pasar a recogerlo por el club." : order.status === "reviewing" ? "El club está preparando este pedido." : order.status === "cancelled" ? "Este pedido ha sido cancelado." : "El club revisará tu pedido y te avisará del siguiente paso."}</p></div><div><h3>Artículos</h3>{order.club_order_items?.map((item, index) => <p key={index}>{item.product_name} · talla {item.size || "única"} · {item.quantity} unidad(es)</p>)}<p><b>{euro(order.total_cents)}</b> · {order.payment_method === "card" ? "Pago con tarjeta" : "Pago al recoger"}{order.payment_status === "paid" ? " · Pagado" : ""}</p></div><button className="outline" onClick={onClose}>Cerrar detalle</button></article>; }

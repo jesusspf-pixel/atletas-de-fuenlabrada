@@ -1006,6 +1006,9 @@ function Portal({
       window.sessionStorage.getItem("admin-performance-athlete") ||
       "",
   );
+  const [focusedShopOrderId, setFocusedShopOrderId] = useState(
+    () => new URLSearchParams(window.location.search).get("orderId") || "",
+  );
   useEffect(() => {
     if (adminAthleteId) window.sessionStorage.removeItem("admin-performance-athlete");
   }, [adminAthleteId]);
@@ -1016,6 +1019,7 @@ function Portal({
   const [memberAvatarUrl, setMemberAvatarUrl] = useState("");
   const goToSection = (nextSection: string) => {
     setAdminAthleteId("");
+    if (nextSection !== "Tienda") setFocusedShopOrderId("");
     if (nextSection !== "Mis atletas" && nextSection !== "Mis menores") {
       setFocusedAthleteId("");
     }
@@ -1243,6 +1247,15 @@ function Portal({
           setAdminAthleteId("");
           setSection(adminAthleteReturnSection);
         }}
+        shopOrderId={focusedShopOrderId}
+        openShopOrder={(id) => {
+          setFocusedShopOrderId(id);
+          setSection("Tienda");
+          const url = new URL(window.location.href);
+          url.searchParams.set("section", "Tienda");
+          url.searchParams.set("orderId", id);
+          window.history.replaceState({}, "", url);
+        }}
       />
     ) : profile.role === "coach" ? (
       <Coach section={section} profile={profile} go={goToSection} />
@@ -1332,6 +1345,8 @@ function Admin({
   athleteId,
   openAthlete,
   closeAthlete,
+  shopOrderId,
+  openShopOrder,
 }: {
   section: string;
   profile: Profile;
@@ -1339,6 +1354,8 @@ function Admin({
   athleteId: string;
   openAthlete: (id: string) => void;
   closeAthlete: () => void;
+  shopOrderId: string;
+  openShopOrder: (id: string) => void;
 }) {
   let content: ReactNode;
   if (section === "Atletas" || section === "Altas en revisión")
@@ -1351,12 +1368,12 @@ function Admin({
   else if (section === "Entrenadores") content = <CoachesAdmin />;
   else if (section === "Invitaciones") content = <Invitations />;
   else if (section === "Cuotas") content = <Fees profile={profile} />;
-  else if (section === "Tienda") content = <Shop profile={profile} />;
+  else if (section === "Tienda") content = <Shop profile={profile} initialOrderId={shopOrderId} />;
   else if (section === "Carreras")
     content = <CompetitionManager profile={profile} manager />;
   else if (section === "Asistencia") content = <Attendance profile={profile} />;
   else if (section === "Avisos")
-    content = <AnnouncementManager profile={profile} />;
+    content = <AnnouncementManager profile={profile} onOpenShopOrder={openShopOrder} />;
   else if (section === "Rendimiento")
     content = <CoachPerformanceOverview profileId={profile.id} allGroups />;
   else if (section === "Configuración") content = <Settings />;

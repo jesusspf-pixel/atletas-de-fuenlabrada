@@ -1436,7 +1436,25 @@ export function PlanningWorkspace({ profile }: { profile: Profile }) {
   );
 }
 
-export function AnnouncementManager({ profile }: { profile: Profile }) {
+type ManagedAnnouncement = {
+  id: string;
+  title: string;
+  body: string;
+  audience: string;
+  created_at: string;
+  delivery_channels: string[];
+  created_by: string;
+  action_type: string | null;
+  action_id: string | null;
+};
+
+export function AnnouncementManager({
+  profile,
+  onOpenShopOrder,
+}: {
+  profile: Profile;
+  onOpenShopOrder?: (orderId: string) => void;
+}) {
   const [groups, setGroups] = useState<Group[]>([]);
   const [athletes, setAthletes] = useState<Recipient[]>([]);
   const [staff, setStaff] = useState<Profile[]>([]);
@@ -1455,16 +1473,8 @@ export function AnnouncementManager({ profile }: { profile: Profile }) {
   const [emailSending, setEmailSending] = useState<string | null>(null);
   const [guidanceSending, setGuidanceSending] = useState(false);
   const [correctionSending, setCorrectionSending] = useState(false);
-  const [sent, setSent] = useState<
-    {
-      id: string;
-      title: string;
-      body: string;
-      audience: string;
-      created_at: string;
-      delivery_channels: string[];
-    }[]
-  >([]);
+  const [sent, setSent] = useState<ManagedAnnouncement[]>([]);
+  const [received, setReceived] = useState<ManagedAnnouncement[]>([]);
   const isManager = profile.role === "owner" || profile.role === "admin";
   const availableScopes = isManager
     ? ([
@@ -1487,6 +1497,7 @@ export function AnnouncementManager({ profile }: { profile: Profile }) {
       { data: staffData },
       { data: announcementData },
       { data: archiveData },
+      { data: deliveryData },
     ] = await Promise.all([
       supabase
         .from("training_groups")
@@ -1505,7 +1516,7 @@ export function AnnouncementManager({ profile }: { profile: Profile }) {
         .in("role", ["owner", "admin", "coach"]),
       supabase
         .from("announcements")
-        .select("id,title,body,audience,created_at,delivery_channels")
+        .select("id,title,body,audience,created_at,delivery_channels,created_by,action_type,action_id")
         .eq("created_by", profile.id)
         .order("created_at", { ascending: false })
         .limit(30),
@@ -1513,6 +1524,13 @@ export function AnnouncementManager({ profile }: { profile: Profile }) {
         .from("announcement_sender_archives")
         .select("announcement_id")
         .eq("profile_id", profile.id),
+      supabase
+        .from("announcement_deliveries")
+        .select("announcement_id")
+        .eq("recipient_profile_id", profile.id)
+        .eq("channel", "app")
+        .order("created_at", { ascending: false })
+        .limit(60),
     ]);
     const archived = new Set(
       (archiveData ?? []).map((item) => item.announcement_id),
@@ -1521,10 +1539,34 @@ export function AnnouncementManager({ profile }: { profile: Profile }) {
     setAthletes((athleteData ?? []) as Recipient[]);
     setStaff((staffData ?? []) as Profile[]);
     setSent(
-      ((announcementData ?? []) as typeof sent).filter(
+      ((announcementData ?? []) as ManagedAnnouncement[]).filter(
         (item) => !archived.has(item.id),
       ),
     );
+    const receivedIds = [...new Set((deliveryData ?? []).map((item) => item.announcement_id))];
+    if (!receivedIds.length) {
+      setReceived([]);
+      return;
+    }
+    const { data: receivedData } = await supabase
+      .from("announcements")
+      .select("id,title,body,audience,created_at,delivery_channels,created_by,action_type,action_id")
+      .in("id", receivedIds)
+      .order("created_at", { ascending: false });
+    const receivedRows = ((receivedData ?? []) as ManagedAnnouncement[]).filter(
+      (item) => item.created_by !== profile.id,
+    );
+    setReceived(receivedRows);
+    if (receivedRows.length) {
+      await supabase.from("announcement_reads").upsert(
+        receivedRows.map((item) => ({
+          announcement_id: item.id,
+          profile_id: profile.id,
+          read_at: new Date().toISOString(),
+        })),
+        { onConflict: "announcement_id,profile_id" },
+      );
+    }
   };
   useEffect(() => {
     void load();
@@ -1741,6 +1783,43 @@ export function AnnouncementManager({ profile }: { profile: Profile }) {
         title="Comunicaciones"
         text="Envía información a un atleta, tus grupos o entrenadores y administración. Tus mensajes enviados no son notificaciones pendientes."
       />
+      <section className="panel operational-inbox">
+        <div className="table-title">
+          <div>
+            <small>BANDEJA OPERATIVA</small>
+            <h2>Avisos recibidos</h2>
+          </div>
+          <span>{received.length}</span>
+        </div>
+        <div className="operational-notice-list">
+          {received.map((item) =>
+            item.action_type === "shop_order" && item.action_id && onOpenShopOrder ? (
+              <button
+                type="button"
+                className="operational-notice-card is-actionable"
+                key={item.id}
+                onClick={() => onOpenShopOrder(item.action_id!)}
+              >
+                <span>
+                  <b>{item.title}</b>
+                  <small>{new Date(item.created_at).toLocaleString("es-ES")}</small>
+                </span>
+                <p>{item.body}</p>
+                <strong>Abrir pedido →</strong>
+              </button>
+            ) : (
+              <article className="operational-notice-card" key={item.id}>
+                <span>
+                  <b>{item.title}</b>
+                  <small>{new Date(item.created_at).toLocaleString("es-ES")}</small>
+                </span>
+                <p>{item.body}</p>
+              </article>
+            ),
+          )}
+          {!received.length && <p className="empty">No tienes avisos operativos pendientes.</p>}
+        </div>
+      </section>
       <form className="panel stacked-form" onSubmit={save}>
         <div className="audience-tabs">
           {availableScopes.map(([value, label]) => (
