@@ -32,7 +32,8 @@ const resetEndpoint = readFileSync("functions/api/request-password-reset.ts", "u
 const recoveryChecks = [
   ["password recovery button", appSource.includes("¿Has olvidado tu contraseña?")],
   ["password recovery request", appSource.includes('apiFetch("/api/request-password-reset"') && appSource.includes('from "./lib/clubApi"')],
-  ["password recovery endpoint", resetEndpoint.includes("/auth/v1/recover")],
+  ["password recovery link generation", resetEndpoint.includes("/auth/v1/admin/generate_link") && resetEndpoint.includes('type: "recovery"')],
+  ["password recovery email delivery", resetEndpoint.includes("https://api.resend.com/emails")],
   ["password recovery redirect", resetEndpoint.includes("reset-password=1")],
 ];
 const missingRecovery = recoveryChecks.filter(([, present]) => !present).map(([label]) => label);
