@@ -1684,8 +1684,9 @@ function AthletesAdmin({ onOpenAthlete, statusFilter }: { onOpenAthlete: (id: st
     );
     if (!athlete) return;
     url.searchParams.delete("athleteName");
-    window.history.replaceState({}, "", url);
-    onOpenAthlete(athlete.id);
+    url.searchParams.set("section", "Atletas");
+    url.searchParams.set("athleteId", athlete.id);
+    window.location.replace(url.toString());
   }, [loading, rows, onOpenAthlete]);
   const baseRows = statusFilter ? rows.filter((athlete) => athlete.club_status === statusFilter) : rows;
   const normalizedSearch = athleteSearch.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("es");
