@@ -119,6 +119,8 @@ type AthleteRecord = Athlete & {
   consents?: { consent_type: string; accepted_at: string }[];
 };
 const famCalendar = "https://www.atletismomadrid.com/calendario";
+const initialAdminAthleteName =
+  new URLSearchParams(window.location.search).get("athleteName") || "";
 const roleName: Record<Role, string> = {
   owner: "Propietario",
   admin: "Administrador",
@@ -1668,7 +1670,7 @@ function AthletesAdmin({ onOpenAthlete, statusFilter }: { onOpenAthlete: (id: st
   useEffect(() => {
     if (loading || !rows.length) return;
     const url = new URL(window.location.href);
-    const requestedName = (url.searchParams.get("athleteName") || "")
+    const requestedName = (url.searchParams.get("athleteName") || initialAdminAthleteName)
       .trim()
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
