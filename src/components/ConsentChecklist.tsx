@@ -18,7 +18,7 @@ const documents: Record<ConsentKey, ConsentDocument> = {
     title: "Protección de datos",
     summary: "Información sobre los datos de inscripción y actividad deportiva.",
     paragraphs: [
-      "El Club Deportivo Básico Atletas de Fuenlabrada, NIF G67910455, tratará los datos de la persona responsable y de los atletas para tramitar el alta, gestionar entrenamientos, licencias, comunicaciones, cuotas y servicios del club.",
+      "CDB Atletas de Fuenlabrada, NIF G67910455, tratará los datos de la persona responsable y de los atletas para tramitar el alta, gestionar entrenamientos, licencias, comunicaciones, cuotas y servicios del club.",
       "Puedes ejercer tus derechos en info@atletasdefuenlabrada.com y reclamar ante la Agencia Española de Protección de Datos.",
     ],
     href: "/privacypolicy.html",
