@@ -5,23 +5,107 @@ import "./admin-athlete-dossier.css";
 
 type Props = { athleteId: string; adminProfileId: string; onBack: () => void };
 type Athlete = {
-  id: string; first_name: string; last_name: string; birth_date: string | null; club_status: string; training_group_id: string | null;
-  license_status: string; license_number: string | null; user_profile_id: string | null;
-  profiles?: { full_name: string | null; email: string; phone: string | null } | null;
-  training_groups?: { name: string; schedule_days: string | null; starts_at: string | null; ends_at: string | null } | null;
-  families?: { emergency_phone: string | null; profiles?: { full_name: string | null; email: string; phone: string | null } | null } | null;
-  memberships?: { id: string; plan: "monthly" | "term"; billing_status: string; enrolment_fee_cents: number | null; enrolment_fee_status: string | null; first_recurring_charge_mode?: "prorated" | "full" | "custom"; first_recurring_charge_cents?: number | null }[];
+  id: string;
+  first_name: string;
+  last_name: string;
+  birth_date: string | null;
+  club_status: string;
+  training_group_id: string | null;
+  license_status: string;
+  license_number: string | null;
+  user_profile_id: string | null;
+  profiles?: {
+    full_name: string | null;
+    email: string;
+    phone: string | null;
+  } | null;
+  training_groups?: {
+    name: string;
+    schedule_days: string | null;
+    starts_at: string | null;
+    ends_at: string | null;
+  } | null;
+  families?: {
+    emergency_phone: string | null;
+    profiles?: {
+      full_name: string | null;
+      email: string;
+      phone: string | null;
+    } | null;
+  } | null;
+  memberships?: {
+    id: string;
+    plan: "monthly" | "term";
+    billing_status: string;
+    enrolment_fee_cents: number | null;
+    enrolment_fee_status: string | null;
+    first_recurring_charge_mode?: "prorated" | "full" | "custom";
+    first_recurring_charge_cents?: number | null;
+  }[];
 };
 type Group = { id: string; name: string; active: boolean };
-type Charge = { id: string; charge_kind: string; scheduled_for: string | null; approved_amount_cents: number | null; calculated_amount_cents: number; status: string; period_starts_on: string | null; period_ends_on: string | null };
-type Note = { id: string; body: string; created_at: string; coach_profile_id: string; profiles?: { full_name: string | null } | null };
-type Guardian = { id:string; profile_id:string; relationship:string; access_status:string; profiles?:{full_name:string|null;email:string;phone:string|null}|null };
+type Charge = {
+  id: string;
+  charge_kind: string;
+  scheduled_for: string | null;
+  approved_amount_cents: number | null;
+  calculated_amount_cents: number;
+  status: string;
+  period_starts_on: string | null;
+  period_ends_on: string | null;
+  calculation_snapshot?: {
+    recurring_override_cents?: number;
+    recurring_starts_on?: string;
+    recurring_override_reason?: string;
+    non_reusable_exception?: boolean;
+  } | null;
+};
+type Note = {
+  id: string;
+  body: string;
+  created_at: string;
+  coach_profile_id: string;
+  profiles?: { full_name: string | null } | null;
+};
+type Guardian = {
+  id: string;
+  profile_id: string;
+  relationship: string;
+  access_status: string;
+  profiles?: {
+    full_name: string | null;
+    email: string;
+    phone: string | null;
+  } | null;
+};
 
-const euro = (cents: number) => new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(cents / 100);
-const date = (value: string | null) => value ? new Date(value).toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "numeric" }) : "Sin fecha";
-const statusLabel: Record<string, string> = { paid: "Pagado", approved: "Programado", collecting: "En proceso", failed: "Rechazado", cancelled: "Cancelado", waived: "Exento", awaiting_admin: "Pendiente de aprobación" };
+const euro = (cents: number) =>
+  new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(
+    cents / 100,
+  );
+const date = (value: string | null) =>
+  value
+    ? new Date(value).toLocaleDateString("es-ES", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      })
+    : "Sin fecha";
+const statusLabel: Record<string, string> = {
+  paid: "Pagado",
+  approved: "Programado",
+  collecting: "En proceso",
+  failed: "Rechazado",
+  cancelled: "Cancelado",
+  waived: "Exento",
+  awaiting_admin: "Pendiente de aprobación",
+};
 
-export default function AdminAthleteDossier({ athleteId, adminProfileId, onBack }: Props) {
+export default function AdminAthleteDossier({
+  athleteId,
+  adminProfileId,
+  onBack,
+}: Props) {
   const [athlete, setAthlete] = useState<Athlete | null>(null);
   const [avatar, setAvatar] = useState("");
   const [charges, setCharges] = useState<Charge[]>([]);
@@ -37,152 +121,984 @@ export default function AdminAthleteDossier({ athleteId, adminProfileId, onBack 
   const [selectedPlan, setSelectedPlan] = useState<"monthly" | "term">("term");
   const [enrolmentFee, setEnrolmentFee] = useState("0.00");
   const [waiveEnrolment, setWaiveEnrolment] = useState(false);
-  const [firstChargeMode, setFirstChargeMode] = useState<"prorated" | "full" | "custom">("prorated");
+  const [firstChargeMode, setFirstChargeMode] = useState<
+    "prorated" | "full" | "custom"
+  >("prorated");
   const [customFirstCharge, setCustomFirstCharge] = useState("");
+  const [specialRecurring, setSpecialRecurring] = useState(false);
+  const [specialRecurringAmount, setSpecialRecurringAmount] = useState("");
+  const [specialRecurringStartsOn, setSpecialRecurringStartsOn] = useState("");
+  const [specialRecurringReason, setSpecialRecurringReason] = useState("");
   const [saving, setSaving] = useState(false);
-  const [guardians,setGuardians]=useState<Guardian[]>([]);
-  const [guardianEmail,setGuardianEmail]=useState("");
-  const [guardianRelationship,setGuardianRelationship]=useState("madre");
+  const [guardians, setGuardians] = useState<Guardian[]>([]);
+  const [guardianEmail, setGuardianEmail] = useState("");
+  const [guardianRelationship, setGuardianRelationship] = useState("madre");
 
   const load = async () => {
     if (!supabase) return;
     setLoading(true);
-    const [athleteResult, avatarResult, chargeResult, noteResult, groupResult] = await Promise.all([
-      supabase.from("athletes").select("id,first_name,last_name,birth_date,club_status,training_group_id,license_status,license_number,user_profile_id,profiles:user_profile_id(full_name,email,phone),training_groups(name,schedule_days,starts_at,ends_at),families!athletes_family_id_fkey(emergency_phone,profiles:profiles!families_primary_profile_id_fkey(full_name,email,phone)),memberships(id,plan,billing_status,enrolment_fee_cents,enrolment_fee_status,first_recurring_charge_mode,first_recurring_charge_cents)").eq("id", athleteId).single(),
-      supabase.from("athlete_profile_settings").select("avatar_url").eq("athlete_id", athleteId).maybeSingle(),
-      supabase.from("billing_charge_drafts").select("id,charge_kind,scheduled_for,approved_amount_cents,calculated_amount_cents,status,period_starts_on,period_ends_on").eq("athlete_id", athleteId).order("scheduled_for", { ascending: false }),
-      supabase.from("coach_athlete_notes").select("id,body,created_at,coach_profile_id,profiles:coach_profile_id(full_name)").eq("athlete_id", athleteId).order("created_at", { ascending: false }),
-      supabase.from("training_groups").select("id,name,active").eq("active", true).order("name"),
-    ]);
+    const [athleteResult, avatarResult, chargeResult, noteResult, groupResult] =
+      await Promise.all([
+        supabase
+          .from("athletes")
+          .select(
+            "id,first_name,last_name,birth_date,club_status,training_group_id,license_status,license_number,user_profile_id,profiles:user_profile_id(full_name,email,phone),training_groups(name,schedule_days,starts_at,ends_at),families!athletes_family_id_fkey(emergency_phone,profiles:profiles!families_primary_profile_id_fkey(full_name,email,phone)),memberships(id,plan,billing_status,enrolment_fee_cents,enrolment_fee_status,first_recurring_charge_mode,first_recurring_charge_cents)",
+          )
+          .eq("id", athleteId)
+          .single(),
+        supabase
+          .from("athlete_profile_settings")
+          .select("avatar_url")
+          .eq("athlete_id", athleteId)
+          .maybeSingle(),
+        supabase
+          .from("billing_charge_drafts")
+          .select(
+            "id,charge_kind,scheduled_for,approved_amount_cents,calculated_amount_cents,status,period_starts_on,period_ends_on,calculation_snapshot",
+          )
+          .eq("athlete_id", athleteId)
+          .order("scheduled_for", { ascending: false }),
+        supabase
+          .from("coach_athlete_notes")
+          .select(
+            "id,body,created_at,coach_profile_id,profiles:coach_profile_id(full_name)",
+          )
+          .eq("athlete_id", athleteId)
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("training_groups")
+          .select("id,name,active")
+          .eq("active", true)
+          .order("name"),
+      ]);
     if (athleteResult.error) setNotice(athleteResult.error.message);
     const loaded = (athleteResult.data as unknown as Athlete) || null;
     setAthlete(loaded);
     if (loaded) {
       const loadedMembership = loaded.memberships?.[0];
-      setStatus(loaded.club_status === "pending_review" ? "active" : loaded.club_status);
+      setStatus(
+        loaded.club_status === "pending_review" ? "active" : loaded.club_status,
+      );
       setGroupId(loaded.training_group_id || "");
       setLicenseStatus(loaded.license_status || "pending");
       setLicenseNumber(loaded.license_number || "");
       setSelectedPlan(loadedMembership?.plan || "term");
-      setEnrolmentFee(((loadedMembership?.enrolment_fee_cents || 0) / 100).toFixed(2));
+      setEnrolmentFee(
+        ((loadedMembership?.enrolment_fee_cents || 0) / 100).toFixed(2),
+      );
       setWaiveEnrolment(loadedMembership?.enrolment_fee_status === "paid");
-      setFirstChargeMode(loadedMembership?.first_recurring_charge_mode || "prorated");
-      setCustomFirstCharge(loadedMembership?.first_recurring_charge_cents == null ? "" : (loadedMembership.first_recurring_charge_cents / 100).toFixed(2));
+      setFirstChargeMode(
+        loadedMembership?.first_recurring_charge_mode || "prorated",
+      );
+      setCustomFirstCharge(
+        loadedMembership?.first_recurring_charge_cents == null
+          ? ""
+          : (loadedMembership.first_recurring_charge_cents / 100).toFixed(2),
+      );
     }
     setAvatar(avatarResult.data?.avatar_url || "");
     setCharges((chargeResult.data || []) as Charge[]);
+    const specialDraft = ((chargeResult.data || []) as Charge[]).find(
+      (item) =>
+        item.charge_kind === "recurring" &&
+        item.calculation_snapshot?.recurring_override_cents != null,
+    );
+    setSpecialRecurring(Boolean(specialDraft));
+    setSpecialRecurringAmount(
+      specialDraft?.calculation_snapshot?.recurring_override_cents == null
+        ? ""
+        : (
+            specialDraft.calculation_snapshot.recurring_override_cents / 100
+          ).toFixed(2),
+    );
+    setSpecialRecurringStartsOn(
+      specialDraft?.calculation_snapshot?.recurring_starts_on || "",
+    );
+    setSpecialRecurringReason(
+      specialDraft?.calculation_snapshot?.recurring_override_reason || "",
+    );
     setNotes((noteResult.data || []) as unknown as Note[]);
     setGroups((groupResult.data || []) as Group[]);
-    if(loaded?.families){
-      const familyResult=await supabase.from("athletes").select("family_id").eq("id",athleteId).single();
-      if(familyResult.data?.family_id){const {data}=await supabase.from("family_guardians").select("id,profile_id,relationship,access_status,profiles(full_name,email,phone)").eq("family_id",familyResult.data.family_id).eq("access_status","active");setGuardians((data||[]) as unknown as Guardian[]);}
+    if (loaded?.families) {
+      const familyResult = await supabase
+        .from("athletes")
+        .select("family_id")
+        .eq("id", athleteId)
+        .single();
+      if (familyResult.data?.family_id) {
+        const { data } = await supabase
+          .from("family_guardians")
+          .select(
+            "id,profile_id,relationship,access_status,profiles(full_name,email,phone)",
+          )
+          .eq("family_id", familyResult.data.family_id)
+          .eq("access_status", "active");
+        setGuardians((data || []) as unknown as Guardian[]);
+      }
     }
     setLoading(false);
   };
-  useEffect(() => { void load(); }, [athleteId]);
+  useEffect(() => {
+    void load();
+  }, [athleteId]);
 
-  const paid = useMemo(() => charges.filter(item => item.status === "paid").reduce((sum, item) => sum + (item.approved_amount_cents ?? item.calculated_amount_cents), 0), [charges]);
-  const pending = useMemo(() => charges.filter(item => ["approved", "collecting", "awaiting_admin"].includes(item.status)), [charges]);
-  const next = [...pending].filter(item => item.scheduled_for && new Date(item.scheduled_for) >= new Date(new Date().toDateString())).sort((a, b) => (a.scheduled_for || "").localeCompare(b.scheduled_for || ""))[0];
-  const failed = charges.filter(item => item.status === "failed");
+  const paid = useMemo(
+    () =>
+      charges
+        .filter((item) => item.status === "paid")
+        .reduce(
+          (sum, item) =>
+            sum + (item.approved_amount_cents ?? item.calculated_amount_cents),
+          0,
+        ),
+    [charges],
+  );
+  const pending = useMemo(
+    () =>
+      charges.filter((item) =>
+        ["approved", "collecting", "awaiting_admin"].includes(item.status),
+      ),
+    [charges],
+  );
+  const next = [...pending]
+    .filter(
+      (item) =>
+        item.scheduled_for &&
+        new Date(item.scheduled_for) >= new Date(new Date().toDateString()),
+    )
+    .sort((a, b) =>
+      (a.scheduled_for || "").localeCompare(b.scheduled_for || ""),
+    )[0];
+  const failed = charges.filter((item) => item.status === "failed");
 
   const saveNote = async (event: FormEvent) => {
     event.preventDefault();
     if (!supabase || !note.trim()) return;
     setNotice("");
-    const { error } = await supabase.from("coach_athlete_notes").insert({ athlete_id: athleteId, coach_profile_id: adminProfileId, body: note.trim(), private_to_staff: true });
+    const { error } = await supabase.from("coach_athlete_notes").insert({
+      athlete_id: athleteId,
+      coach_profile_id: adminProfileId,
+      body: note.trim(),
+      private_to_staff: true,
+    });
     if (error) return setNotice(error.message);
-    setNote(""); setNotice("Nota privada guardada."); void load();
+    setNote("");
+    setNotice("Nota privada guardada.");
+    void load();
   };
 
-  const persistBillingSelection = async (membershipId: string, customCents: number | null, rebuildSchedule: boolean, enrolmentFeeCents?: number) => {
+  const persistBillingSelection = async (
+    membershipId: string,
+    customCents: number | null,
+    rebuildSchedule: boolean,
+    enrolmentFeeCents?: number,
+    recurringOverrideCents?: number | null,
+    recurringStartsOn?: string | null,
+    recurringOverrideReason?: string | null,
+    chargeMode = firstChargeMode,
+  ) => {
     if (!supabase) return "No se pudo abrir la sesión de administración.";
-    const { data: { session } } = await supabase.auth.getSession();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
     const response = await apiFetch("/api/update-membership-billing", {
       method: "POST",
-      headers: { "content-type": "application/json", authorization: `Bearer ${session?.access_token || ""}` },
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${session?.access_token || ""}`,
+      },
       body: JSON.stringify({
         membershipId,
         plan: selectedPlan,
         enrolmentFeeCents,
-        firstChargeMode,
+        firstChargeMode: chargeMode,
         firstChargeCents: customCents,
+        recurringOverrideCents,
+        recurringStartsOn,
+        recurringOverrideReason,
         rebuildSchedule,
       }),
     });
-    const result = await response.json().catch(() => ({})) as { error?: string };
-    return response.ok ? "" : result.error || "No se pudo guardar la configuración de cuotas.";
+    const result = (await response.json().catch(() => ({}))) as {
+      error?: string;
+    };
+    return response.ok
+      ? ""
+      : result.error || "No se pudo guardar la configuración de cuotas.";
   };
 
   const saveManagement = async (event: FormEvent) => {
     event.preventDefault();
     if (!supabase || !athlete) return;
-    setSaving(true); setNotice("");
+    setSaving(true);
+    setNotice("");
     const membership = athlete.memberships?.[0];
-    const initialApproval = athlete.club_status === "pending_review" && status === "active";
+    const initialApproval =
+      athlete.club_status === "pending_review" && status === "active";
+    const recurringOverrideCents = specialRecurring
+      ? Math.round(Number(specialRecurringAmount.replace(",", ".")) * 100)
+      : null;
+    if (
+      specialRecurring &&
+      (selectedPlan !== "monthly" ||
+        !Number.isFinite(recurringOverrideCents) ||
+        recurringOverrideCents! < 0 ||
+        !specialRecurringStartsOn ||
+        specialRecurringReason.trim().length < 10)
+    ) {
+      setSaving(false);
+      return setNotice(
+        "Esta excepción individual necesita importe, fecha de inicio y un motivo de al menos 10 caracteres.",
+      );
+    }
     if (initialApproval) {
-      if (!membership) { setSaving(false); return setNotice("No se encontró el plan económico de esta inscripción."); }
-      const cents = waiveEnrolment ? 0 : Math.round(Number(enrolmentFee.replace(",", ".")) * 100);
-      if (!Number.isFinite(cents) || cents < 0) { setSaving(false); return setNotice("Indica un importe de matrícula válido."); }
-      const customCents = firstChargeMode === "custom" ? Math.round(Number(customFirstCharge.replace(",", ".")) * 100) : null;
-      if (firstChargeMode === "custom" && (!Number.isFinite(customCents) || customCents! < 0)) { setSaving(false); return setNotice("Indica un importe válido para la primera cuota."); }
-      const firstChargeDescription = firstChargeMode === "prorated"
-        ? "reducida automáticamente según la fecha de alta"
-        : firstChargeMode === "full"
-          ? `completa (${selectedPlan === "monthly" ? "35 €" : "70 €"})`
-          : `personalizada (${euro(customCents!)})`;
-      if (!window.confirm(`Vas a validar el alta. Primera cuota: ${firstChargeDescription}. Solo esta primera cuota usará esa regla; las siguientes mantendrán el calendario normal. ¿Continuar?`)) { setSaving(false); return; }
-      const economicError = await persistBillingSelection(membership.id, customCents, false, cents);
-      if (economicError) { setSaving(false); return setNotice(economicError); }
-      const approval = await supabase.rpc("approve_registration_and_schedule", { target_athlete_id: athlete.id, waive_enrolment: waiveEnrolment });
-      if (approval.error) { setSaving(false); return setNotice(approval.error.message); }
-      const draftId = Array.isArray(approval.data) ? approval.data[0]?.enrolment_draft_id : null;
+      if (!membership) {
+        setSaving(false);
+        return setNotice(
+          "No se encontró el plan económico de esta inscripción.",
+        );
+      }
+      const cents = waiveEnrolment
+        ? 0
+        : Math.round(Number(enrolmentFee.replace(",", ".")) * 100);
+      if (!Number.isFinite(cents) || cents < 0) {
+        setSaving(false);
+        return setNotice("Indica un importe de matrícula válido.");
+      }
+      const customCents =
+        firstChargeMode === "custom" && !specialRecurring
+          ? Math.round(Number(customFirstCharge.replace(",", ".")) * 100)
+          : null;
+      if (
+        firstChargeMode === "custom" &&
+        !specialRecurring &&
+        (!Number.isFinite(customCents) || customCents! < 0)
+      ) {
+        setSaving(false);
+        return setNotice("Indica un importe válido para la primera cuota.");
+      }
+      const firstChargeDescription =
+        firstChargeMode === "prorated"
+          ? "reducida automáticamente según la fecha de alta"
+          : firstChargeMode === "full"
+            ? `completa (${selectedPlan === "monthly" ? "35 €" : "70 €"})`
+            : `personalizada (${euro(customCents!)})`;
+      const recurringDescription = specialRecurring
+        ? `Acuerdo especial: ${euro(recurringOverrideCents!)} al mes desde el ${date(specialRecurringStartsOn)}, sin cuotas anteriores.`
+        : `Primera cuota: ${firstChargeDescription}; las siguientes mantendrán el calendario normal.`;
+      if (
+        !window.confirm(
+          `Vas a validar el alta. Matrícula: ${euro(cents)}. ${recurringDescription} ¿Continuar?`,
+        )
+      ) {
+        setSaving(false);
+        return;
+      }
+      const effectiveMode = specialRecurring ? "custom" : firstChargeMode;
+      const effectiveFirstCents = specialRecurring
+        ? recurringOverrideCents
+        : customCents;
+      const economicError = await persistBillingSelection(
+        membership.id,
+        effectiveFirstCents,
+        false,
+        cents,
+        recurringOverrideCents,
+        specialRecurring ? specialRecurringStartsOn : null,
+        specialRecurring ? specialRecurringReason : null,
+        effectiveMode,
+      );
+      if (economicError) {
+        setSaving(false);
+        return setNotice(economicError);
+      }
+      const approval = await supabase.rpc("approve_registration_and_schedule", {
+        target_athlete_id: athlete.id,
+        waive_enrolment: waiveEnrolment,
+      });
+      if (approval.error) {
+        setSaving(false);
+        return setNotice(approval.error.message);
+      }
+      if (specialRecurring) {
+        const scheduleError = await persistBillingSelection(
+          membership.id,
+          recurringOverrideCents,
+          true,
+          cents,
+          recurringOverrideCents,
+          specialRecurringStartsOn,
+          specialRecurringReason,
+          "custom",
+        );
+        if (scheduleError) {
+          setSaving(false);
+          await load();
+          return setNotice(
+            `Alta validada, pero ${scheduleError} No se ha iniciado el cobro de matrícula.`,
+          );
+        }
+      }
+      const draftId = Array.isArray(approval.data)
+        ? approval.data[0]?.enrolment_draft_id
+        : null;
       if (draftId) {
-        const { data: { session } } = await supabase.auth.getSession();
-        const response = await fetch("/api/collect-approved-charge", { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${session?.access_token || ""}` }, body: JSON.stringify({ draftId }) });
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        const response = await fetch("/api/collect-approved-charge", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            authorization: `Bearer ${session?.access_token || ""}`,
+          },
+          body: JSON.stringify({ draftId }),
+        });
         const result = await response.json().catch(() => ({}));
-        if (!response.ok) { setSaving(false); await load(); return setNotice(result.error || "El banco ha rechazado la matrícula. El atleta continúa pendiente."); }
+        if (!response.ok) {
+          setSaving(false);
+          await load();
+          return setNotice(
+            result.error ||
+              "El banco ha rechazado la matrícula. El atleta continúa pendiente.",
+          );
+        }
       }
     }
     if (!initialApproval && membership && status === "active") {
-      const customCents = firstChargeMode === "custom" ? Math.round(Number(customFirstCharge.replace(",", ".")) * 100) : null;
-      if (firstChargeMode === "custom" && (!Number.isFinite(customCents) || customCents! < 0)) { setSaving(false); return setNotice("Indica un importe válido para la próxima cuota."); }
-      const billingChanged = membership.plan !== selectedPlan
-        || (membership.first_recurring_charge_mode || "prorated") !== firstChargeMode
-        || (membership.first_recurring_charge_cents ?? null) !== customCents;
+      const customCents =
+        firstChargeMode === "custom" && !specialRecurring
+          ? Math.round(Number(customFirstCharge.replace(",", ".")) * 100)
+          : null;
+      if (
+        firstChargeMode === "custom" &&
+        !specialRecurring &&
+        (!Number.isFinite(customCents) || customCents! < 0)
+      ) {
+        setSaving(false);
+        return setNotice("Indica un importe válido para la próxima cuota.");
+      }
+      const billingChanged =
+        specialRecurring ||
+        charges.some(
+          (item) => item.calculation_snapshot?.recurring_override_cents != null,
+        ) !== specialRecurring ||
+        membership.plan !== selectedPlan ||
+        (membership.first_recurring_charge_mode || "prorated") !==
+          firstChargeMode ||
+        (membership.first_recurring_charge_cents ?? null) !== customCents;
       if (billingChanged) {
-        const nextDescription = firstChargeMode === "prorated"
-          ? "calculada según la fecha"
-          : firstChargeMode === "full"
-            ? "completa"
-            : `personalizada (${euro(customCents!)})`;
-        if (!window.confirm(`Se guardará el plan ${selectedPlan === "monthly" ? "mensual" : "trimestral"} y la próxima cuota será ${nextDescription}. Los pagos ya realizados se conservarán y solo se reprogramarán cargos futuros. ¿Continuar?`)) { setSaving(false); return; }
-        const economicError = await persistBillingSelection(membership.id, customCents, true);
-        if (economicError) { setSaving(false); return setNotice(economicError); }
+        const nextDescription = specialRecurring
+          ? `${euro(recurringOverrideCents!)} mensuales desde el ${date(specialRecurringStartsOn)}`
+          : firstChargeMode === "prorated"
+            ? "calculada según la fecha"
+            : firstChargeMode === "full"
+              ? "completa"
+              : `personalizada (${euro(customCents!)})`;
+        if (
+          !window.confirm(
+            `Se guardará el plan ${selectedPlan === "monthly" ? "mensual" : "trimestral"} y la próxima cuota será ${nextDescription}. Los pagos ya realizados se conservarán y solo se reprogramarán cargos futuros. ¿Continuar?`,
+          )
+        ) {
+          setSaving(false);
+          return;
+        }
+        const economicError = await persistBillingSelection(
+          membership.id,
+          specialRecurring ? recurringOverrideCents : customCents,
+          true,
+          undefined,
+          recurringOverrideCents,
+          specialRecurring ? specialRecurringStartsOn : null,
+          specialRecurring ? specialRecurringReason : null,
+          specialRecurring ? "custom" : firstChargeMode,
+        );
+        if (economicError) {
+          setSaving(false);
+          return setNotice(economicError);
+        }
       }
     }
-    const update = await supabase.from("athletes").update({ training_group_id: groupId || null, club_status: initialApproval ? "active" : status, license_status: licenseStatus, license_number: licenseNumber || null }).eq("id", athlete.id);
+    const update = await supabase
+      .from("athletes")
+      .update({
+        training_group_id: groupId || null,
+        club_status: initialApproval ? "active" : status,
+        license_status: licenseStatus,
+        license_number: licenseNumber || null,
+      })
+      .eq("id", athlete.id);
     setSaving(false);
     if (update.error) return setNotice(update.error.message);
-    setNotice(initialApproval ? (waiveEnrolment ? "Alta validada: matrícula exenta y cuotas programadas." : "Alta validada, matrícula cobrada y cuotas programadas.") : "Ficha y configuración de cuotas guardadas y verificadas.");
+    setNotice(
+      initialApproval
+        ? waiveEnrolment
+          ? "Alta validada: matrícula exenta y cuotas programadas."
+          : specialRecurring
+            ? "Alta validada, matrícula cobrada y acuerdo mensual especial programado."
+            : "Alta validada, matrícula cobrada y cuotas programadas."
+        : "Ficha y configuración de cuotas guardadas y verificadas.",
+    );
     await load();
   };
 
-  const addGuardian=async(event:FormEvent)=>{event.preventDefault();if(!supabase||!guardianEmail.trim())return;setSaving(true);setNotice("");const {data:{session}}=await supabase.auth.getSession();const response=await fetch("/api/invite-family-guardian",{method:"POST",headers:{"content-type":"application/json",authorization:`Bearer ${session?.access_token||""}`},body:JSON.stringify({athleteId,email:guardianEmail,relationship:guardianRelationship})});const result=await response.json().catch(()=>({}));setSaving(false);if(!response.ok)return setNotice(result.error||"No se pudo añadir el tutor.");setGuardianEmail("");setNotice(result.existing?"Tutor adicional vinculado.":"Invitación enviada y tutor vinculado.");await load();};
+  const addGuardian = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!supabase || !guardianEmail.trim()) return;
+    setSaving(true);
+    setNotice("");
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    const response = await fetch("/api/invite-family-guardian", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${session?.access_token || ""}`,
+      },
+      body: JSON.stringify({
+        athleteId,
+        email: guardianEmail,
+        relationship: guardianRelationship,
+      }),
+    });
+    const result = await response.json().catch(() => ({}));
+    setSaving(false);
+    if (!response.ok)
+      return setNotice(result.error || "No se pudo añadir el tutor.");
+    setGuardianEmail("");
+    setNotice(
+      result.existing
+        ? "Tutor adicional vinculado."
+        : "Invitación enviada y tutor vinculado.",
+    );
+    await load();
+  };
 
   if (loading) return <article className="panel">Abriendo expediente…</article>;
-  if (!athlete) return <article className="panel error-note">No se ha podido abrir el expediente.</article>;
+  if (!athlete)
+    return (
+      <article className="panel error-note">
+        No se ha podido abrir el expediente.
+      </article>
+    );
   const membership = athlete.memberships?.[0];
   const initials = `${athlete.first_name[0] || ""}${athlete.last_name[0] || ""}`;
   const contact = athlete.families?.profiles || athlete.profiles;
-  return <section className="admin-athlete-dossier">
-    <header className="dossier-hero"><button className="outline" onClick={onBack}>← Volver a grupos</button><div className="dossier-person">{avatar ? <img src={avatar} alt={`Foto de ${athlete.first_name}`} /> : <i>{initials}</i>}<div><small>EXPEDIENTE DEL ATLETA</small><h1>{athlete.first_name} {athlete.last_name}</h1><p>{athlete.training_groups?.name || "Sin grupo"} · {athlete.club_status === "active" ? "Alta activa" : "Alta en revisión"}</p></div></div></header>
-    <section className="dossier-metrics"><article><small>Total cobrado</small><b>{euro(paid)}</b></article><article><small>Próximo cobro</small><b>{next ? euro(next.approved_amount_cents ?? next.calculated_amount_cents) : "—"}</b><span>{next ? date(next.scheduled_for) : "Sin cobros programados"}</span></article><article className={failed.length ? "danger" : "ok"}><small>Cargos rechazados</small><b>{failed.length}</b></article><article><small>Plan de cuota</small><b>{membership?.plan === "monthly" ? "Mensual" : membership?.plan === "term" ? "Trimestral" : "Sin asignar"}</b></article></section>
-    <section className="dossier-grid"><article className="panel dossier-info"><header><small>INFORMACIÓN</small><h2>Datos y contacto</h2></header><dl><div><dt>Grupo</dt><dd>{athlete.training_groups?.name || "Sin asignar"}</dd></div><div><dt>Horario</dt><dd>{athlete.training_groups?.schedule_days || "Pendiente"} {athlete.training_groups?.starts_at ? `· ${athlete.training_groups.starts_at.slice(0,5)}–${athlete.training_groups.ends_at?.slice(0,5)}` : ""}</dd></div><div><dt>Licencia</dt><dd>{athlete.license_status === "active" ? athlete.license_number || "Activa" : "Pendiente"}</dd></div><div><dt>Fecha de nacimiento</dt><dd>{date(athlete.birth_date)}</dd></div><div><dt>Responsable</dt><dd>{contact?.full_name || "Atleta adulto"}</dd></div><div><dt>Correo</dt><dd>{contact?.email || "No indicado"}</dd></div><div><dt>Teléfono</dt><dd>{contact?.phone || athlete.families?.emergency_phone || "No indicado"}</dd></div></dl></article>
-      <form className="panel dossier-note" onSubmit={saveNote}><header><small>SEGUIMIENTO INTERNO</small><h2>Nota privada del club</h2></header><p>Solo la administración y los entrenadores autorizados pueden verla.</p><textarea value={note} onChange={event => setNote(event.target.value)} placeholder="Escribe una observación, acuerdo o seguimiento…" required /><button>Guardar nota</button>{notice && <p className={notice.includes("guardada") ? "success-note" : "error-note"}>{notice}</p>}<div className="note-history">{notes.map(item => <article key={item.id}><p>{item.body}</p><small>{item.profiles?.full_name || "Administración"} · {date(item.created_at)}</small></article>)}{!notes.length && <span>Aún no hay notas privadas.</span>}</div></form>
+  return (
+    <section className="admin-athlete-dossier">
+      <header className="dossier-hero">
+        <button className="outline" onClick={onBack}>
+          ← Volver a grupos
+        </button>
+        <div className="dossier-person">
+          {avatar ? (
+            <img src={avatar} alt={`Foto de ${athlete.first_name}`} />
+          ) : (
+            <i>{initials}</i>
+          )}
+          <div>
+            <small>EXPEDIENTE DEL ATLETA</small>
+            <h1>
+              {athlete.first_name} {athlete.last_name}
+            </h1>
+            <p>
+              {athlete.training_groups?.name || "Sin grupo"} ·{" "}
+              {athlete.club_status === "active"
+                ? "Alta activa"
+                : "Alta en revisión"}
+            </p>
+          </div>
+        </div>
+      </header>
+      <section className="dossier-metrics">
+        <article>
+          <small>Total cobrado</small>
+          <b>{euro(paid)}</b>
+        </article>
+        <article>
+          <small>Próximo cobro</small>
+          <b>
+            {next
+              ? euro(next.approved_amount_cents ?? next.calculated_amount_cents)
+              : "—"}
+          </b>
+          <span>
+            {next ? date(next.scheduled_for) : "Sin cobros programados"}
+          </span>
+        </article>
+        <article className={failed.length ? "danger" : "ok"}>
+          <small>Cargos rechazados</small>
+          <b>{failed.length}</b>
+        </article>
+        <article>
+          <small>Plan de cuota</small>
+          <b>
+            {membership?.plan === "monthly"
+              ? "Mensual"
+              : membership?.plan === "term"
+                ? "Trimestral"
+                : "Sin asignar"}
+          </b>
+        </article>
+      </section>
+      <section className="dossier-grid">
+        <article className="panel dossier-info">
+          <header>
+            <small>INFORMACIÓN</small>
+            <h2>Datos y contacto</h2>
+          </header>
+          <dl>
+            <div>
+              <dt>Grupo</dt>
+              <dd>{athlete.training_groups?.name || "Sin asignar"}</dd>
+            </div>
+            <div>
+              <dt>Horario</dt>
+              <dd>
+                {athlete.training_groups?.schedule_days || "Pendiente"}{" "}
+                {athlete.training_groups?.starts_at
+                  ? `· ${athlete.training_groups.starts_at.slice(0, 5)}–${athlete.training_groups.ends_at?.slice(0, 5)}`
+                  : ""}
+              </dd>
+            </div>
+            <div>
+              <dt>Licencia</dt>
+              <dd>
+                {athlete.license_status === "active"
+                  ? athlete.license_number || "Activa"
+                  : "Pendiente"}
+              </dd>
+            </div>
+            <div>
+              <dt>Fecha de nacimiento</dt>
+              <dd>{date(athlete.birth_date)}</dd>
+            </div>
+            <div>
+              <dt>Responsable</dt>
+              <dd>{contact?.full_name || "Atleta adulto"}</dd>
+            </div>
+            <div>
+              <dt>Correo</dt>
+              <dd>{contact?.email || "No indicado"}</dd>
+            </div>
+            <div>
+              <dt>Teléfono</dt>
+              <dd>
+                {contact?.phone ||
+                  athlete.families?.emergency_phone ||
+                  "No indicado"}
+              </dd>
+            </div>
+          </dl>
+        </article>
+        <form className="panel dossier-note" onSubmit={saveNote}>
+          <header>
+            <small>SEGUIMIENTO INTERNO</small>
+            <h2>Nota privada del club</h2>
+          </header>
+          <p>
+            Solo la administración y los entrenadores autorizados pueden verla.
+          </p>
+          <textarea
+            value={note}
+            onChange={(event) => setNote(event.target.value)}
+            placeholder="Escribe una observación, acuerdo o seguimiento…"
+            required
+          />
+          <button>Guardar nota</button>
+          {notice && (
+            <p
+              className={
+                notice.includes("guardada") ? "success-note" : "error-note"
+              }
+            >
+              {notice}
+            </p>
+          )}
+          <div className="note-history">
+            {notes.map((item) => (
+              <article key={item.id}>
+                <p>{item.body}</p>
+                <small>
+                  {item.profiles?.full_name || "Administración"} ·{" "}
+                  {date(item.created_at)}
+                </small>
+              </article>
+            ))}
+            {!notes.length && <span>Aún no hay notas privadas.</span>}
+          </div>
+        </form>
+      </section>
+      {athlete.families && (
+        <article className="panel dossier-guardians">
+          <header>
+            <small>UNIDAD FAMILIAR</small>
+            <h2>Tutores autorizados</h2>
+            <p>
+              Todos pueden consultar la ficha. Solo el responsable de pago
+              recibe cargos.
+            </p>
+          </header>
+          <div className="dossier-charge-list">
+            {guardians.map((g) => (
+              <div className="dossier-charge" key={g.id}>
+                <i>👤</i>
+                <span>
+                  <b>{g.profiles?.full_name || g.profiles?.email}</b>
+                  <small>
+                    {g.relationship.replace("_", " ")} · {g.profiles?.email}
+                    {g.profiles?.phone ? ` · ${g.profiles.phone}` : ""}
+                  </small>
+                </span>
+              </div>
+            ))}
+          </div>
+          <form className="dossier-management-grid" onSubmit={addGuardian}>
+            <label>
+              Correo del tutor
+              <input
+                type="email"
+                value={guardianEmail}
+                onChange={(e) => setGuardianEmail(e.target.value)}
+                placeholder="correo@ejemplo.com"
+                required
+              />
+            </label>
+            <label>
+              Relación
+              <select
+                value={guardianRelationship}
+                onChange={(e) => setGuardianRelationship(e.target.value)}
+              >
+                <option value="padre">Padre</option>
+                <option value="madre">Madre</option>
+                <option value="tutor_legal">Tutor legal</option>
+              </select>
+            </label>
+            <button className="dossier-primary" disabled={saving}>
+              Añadir tutor sin responsabilidad de pago
+            </button>
+          </form>
+        </article>
+      )}
+      <form className="panel dossier-management" onSubmit={saveManagement}>
+        <header>
+          <div>
+            <small>ADMINISTRACIÓN DEPORTIVA</small>
+            <h2>Validación, cuota y asignación</h2>
+          </div>
+          <span>
+            {athlete.club_status === "pending_review"
+              ? "Pendiente de validar"
+              : "Ficha activa"}
+          </span>
+        </header>
+        <div className="dossier-management-grid">
+          <label>
+            Estado de alta
+            <select value={status} onChange={(e) => setStatus(e.target.value)}>
+              <option value="pending_review">En revisión</option>
+              <option value="active">Activo</option>
+              <option value="inactive">Acceso suspendido</option>
+              <option value="withdrawn">Baja del club</option>
+            </select>
+          </label>
+          {athlete.club_status === "pending_review" && status === "active" && (
+            <>
+              <label>
+                Plan de cuotas
+                <select
+                  value={selectedPlan}
+                  onChange={(e) =>
+                    setSelectedPlan(e.target.value as "monthly" | "term")
+                  }
+                >
+                  <option value="monthly">Mensual · 35 €</option>
+                  <option value="term">Trimestral · 70 €</option>
+                </select>
+              </label>
+              <label>
+                Matrícula final (€)
+                <input
+                  disabled={waiveEnrolment}
+                  min="0"
+                  step="0.01"
+                  inputMode="decimal"
+                  value={enrolmentFee}
+                  onChange={(e) => setEnrolmentFee(e.target.value)}
+                />
+              </label>
+              <label className="dossier-check">
+                <input
+                  type="checkbox"
+                  checked={waiveEnrolment}
+                  onChange={(e) => setWaiveEnrolment(e.target.checked)}
+                />
+                <span>
+                  <b>Matrícula ya abonada o exenta</b>
+                  <small>No se realizará un nuevo cargo.</small>
+                </span>
+              </label>
+              <label>
+                Primera cuota
+                <select
+                  disabled={specialRecurring}
+                  value={firstChargeMode}
+                  onChange={(e) =>
+                    setFirstChargeMode(
+                      e.target.value as "prorated" | "full" | "custom",
+                    )
+                  }
+                >
+                  <option value="prorated">Reducida según fecha de alta</option>
+                  <option value="full">
+                    {selectedPlan === "monthly"
+                      ? "Mes completo · 35 €"
+                      : "Trimestre completo · 70 €"}
+                  </option>
+                  <option value="custom">Importe personalizado</option>
+                </select>
+                <small>
+                  {specialRecurring
+                    ? "El acuerdo especial sustituye esta regla."
+                    : "Solo afecta al primer cobro; el resto mantiene el calendario normal."}
+                </small>
+              </label>
+              {firstChargeMode === "custom" && !specialRecurring && (
+                <label>
+                  Primera cuota personalizada (€)
+                  <input
+                    required
+                    min="0"
+                    step="0.01"
+                    inputMode="decimal"
+                    value={customFirstCharge}
+                    onChange={(e) => setCustomFirstCharge(e.target.value)}
+                    placeholder="Ej. 35,00"
+                  />
+                  <small>
+                    Este importe exacto será el aprobado y enviado al cobro.
+                  </small>
+                </label>
+              )}
+            </>
+          )}
+          {athlete.club_status !== "pending_review" && membership && (
+            <>
+              <label>
+                Plan de cuotas
+                <select
+                  value={selectedPlan}
+                  onChange={(e) =>
+                    setSelectedPlan(e.target.value as "monthly" | "term")
+                  }
+                >
+                  <option value="monthly">Mensual · 35 €</option>
+                  <option value="term">Trimestral · 70 €</option>
+                </select>
+                <small>
+                  Al guardar se conservarán los pagos realizados y se
+                  reprogramarán solo los futuros.
+                </small>
+              </label>
+              <label>
+                Próxima cuota pendiente
+                <select
+                  disabled={specialRecurring}
+                  value={firstChargeMode}
+                  onChange={(e) =>
+                    setFirstChargeMode(
+                      e.target.value as "prorated" | "full" | "custom",
+                    )
+                  }
+                >
+                  <option value="prorated">Calcular según fecha</option>
+                  <option value="full">Importe completo del periodo</option>
+                  <option value="custom">Asignar importe manual</option>
+                </select>
+                <small>La elección se guarda junto al plan económico.</small>
+              </label>
+              {firstChargeMode === "custom" && !specialRecurring && (
+                <label>
+                  Importe manual de la próxima cuota (€)
+                  <input
+                    required
+                    min="0"
+                    step="0.01"
+                    inputMode="decimal"
+                    value={customFirstCharge}
+                    onChange={(e) => setCustomFirstCharge(e.target.value)}
+                    placeholder="Ej. 35,00"
+                  />
+                  <small>
+                    Se aplicará exactamente este importe al próximo cargo
+                    futuro.
+                  </small>
+                </label>
+              )}
+            </>
+          )}
+          <label className="dossier-check dossier-special">
+            <input
+              type="checkbox"
+              checked={specialRecurring}
+              onChange={(event) => {
+                setSpecialRecurring(event.target.checked);
+                if (event.target.checked) setSelectedPlan("monthly");
+              }}
+            />
+            <span>
+              <b>Excepción individual — no es una tarifa general</b>
+              <small>
+                Solo se aplica a este atleta y exige dejar constancia del
+                motivo.
+              </small>
+            </span>
+          </label>
+          {specialRecurring && (
+            <>
+              <label>
+                Importe mensual acordado (€)
+                <input
+                  required
+                  min="0"
+                  step="0.01"
+                  inputMode="decimal"
+                  value={specialRecurringAmount}
+                  onChange={(event) =>
+                    setSpecialRecurringAmount(event.target.value)
+                  }
+                  placeholder="Ej. 21,00"
+                />
+              </label>
+              <label>
+                Primer cobro del acuerdo
+                <input
+                  required
+                  type="date"
+                  value={specialRecurringStartsOn}
+                  onChange={(event) =>
+                    setSpecialRecurringStartsOn(event.target.value)
+                  }
+                />
+                <small>
+                  Las cuotas anteriores a esta fecha se eliminan del calendario.
+                </small>
+              </label>
+              <label className="dossier-special-reason">
+                Motivo obligatorio de la excepción
+                <input
+                  required
+                  minLength={10}
+                  maxLength={300}
+                  value={specialRecurringReason}
+                  onChange={(event) =>
+                    setSpecialRecurringReason(event.target.value)
+                  }
+                  placeholder="Ej. Acuerdo familiar excepcional autorizado por administración"
+                />
+                <small>
+                  Quedará registrado en todas las cuotas afectadas y no se
+                  reutilizará en otras altas.
+                </small>
+              </label>
+            </>
+          )}
+          <label>
+            Grupo
+            <select
+              value={groupId}
+              onChange={(e) => setGroupId(e.target.value)}
+            >
+              <option value="">Sin grupo</option>
+              {groups.map((group) => (
+                <option key={group.id} value={group.id}>
+                  {group.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Licencia
+            <select
+              value={licenseStatus}
+              onChange={(e) => setLicenseStatus(e.target.value)}
+            >
+              <option value="pending">Pendiente</option>
+              <option value="active">Activa</option>
+              <option value="rejected">Rechazada</option>
+            </select>
+          </label>
+          <label>
+            Número de licencia
+            <input
+              value={licenseNumber}
+              onChange={(e) => setLicenseNumber(e.target.value)}
+              placeholder="Ej. M-12345"
+            />
+          </label>
+        </div>
+        <button className="dossier-primary" disabled={saving}>
+          {saving
+            ? "Procesando…"
+            : athlete.club_status === "pending_review" && status === "active"
+              ? "Validar alta, cobrar matrícula y programar cuotas"
+              : "Guardar ficha y cuotas"}
+        </button>
+        {notice && (
+          <p
+            className={
+              notice.includes("validada") ||
+              notice.includes("guardadas") ||
+              notice.includes("cambiado")
+                ? "success-note"
+                : "error-note"
+            }
+          >
+            {notice}
+          </p>
+        )}
+      </form>
+      <article className="panel dossier-charges">
+        <header>
+          <div>
+            <small>CUOTAS Y PAGOS</small>
+            <h2>Histórico económico completo</h2>
+          </div>
+          <span>{charges.length} movimientos</span>
+        </header>
+        <div className="dossier-charge-list">
+          {charges.map((item) => {
+            const amount =
+              item.approved_amount_cents ?? item.calculated_amount_cents;
+            return (
+              <div className={`dossier-charge ${item.status}`} key={item.id}>
+                <i>€</i>
+                <span>
+                  <b>
+                    {item.charge_kind === "enrolment"
+                      ? "Matrícula"
+                      : item.charge_kind === "recurring"
+                        ? "Cuota"
+                        : "Cargo del club"}
+                  </b>
+                  <small>
+                    {item.period_starts_on
+                      ? `${date(item.period_starts_on)} – ${date(item.period_ends_on)}`
+                      : date(item.scheduled_for)}
+                  </small>
+                </span>
+                <strong>{euro(amount)}</strong>
+                <em>{statusLabel[item.status] || item.status}</em>
+              </div>
+            );
+          })}
+          {!charges.length && (
+            <p>No hay movimientos económicos asignados a este atleta.</p>
+          )}
+        </div>
+      </article>
     </section>
-    {athlete.families&&<article className="panel dossier-guardians"><header><small>UNIDAD FAMILIAR</small><h2>Tutores autorizados</h2><p>Todos pueden consultar la ficha. Solo el responsable de pago recibe cargos.</p></header><div className="dossier-charge-list">{guardians.map(g=><div className="dossier-charge" key={g.id}><i>👤</i><span><b>{g.profiles?.full_name||g.profiles?.email}</b><small>{g.relationship.replace("_"," ")} · {g.profiles?.email}{g.profiles?.phone?` · ${g.profiles.phone}`:""}</small></span></div>)}</div><form className="dossier-management-grid" onSubmit={addGuardian}><label>Correo del tutor<input type="email" value={guardianEmail} onChange={e=>setGuardianEmail(e.target.value)} placeholder="correo@ejemplo.com" required /></label><label>Relación<select value={guardianRelationship} onChange={e=>setGuardianRelationship(e.target.value)}><option value="padre">Padre</option><option value="madre">Madre</option><option value="tutor_legal">Tutor legal</option></select></label><button className="dossier-primary" disabled={saving}>Añadir tutor sin responsabilidad de pago</button></form></article>}
-    <form className="panel dossier-management" onSubmit={saveManagement}><header><div><small>ADMINISTRACIÓN DEPORTIVA</small><h2>Validación, cuota y asignación</h2></div><span>{athlete.club_status === "pending_review" ? "Pendiente de validar" : "Ficha activa"}</span></header><div className="dossier-management-grid"><label>Estado de alta<select value={status} onChange={e => setStatus(e.target.value)}><option value="pending_review">En revisión</option><option value="active">Activo</option><option value="inactive">Acceso suspendido</option><option value="withdrawn">Baja del club</option></select></label>{athlete.club_status === "pending_review" && status === "active" && <><label>Plan de cuotas<select value={selectedPlan} onChange={e => setSelectedPlan(e.target.value as "monthly" | "term")}><option value="monthly">Mensual · 35 €</option><option value="term">Trimestral · 70 €</option></select></label><label>Matrícula final (€)<input disabled={waiveEnrolment} min="0" step="0.01" inputMode="decimal" value={enrolmentFee} onChange={e => setEnrolmentFee(e.target.value)} /></label><label className="dossier-check"><input type="checkbox" checked={waiveEnrolment} onChange={e => setWaiveEnrolment(e.target.checked)} /><span><b>Matrícula ya abonada o exenta</b><small>No se realizará un nuevo cargo.</small></span></label><label>Primera cuota<select value={firstChargeMode} onChange={e => setFirstChargeMode(e.target.value as "prorated" | "full" | "custom")}><option value="prorated">Reducida según fecha de alta</option><option value="full">{selectedPlan === "monthly" ? "Mes completo · 35 €" : "Trimestre completo · 70 €"}</option><option value="custom">Importe personalizado</option></select><small>Solo afecta al primer cobro; el resto mantiene el calendario normal.</small></label>{firstChargeMode === "custom" && <label>Primera cuota personalizada (€)<input required min="0" step="0.01" inputMode="decimal" value={customFirstCharge} onChange={e => setCustomFirstCharge(e.target.value)} placeholder="Ej. 35,00" /><small>Este importe exacto será el aprobado y enviado al cobro.</small></label>}</>}{athlete.club_status !== "pending_review" && membership && <><label>Plan de cuotas<select value={selectedPlan} onChange={e => setSelectedPlan(e.target.value as "monthly" | "term")}><option value="monthly">Mensual · 35 €</option><option value="term">Trimestral · 70 €</option></select><small>Al guardar se conservarán los pagos realizados y se reprogramarán solo los futuros.</small></label><label>Próxima cuota pendiente<select value={firstChargeMode} onChange={e => setFirstChargeMode(e.target.value as "prorated" | "full" | "custom")}><option value="prorated">Calcular según fecha</option><option value="full">Importe completo del periodo</option><option value="custom">Asignar importe manual</option></select><small>La elección se guarda junto al plan económico.</small></label>{firstChargeMode === "custom" && <label>Importe manual de la próxima cuota (€)<input required min="0" step="0.01" inputMode="decimal" value={customFirstCharge} onChange={e => setCustomFirstCharge(e.target.value)} placeholder="Ej. 35,00" /><small>Se aplicará exactamente este importe al próximo cargo futuro.</small></label>}</>}<label>Grupo<select value={groupId} onChange={e => setGroupId(e.target.value)}><option value="">Sin grupo</option>{groups.map(group => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label><label>Licencia<select value={licenseStatus} onChange={e => setLicenseStatus(e.target.value)}><option value="pending">Pendiente</option><option value="active">Activa</option><option value="rejected">Rechazada</option></select></label><label>Número de licencia<input value={licenseNumber} onChange={e => setLicenseNumber(e.target.value)} placeholder="Ej. M-12345" /></label></div><button className="dossier-primary" disabled={saving}>{saving ? "Procesando…" : athlete.club_status === "pending_review" && status === "active" ? "Validar alta, cobrar matrícula y programar cuotas" : "Guardar ficha y cuotas"}</button>{notice && <p className={notice.includes("validada") || notice.includes("guardadas") || notice.includes("cambiado") ? "success-note" : "error-note"}>{notice}</p>}</form>
-    <article className="panel dossier-charges"><header><div><small>CUOTAS Y PAGOS</small><h2>Histórico económico completo</h2></div><span>{charges.length} movimientos</span></header><div className="dossier-charge-list">{charges.map(item => { const amount = item.approved_amount_cents ?? item.calculated_amount_cents; return <div className={`dossier-charge ${item.status}`} key={item.id}><i>€</i><span><b>{item.charge_kind === "enrolment" ? "Matrícula" : item.charge_kind === "recurring" ? "Cuota" : "Cargo del club"}</b><small>{item.period_starts_on ? `${date(item.period_starts_on)} – ${date(item.period_ends_on)}` : date(item.scheduled_for)}</small></span><strong>{euro(amount)}</strong><em>{statusLabel[item.status] || item.status}</em></div> })}{!charges.length && <p>No hay movimientos económicos asignados a este atleta.</p>}</div></article>
-  </section>;
+  );
 }
