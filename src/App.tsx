@@ -1670,6 +1670,7 @@ function AthletesAdmin({ onOpenAthlete, statusFilter }: { onOpenAthlete: (id: st
   const [specialRecurringAmount, setSpecialRecurringAmount] = useState("");
   const [specialRecurringStartsOn, setSpecialRecurringStartsOn] = useState("");
   const [specialRecurringReason, setSpecialRecurringReason] = useState("");
+  const [specialConfirmationReady, setSpecialConfirmationReady] = useState(false);
   const [athleteSearch, setAthleteSearch] = useState("");
   useEffect(() => {
     if (loading || !rows.length) return;
@@ -1734,10 +1735,11 @@ function AthletesAdmin({ onOpenAthlete, statusFilter }: { onOpenAthlete: (id: st
       setSpecialRecurringAmount("");
       setSpecialRecurringStartsOn("");
       setSpecialRecurringReason("");
+      setSpecialConfirmationReady(false);
       setMessage("");
     }
   }, [selectedId]);
-  const save = async () => {
+  const save = async (specialConfirmed = false) => {
     if (!selected || !supabase) return;
     setChanging(selected.id);
     setMessage("");
@@ -1789,10 +1791,16 @@ function AthletesAdmin({ onOpenAthlete, statusFilter }: { onOpenAthlete: (id: st
       const approvalDescription = specialRecurring
         ? `Matrícula: ${(finalEnrolmentCents / 100).toLocaleString("es-ES", { style: "currency", currency: "EUR" })}. Acuerdo especial: ${(recurringOverrideCents! / 100).toLocaleString("es-ES", { style: "currency", currency: "EUR" })} al mes desde el ${new Date(`${specialRecurringStartsOn}T12:00:00`).toLocaleDateString("es-ES")}, sin cuotas anteriores.`
         : `Primera cuota: ${firstChargeDescription}. Solo esta primera cuota usará esa regla; las siguientes mantendrán el calendario normal.`;
-      if (!window.confirm(`Vas a validar el alta. ${approvalDescription} ¿Continuar?`)) {
+      if (specialRecurring && !specialConfirmed) {
+        setChanging("");
+        setSpecialConfirmationReady(true);
+        return;
+      }
+      if (!specialRecurring && !window.confirm(`Vas a validar el alta. ${approvalDescription} ¿Continuar?`)) {
         setChanging("");
         return;
       }
+      setSpecialConfirmationReady(false);
       const {
         data: { session: billingSession },
       } = await supabase.auth.getSession();
@@ -2339,6 +2347,28 @@ function AthletesAdmin({ onOpenAthlete, statusFilter }: { onOpenAthlete: (id: st
                   placeholder="Ej. M-12345"
                 />
               </label>
+              {specialConfirmationReady && specialRecurring && (
+                <div className="panel">
+                  <strong>Confirmación final del acuerdo excepcional</strong>
+                  <p>
+                    Se cobrará ahora una matrícula de {Number(enrolmentFee.replace(",", ".")).toLocaleString("es-ES", { style: "currency", currency: "EUR" })} y se programarán cuotas de {Number(specialRecurringAmount.replace(",", ".")).toLocaleString("es-ES", { style: "currency", currency: "EUR" })} desde el {specialRecurringStartsOn ? new Date(`${specialRecurringStartsOn}T12:00:00`).toLocaleDateString("es-ES") : "—"}. No se crearán cuotas anteriores.
+                  </p>
+                  <button
+                    type="button"
+                    disabled={changing === selected.id}
+                    onClick={() => void save(true)}
+                  >
+                    Confirmar cobro y calendario excepcional
+                  </button>
+                  <button
+                    type="button"
+                    className="outline"
+                    onClick={() => setSpecialConfirmationReady(false)}
+                  >
+                    Revisar importes
+                  </button>
+                </div>
+              )}
               <button
                 disabled={changing === selected.id}
                 onClick={() => void save()}
