@@ -997,10 +997,7 @@ function Portal({
   signOut: () => void;
 }) {
   const [section, setSection] = useState(
-    () =>
-      new URLSearchParams(window.location.search).get("section") ||
-      window.sessionStorage.getItem("admin-performance-section") ||
-      "Inicio",
+    () => new URLSearchParams(window.location.search).get("section") || "Inicio",
   );
   const [focusedAthleteId, setFocusedAthleteId] = useState("");
   const [adminAthleteId, setAdminAthleteId] = useState(
@@ -1013,10 +1010,7 @@ function Portal({
     () => new URLSearchParams(window.location.search).get("orderId") || "",
   );
   useEffect(() => {
-    if (adminAthleteId) {
-      window.sessionStorage.removeItem("admin-performance-athlete");
-      window.sessionStorage.removeItem("admin-performance-section");
-    }
+    if (adminAthleteId) window.sessionStorage.removeItem("admin-performance-athlete");
   }, [adminAthleteId]);
   const [adminAthleteReturnSection, setAdminAthleteReturnSection] = useState("Atletas");
   const [challengeAthleteId, setChallengeAthleteId] = useState("");
@@ -1689,9 +1683,9 @@ function AthletesAdmin({ onOpenAthlete, statusFilter }: { onOpenAthlete: (id: st
           .toLocaleLowerCase("es") === requestedName,
     );
     if (!athlete) return;
-    window.sessionStorage.setItem("admin-performance-athlete", athlete.id);
-    window.sessionStorage.setItem("admin-performance-section", "Atletas");
-    window.location.replace(url.origin);
+    url.searchParams.delete("athleteName");
+    window.history.replaceState({}, "", url);
+    setSelectedId(athlete.id);
   }, [loading, rows, onOpenAthlete]);
   const baseRows = statusFilter ? rows.filter((athlete) => athlete.club_status === statusFilter) : rows;
   const normalizedSearch = athleteSearch.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("es");
@@ -1912,7 +1906,7 @@ function AthletesAdmin({ onOpenAthlete, statusFilter }: { onOpenAthlete: (id: st
       {!loading && !error && <section className={`panel category-audit ${categoryIssues.length ? "category-audit-warning" : "category-audit-ok"}`}>
         <div><small>CONTROL AUTOMÁTICO DE CATEGORÍAS</small><h2>{categoryIssues.length ? `${categoryIssues.length} ficha${categoryIssues.length === 1 ? "" : "s"} para revisar` : "Todas las categorías son correctas"}</h2></div>
         <p>Compara el año de nacimiento con entrenamiento {trainingSeasonYear()-1}/{String(trainingSeasonYear()).slice(-2)} y federación {new Date().getFullYear()}.</p>
-        {categoryIssues.length > 0 && <div>{categoryIssues.map(({athlete,expectedTraining,expectedFederation}) => <button type="button" key={athlete.id} onClick={() => onOpenAthlete(athlete.id)}><b>{athlete.first_name} {athlete.last_name}</b><span>Debe figurar: entrenamiento {expectedTraining || "sin calcular"} · federación {expectedFederation || "sin calcular"}</span><small>Ahora: {athlete.training_groups?.name || "sin grupo"} · {athlete.training_category || "sin categoría"} · {athlete.official_competition_category || "sin categoría federativa"}</small></button>)}</div>}
+        {categoryIssues.length > 0 && <div>{categoryIssues.map(({athlete,expectedTraining,expectedFederation}) => <button type="button" key={athlete.id} onClick={() => setSelectedId(athlete.id)}><b>{athlete.first_name} {athlete.last_name}</b><span>Debe figurar: entrenamiento {expectedTraining || "sin calcular"} · federación {expectedFederation || "sin calcular"}</span><small>Ahora: {athlete.training_groups?.name || "sin grupo"} · {athlete.training_category || "sin categoría"} · {athlete.official_competition_category || "sin categoría federativa"}</small></button>)}</div>}
       </section>}
       <div className="athlete-search-bar">
         <label htmlFor="admin-athlete-search">Buscar atleta</label>
@@ -1937,7 +1931,7 @@ function AthletesAdmin({ onOpenAthlete, statusFilter }: { onOpenAthlete: (id: st
               <button
                 className={`row athlete-row ${selectedId === a.id ? "selected-row" : ""}`}
                 key={a.id}
-                onClick={() => onOpenAthlete(a.id)}
+                onClick={() => setSelectedId(a.id)}
               >
                 <span className="admin-athlete-avatar">
                   {avatarFor(a.id) ? (
