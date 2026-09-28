@@ -1,6 +1,5 @@
 export type ConsentKey =
   | "privacy"
-  | "app_terms"
   | "image_use"
   | "fam_data"
   | "club_rules"
@@ -24,15 +23,6 @@ const documents: Record<ConsentKey, ConsentDocument> = {
     ],
     href: "/privacypolicy.html",
   },
-  app_terms: {
-    title: "Condiciones de uso de la app",
-    summary: "Normas de la cuenta, la zona privada y los servicios digitales del club.",
-    paragraphs: [
-      "La cuenta es personal. Te comprometes a aportar información correcta, proteger tus credenciales, respetar a los demás miembros y utilizar la plataforma únicamente para las finalidades del club.",
-      "Aceptas las condiciones de uso vigentes de la aplicación Atletas de Fuenlabrada.",
-    ],
-    href: "/app-terms.html",
-  },
   image_use: {
     title: "Autorización de imagen",
     summary: "Uso informativo y promocional de fotografías o vídeos. No es obligatorio.",
@@ -51,12 +41,13 @@ const documents: Record<ConsentKey, ConsentDocument> = {
     ],
   },
   club_rules: {
-    title: "Normativa del club",
-    summary: "Compromiso de convivencia, asistencia, seguridad y uso responsable de las instalaciones.",
+    title: "Normativa del club y condiciones de uso",
+    summary: "Normas de convivencia, seguridad, cuenta y servicios digitales del club.",
     paragraphs: [
-      "El atleta y su familia se comprometen a respetar a compañeros, entrenadores y personal, seguir las indicaciones técnicas y de seguridad, cuidar el material y comunicar ausencias o incidencias relevantes.",
-      "El club podrá reorganizar grupos y horarios por criterios deportivos, de edad, aforo o disponibilidad de instalaciones, informando de los cambios a las familias.",
+      "La cuenta es personal. Te comprometes a aportar información correcta, proteger tus credenciales, respetar a compañeros, entrenadores y personal, y utilizar la plataforma únicamente para las finalidades del club.",
+      "Aceptas las condiciones de uso vigentes de la aplicación Atletas de Fuenlabrada y la normativa de convivencia, asistencia, seguridad y uso responsable de las instalaciones.",
     ],
+    href: "/app-terms.html",
   },
   recurring_payment: {
     title: "Cuotas y cargos recurrentes",
