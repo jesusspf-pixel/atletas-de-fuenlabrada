@@ -1,5 +1,6 @@
 export type ConsentKey =
   | "privacy"
+  | "app_terms"
   | "image_use"
   | "fam_data"
   | "club_rules"
@@ -9,31 +10,44 @@ type ConsentDocument = {
   title: string;
   summary: string;
   paragraphs: string[];
+  optional?: boolean;
+  href?: string;
 };
 
 const documents: Record<ConsentKey, ConsentDocument> = {
   privacy: {
     title: "Protección de datos",
-    summary: "Tratamiento de los datos necesarios para gestionar la inscripción y la actividad deportiva.",
+    summary: "Información sobre los datos de inscripción y actividad deportiva.",
     paragraphs: [
-      "El Club Atletas de Fuenlabrada tratará los datos de la persona responsable y de los atletas para tramitar el alta, gestionar entrenamientos, licencias, comunicaciones y cobros.",
-      "Los datos se comunicarán únicamente a proveedores necesarios para prestar el servicio y, cuando corresponda, a la Federación de Atletismo de Madrid. Podrás solicitar acceso, rectificación, supresión, limitación u oposición mediante los canales oficiales del club.",
+      "El Club Deportivo Básico Atletas de Fuenlabrada, NIF G67910455, tratará los datos de la persona responsable y de los atletas para tramitar el alta, gestionar entrenamientos, licencias, comunicaciones, cuotas y servicios del club.",
+      "Puedes ejercer tus derechos en info@atletasdefuenlabrada.com y reclamar ante la Agencia Española de Protección de Datos.",
     ],
+    href: "/privacypolicy.html",
+  },
+  app_terms: {
+    title: "Condiciones de uso de la app",
+    summary: "Normas de la cuenta, la zona privada y los servicios digitales del club.",
+    paragraphs: [
+      "La cuenta es personal. Te comprometes a aportar información correcta, proteger tus credenciales, respetar a los demás miembros y utilizar la plataforma únicamente para las finalidades del club.",
+      "Aceptas las condiciones de uso vigentes de la aplicación Atletas de Fuenlabrada.",
+    ],
+    href: "/app-terms.html",
   },
   image_use: {
-    title: "Cesión de imágenes",
-    summary: "Uso de fotografías o vídeos tomados durante actividades y eventos del club.",
+    title: "Autorización de imagen",
+    summary: "Uso informativo y promocional de fotografías o vídeos. No es obligatorio.",
     paragraphs: [
-      "Autorizas la publicación de imágenes del atleta en los canales informativos y promocionales del club, incluidas web y redes sociales, siempre vinculadas a su actividad deportiva.",
-      "La autorización puede retirarse para publicaciones futuras comunicándolo al club, sin afectar a los usos realizados con anterioridad.",
+      "Autorizas al club a captar y publicar imágenes del atleta, de forma individual o colectiva, en la web, aplicación, redes sociales y materiales informativos o promocionales vinculados a la actividad deportiva.",
+      "Esta autorización es voluntaria y puede retirarse para publicaciones futuras escribiendo al club, sin afectar a los usos realizados lícitamente con anterioridad.",
     ],
+    optional: true,
   },
   fam_data: {
-    title: "Formulario FAM",
-    summary: "Envío de los datos necesarios para tramitar la licencia federativa cuando proceda.",
+    title: "Tramitación de licencia FAM",
+    summary: "Información necesaria para tramitar la licencia federativa solicitada.",
     paragraphs: [
-      "Autorizas al club a preparar y remitir a la Federación de Atletismo de Madrid los datos imprescindibles para tramitar o renovar la licencia del atleta.",
-      "La licencia permanecerá pendiente hasta que la administración del club revise la solicitud y complete la tramitación federativa.",
+      "El club tratará y remitirá a la Federación de Atletismo de Madrid los datos imprescindibles para tramitar o renovar la licencia solicitada. La base jurídica es la ejecución de la relación deportiva y federativa.",
+      "La Federación tratará los datos como responsable independiente. La licencia permanecerá pendiente hasta que el club revise la solicitud y complete la tramitación.",
     ],
   },
   club_rules: {
@@ -59,13 +73,16 @@ const consentKeys = Object.keys(documents) as ConsentKey[];
 export default function ConsentChecklist({
   values,
   onChange,
+  requiresFam = "fam_data" in values,
 }: {
   values: Record<string, boolean>;
   onChange: (key: ConsentKey, checked: boolean) => void;
+  requiresFam?: boolean;
 }) {
   return (
     <div className="consents">
       {consentKeys.map(key => {
+        if (key === "fam_data" && !requiresFam) return null;
         const document = documents[key];
         return (
           <div className="consent-item" key={key}>
@@ -77,7 +94,7 @@ export default function ConsentChecklist({
               />
               <span>
                 <b>{document.title}</b>
-                <small>{document.summary}</small>
+                <small>{document.summary} · {document.optional ? "Opcional" : "Obligatorio"}</small>
               </span>
             </label>
             <details>
@@ -85,7 +102,8 @@ export default function ConsentChecklist({
               <div className="consent-document">
                 <strong>{document.title}</strong>
                 {document.paragraphs.map(paragraph => <p key={paragraph}>{paragraph}</p>)}
-                <small>Versión de inscripción 2026/27 · pendiente de sustitución por el documento legal definitivo del club.</small>
+                {document.href && <p><a href={document.href} target="_blank" rel="noreferrer">Consultar el documento completo</a></p>}
+                <small>Versión 28-09-2026 · La aceptación queda registrada con la solicitud.</small>
               </div>
             </details>
           </div>

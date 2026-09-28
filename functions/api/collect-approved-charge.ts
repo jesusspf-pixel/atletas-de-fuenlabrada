@@ -1,9 +1,11 @@
+import { withEmailLegalFooter } from "../_email-legal";
+
 const json = (body: unknown, status = 200) => Response.json(body, { status, headers: { "cache-control": "no-store" } });
 type Env = { STRIPE_SECRET_KEY?: string; SUPABASE_URL?: string; SUPABASE_SERVICE_ROLE_KEY?: string; VITE_SUPABASE_PUBLISHABLE_KEY?: string; RESEND_API_KEY?: string };
 const dbHeaders = (env: Env) => ({ apikey: env.SUPABASE_SERVICE_ROLE_KEY!, authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`, "content-type": "application/json" });
 async function email(env: Env, to: string, subject: string, html: string) {
   if (!env.RESEND_API_KEY || !to) return;
-  await fetch("https://api.resend.com/emails", { method: "POST", headers: { authorization: `Bearer ${env.RESEND_API_KEY}`, "content-type": "application/json" }, body: JSON.stringify({ from: "Club Atletas de Fuenlabrada <info@atletasdefuenlabrada.com>", to: [to], subject, html }) });
+  await fetch("https://api.resend.com/emails", { method: "POST", headers: { authorization: `Bearer ${env.RESEND_API_KEY}`, "content-type": "application/json" }, body: JSON.stringify({ from: "Club Atletas de Fuenlabrada <info@atletasdefuenlabrada.com>", to: [to], subject, html: withEmailLegalFooter(html) }) });
 }
 export async function onRequestPost(context: any) {
   const env = context.env as Env; const authorization = context.request.headers.get("authorization") || "";

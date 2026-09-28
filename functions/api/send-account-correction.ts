@@ -1,3 +1,5 @@
+import { withEmailLegalFooter } from "../_email-legal";
+
 interface Env {
   SUPABASE_URL: string;
   SUPABASE_SERVICE_ROLE_KEY: string;
@@ -37,7 +39,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
 
   const subject = "Aclaración sobre el correo anterior del Club Atletas de Fuenlabrada";
   const text = "Hola:\n\nEl correo anterior sobre completar el registro se envió por error al detectar una cuenta antigua que quedó incompleta.\n\nTu atleta ya está correctamente dado de alta en el club mediante otra cuenta confirmada. No tienes que repetir la inscripción, confirmar esta cuenta antigua ni realizar ningún pago. Puedes ignorar el mensaje anterior y seguir utilizando la cuenta habitual con la que accedes actualmente.\n\nDisculpa las molestias.\n\nClub Atletas de Fuenlabrada";
-  const html = `<div style="font-family:Arial,sans-serif;color:#10233f;line-height:1.65;max-width:640px;margin:auto"><h2 style="color:#1559b2">Aclaración sobre el correo anterior</h2><p>Hola:</p><p>El correo anterior sobre completar el registro se envió por error al detectar una cuenta antigua que quedó incompleta.</p><p><strong>Tu atleta ya está correctamente dado de alta en el club mediante otra cuenta confirmada.</strong> No tienes que repetir la inscripción, confirmar esta cuenta antigua ni realizar ningún pago.</p><p>Puedes ignorar el mensaje anterior y seguir utilizando la cuenta habitual con la que accedes actualmente.</p><p>Disculpa las molestias.</p><hr style="border:0;border-top:1px solid #dbe6f2;margin:28px 0"><p style="font-size:13px;color:#617087">Club Atletas de Fuenlabrada</p></div>`;
+  const html = withEmailLegalFooter(`<div style="font-family:Arial,sans-serif;color:#10233f;line-height:1.65;max-width:640px;margin:auto"><h2 style="color:#1559b2">Aclaración sobre el correo anterior</h2><p>Hola:</p><p>El correo anterior sobre completar el registro se envió por error al detectar una cuenta antigua que quedó incompleta.</p><p><strong>Tu atleta ya está correctamente dado de alta en el club mediante otra cuenta confirmada.</strong> No tienes que repetir la inscripción, confirmar esta cuenta antigua ni realizar ningún pago.</p><p>Puedes ignorar el mensaje anterior y seguir utilizando la cuenta habitual con la que accedes actualmente.</p><p>Disculpa las molestias.</p><hr style="border:0;border-top:1px solid #dbe6f2;margin:28px 0"><p style="font-size:13px;color:#617087">Club Atletas de Fuenlabrada</p></div>`);
   const response = await fetch("https://api.resend.com/emails/batch", {
     method: "POST",
     headers: { authorization: `Bearer ${env.RESEND_API_KEY}`, "content-type": "application/json" },

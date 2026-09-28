@@ -1,3 +1,5 @@
+import { withEmailLegalFooter } from "../_email-legal";
+
 const json = (body: unknown, status = 200) => Response.json(body, { status });
 export async function onRequestPost(context: any) {
   const env = context.env as { SUPABASE_URL?: string; SUPABASE_SERVICE_ROLE_KEY?: string; VITE_SUPABASE_PUBLISHABLE_KEY?: string; RESEND_API_KEY?: string };
@@ -23,6 +25,6 @@ export async function onRequestPost(context: any) {
   const settings = await fetch(`${env.SUPABASE_URL}/rest/v1/club_settings?id=eq.true&select=registration_notification_email,contact_email`, { headers });
   const setting = (await settings.json().catch(() => []))?.[0] || {};
   const to = setting.registration_notification_email || setting.contact_email || "info@atletasdefuenlabrada.com";
-  await fetch("https://api.resend.com/emails", { method: "POST", headers: { authorization: `Bearer ${env.RESEND_API_KEY}`, "content-type": "application/json" }, body: JSON.stringify({ from: "Club Atletas de Fuenlabrada <info@atletasdefuenlabrada.com>", to: [to], subject: "Nueva alta en el club", html: `<p>Se ha recibido una nueva inscripción:</p><p><strong>${recent.map(a=>`${a.first_name} ${a.last_name}`).join(', ')}</strong></p><p>Accede al panel de administración para revisarla.</p>` }) });
+  await fetch("https://api.resend.com/emails", { method: "POST", headers: { authorization: `Bearer ${env.RESEND_API_KEY}`, "content-type": "application/json" }, body: JSON.stringify({ from: "Club Atletas de Fuenlabrada <info@atletasdefuenlabrada.com>", to: [to], subject: "Nueva alta en el club", html: withEmailLegalFooter(`<p>Se ha recibido una nueva inscripción:</p><p><strong>${recent.map(a=>`${a.first_name} ${a.last_name}`).join(', ')}</strong></p><p>Accede al panel de administración para revisarla.</p>`) }) });
   return json({ ok: true });
 }

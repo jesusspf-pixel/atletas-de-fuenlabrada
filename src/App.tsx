@@ -1331,7 +1331,8 @@ function Portal({
           {portalContent}
         </div>
         <footer className="platform-credit">
-          Desarrollado por <b>Sportmed Integral Solutions, S.L.</b>
+          <span>Desarrollado por <b>Sportmed Integral Solutions, S.L.</b></span>
+          <span><a href="/legal.html" target="_blank">Aviso legal</a> · <a href="/privacypolicy.html" target="_blank">Privacidad</a> · <a href="/app-terms.html" target="_blank">Condiciones</a></span>
         </footer>
       </section>
     </main>

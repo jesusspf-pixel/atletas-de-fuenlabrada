@@ -1,3 +1,5 @@
+import { withEmailLegalFooter } from "../_email-legal";
+
 const encoder = new TextEncoder();
 const toHex = (buffer: ArrayBuffer) => Array.from(new Uint8Array(buffer)).map(byte => byte.toString(16).padStart(2, "0")).join("");
 
@@ -50,7 +52,7 @@ export async function onRequestPost(context: any) {
         const payerId = membership.athletes?.user_profile_id || membership.athletes?.families?.primary_profile_id;
         const recipients = await fetch(`${env.SUPABASE_URL}/rest/v1/profiles?or=(id.eq.${payerId || "00000000-0000-0000-0000-000000000000"},role.in.(owner,admin))&select=email`, { headers }).then(response => response.json()).catch(() => []);
         const emails = [...new Set((recipients || []).map((row:any)=>row.email).filter(Boolean))];
-        if (emails.length) await fetch("https://api.resend.com/emails", { method: "POST", headers: { authorization: `Bearer ${env.RESEND_API_KEY}`, "content-type": "application/json" }, body: JSON.stringify({ from: "Club Atletas de Fuenlabrada <info@atletasdefuenlabrada.com>", to: emails, subject: "Cuota rechazada · Club Atletas de Fuenlabrada", html: `<p>Stripe ha rechazado una cuota de ${membership.athletes?.first_name || "un atleta"} ${membership.athletes?.last_name || ""}.</p><p>Motivo: ${String(reason).replace(/[<>&]/g, "")}</p><p>El pago queda pendiente de revisión y reintento.</p>` }) });
+        if (emails.length) await fetch("https://api.resend.com/emails", { method: "POST", headers: { authorization: `Bearer ${env.RESEND_API_KEY}`, "content-type": "application/json" }, body: JSON.stringify({ from: "Club Atletas de Fuenlabrada <info@atletasdefuenlabrada.com>", to: emails, subject: "Cuota rechazada · Club Atletas de Fuenlabrada", html: withEmailLegalFooter(`<p>Stripe ha rechazado una cuota de ${membership.athletes?.first_name || "un atleta"} ${membership.athletes?.last_name || ""}.</p><p>Motivo: ${String(reason).replace(/[<>&]/g, "")}</p><p>El pago queda pendiente de revisión y reintento.</p>`) }) });
       }
     }
   }

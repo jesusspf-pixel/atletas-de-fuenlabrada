@@ -1,4 +1,5 @@
 import { consumePublicRateLimit } from "./_public-rate-limit";
+import { withEmailLegalFooter } from "../_email-legal";
 
 const json = (body: unknown, status = 200) => Response.json(body, {
   status,
@@ -85,7 +86,7 @@ export async function onRequestPost(context: any) {
       to: [email],
       subject: "Crea una nueva contraseña · Atletas de Fuenlabrada",
       text: `Hemos recibido una solicitud para crear una nueva contraseña.\n\nAbre este enlace seguro: ${actionLink}\n\nEl enlace es de un solo uso y caduca en una hora. Si no has solicitado este cambio, ignora este correo.`,
-      html: `<div style="font-family:Arial,sans-serif;color:#10233f;line-height:1.65;max-width:640px;margin:auto"><h2 style="color:#1559b2">Crea una nueva contraseña</h2><p>Hemos recibido una solicitud para crear una nueva contraseña de tu cuenta del Club Atletas de Fuenlabrada.</p><p style="margin:28px 0"><a href="${safeActionLink}" style="background:#1559b2;color:#fff;text-decoration:none;padding:12px 20px;border-radius:999px;font-weight:700">Crear nueva contraseña</a></p><p style="font-size:13px;color:#617087">El enlace es de un solo uso y caduca en una hora. Si no has solicitado este cambio, ignora este correo.</p><hr style="border:0;border-top:1px solid #dbe6f2"><p style="font-size:13px;color:#617087">Club Atletas de Fuenlabrada</p></div>`,
+      html: withEmailLegalFooter(`<div style="font-family:Arial,sans-serif;color:#10233f;line-height:1.65;max-width:640px;margin:auto"><h2 style="color:#1559b2">Crea una nueva contraseña</h2><p>Hemos recibido una solicitud para crear una nueva contraseña de tu cuenta del Club Atletas de Fuenlabrada.</p><p style="margin:28px 0"><a href="${safeActionLink}" style="background:#1559b2;color:#fff;text-decoration:none;padding:12px 20px;border-radius:999px;font-weight:700">Crear nueva contraseña</a></p><p style="font-size:13px;color:#617087">El enlace es de un solo uso y caduca en una hora. Si no has solicitado este cambio, ignora este correo.</p><hr style="border:0;border-top:1px solid #dbe6f2"><p style="font-size:13px;color:#617087">Club Atletas de Fuenlabrada</p></div>`),
     }),
   });
 

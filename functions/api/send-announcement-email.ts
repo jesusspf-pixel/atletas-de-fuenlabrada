@@ -1,3 +1,5 @@
+import { withEmailLegalFooter } from "../_email-legal";
+
 interface Env {
   SUPABASE_URL: string;
   SUPABASE_SERVICE_ROLE_KEY: string;
@@ -109,7 +111,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     to: [email],
     subject: announcement.title,
     text: announcement.body,
-    html: `<div style="font-family:Arial,sans-serif;color:#10233f;line-height:1.65;max-width:640px;margin:auto"><h2 style="color:#1559b2">${safeTitle}</h2><p>${safeBody}</p><hr style="border:0;border-top:1px solid #dbe6f2;margin:28px 0"><p style="font-size:13px;color:#617087">Club Atletas de Fuenlabrada</p></div>`,
+    html: withEmailLegalFooter(`<div style="font-family:Arial,sans-serif;color:#10233f;line-height:1.65;max-width:640px;margin:auto"><h2 style="color:#1559b2">${safeTitle}</h2><p>${safeBody}</p><hr style="border:0;border-top:1px solid #dbe6f2;margin:28px 0"><p style="font-size:13px;color:#617087">Club Atletas de Fuenlabrada</p></div>`),
   }));
 
   let sent = 0;

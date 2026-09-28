@@ -1,3 +1,5 @@
+import { withEmailLegalFooter } from "../_email-legal";
+
 interface Env {
   SUPABASE_URL: string;
   SUPABASE_SERVICE_ROLE_KEY: string;
@@ -76,7 +78,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       : "Entra en la pantalla de acceso, pulsa «Enviar un nuevo correo de confirmación» y confirma el correo desde el mensaje que recibirás. Después vuelve a entrar y termina todos los pasos de la inscripción.";
     const greeting = name ? `Hola, ${name}:` : "Hola:";
     const text = `${greeting}\n\n${explanation}\n\n${nextStep}\n\nAcceso: https://atletasdefuenlabrada.com/?access=1\n\nSi sigues teniendo problemas, responde a este correo para que podamos ayudarte.\n\nClub Atletas de Fuenlabrada`;
-    const html = `<div style="font-family:Arial,sans-serif;color:#10233f;line-height:1.65;max-width:640px;margin:auto"><h2 style="color:#1559b2">${subject}</h2><p>${greeting}</p><p>${explanation}</p><p>${nextStep}</p><p><a href="https://atletasdefuenlabrada.com/?access=1" style="display:inline-block;padding:12px 18px;border-radius:9px;background:#1559b2;color:#fff;text-decoration:none;font-weight:bold">Abrir acceso del club</a></p><p>Si sigues teniendo problemas, responde a este correo para que podamos ayudarte.</p><hr style="border:0;border-top:1px solid #dbe6f2;margin:28px 0"><p style="font-size:13px;color:#617087">Club Atletas de Fuenlabrada</p></div>`;
+    const html = withEmailLegalFooter(`<div style="font-family:Arial,sans-serif;color:#10233f;line-height:1.65;max-width:640px;margin:auto"><h2 style="color:#1559b2">${subject}</h2><p>${greeting}</p><p>${explanation}</p><p>${nextStep}</p><p><a href="https://atletasdefuenlabrada.com/?access=1" style="display:inline-block;padding:12px 18px;border-radius:9px;background:#1559b2;color:#fff;text-decoration:none;font-weight:bold">Abrir acceso del club</a></p><p>Si sigues teniendo problemas, responde a este correo para que podamos ayudarte.</p><hr style="border:0;border-top:1px solid #dbe6f2;margin:28px 0"><p style="font-size:13px;color:#617087">Club Atletas de Fuenlabrada</p></div>`);
     return { from: "Club Atletas de Fuenlabrada <info@atletasdefuenlabrada.com>", reply_to: "info@atletasdefuenlabrada.com", to: [user.email!], subject, text, html };
   });
 

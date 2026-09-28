@@ -17,7 +17,7 @@ export default function AdultRegistration({ email, renewalToken: renewalTokenPro
   const [data, setData] = useState<AdultData>({ ...emptyAdultData, ...(stored.data || {}) });
   const [groups, setGroups] = useState<{ id: string; name: string; category_label: string; schedule_days: string | null; starts_at: string | null; ends_at: string | null }[]>([]);
   const [plan, setPlan] = useState<"monthly" | "term">(stored.plan || "monthly");
-  const [consents, setConsents] = useState<Record<string, boolean>>(stored.consents || { privacy: false, image_use: false, fam_data: false, club_rules: false, recurring_payment: false });
+  const [consents, setConsents] = useState<Record<string, boolean>>(stored.consents || { privacy: false, app_terms: false, image_use: false, club_rules: false, recurring_payment: false });
   const paymentReturned = new URLSearchParams(window.location.search).get("payment_method") === "updated";
   const checkoutSessionId = new URLSearchParams(window.location.search).get("checkout_session_id");
   const cardConfirmationAttempted = useRef(false);
@@ -42,7 +42,13 @@ export default function AdultRegistration({ email, renewalToken: renewalTokenPro
     })
     .map(group => runningAge && /m[aá]ster/i.test(group.name) ? { ...group, name: group.name.replace(/m[aá]ster/ig, "Running") } : group);
   const valid = Boolean(data.first_name.trim() && data.last_name.trim() && validSpanishId(data.dni_nie) && validPhone(data.phone) && validBirthDate(data.birth_date) && data.training_group_id && (!needsFederation || (data.nationality.trim() && data.birthplace.trim())));
-  const acceptAll = Object.values(consents).every(Boolean);
+  const acceptAll = ["privacy", "app_terms", "club_rules", "recurring_payment", ...(needsFederation ? ["fam_data"] : [])].every(key => consents[key]);
+  useEffect(() => setConsents(current => {
+    if (needsFederation) return "fam_data" in current ? current : { ...current, fam_data: false };
+    if (!("fam_data" in current)) return current;
+    const { fam_data: _unused, ...rest } = current;
+    return rest;
+  }), [needsFederation]);
   useEffect(() => { sessionStorage.setItem(storageKey, JSON.stringify({ step, data, plan, consents, cardReady, renewalToken })); }, [storageKey, step, data, plan, consents, cardReady, renewalToken]);
   useEffect(() => { if (!supabase) return; void supabase.from("training_groups").select("id,name,category_label,schedule_days,starts_at,ends_at").eq("active", true).order("name").then(({ data }) => setGroups(withOfficialTrainingSchedules((data || []) as typeof groups))); }, []);
   const addCard = async () => { if (!supabase) return; setBusy(true); setError(""); const { data: sessionData } = await supabase.auth.getSession(); const response = await fetch("/api/create-payment-method-setup", { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${sessionData.session?.access_token || ""}` }, body: JSON.stringify({ returnTo: "adult", renewalToken: renewalToken || null }) }); const body = await response.json().catch(() => ({})); setBusy(false); if (!response.ok || !body.url) return setError(body.error || "No se pudo abrir Stripe."); window.location.assign(body.url); };

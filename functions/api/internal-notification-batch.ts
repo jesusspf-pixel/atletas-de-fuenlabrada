@@ -1,3 +1,5 @@
+import { withEmailLegalFooter } from "../_email-legal";
+
 type Env = {
   SUPABASE_SERVICE_ROLE_KEY?: string;
   RESEND_API_KEY?: string;
@@ -43,7 +45,7 @@ export async function onRequestPost(context: any) {
     to: [String(message.to || "").trim().toLowerCase()],
     subject: String(message.subject || "").trim().slice(0, 180),
     text: String(message.text || "").slice(0, 10_000),
-    html: String(message.html || "").slice(0, 30_000),
+    html: withEmailLegalFooter(String(message.html || "")).slice(0, 30_000),
   }));
 
   if (messages.some((message) => !emailPattern.test(message.to[0]) || !message.subject || (!message.text && !message.html))) {
@@ -70,4 +72,3 @@ export async function onRequestPost(context: any) {
   }
   return json({ ok: true, count: messages.length });
 }
-

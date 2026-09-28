@@ -23,3 +23,4 @@
 .admin-image-gallery article button{width:100%;min-height:34px;margin:0;padding:7px;font-size:10px}
 .admin-image-gallery .image-delete{color:#a91d2c}
 @media(max-width:620px){.admin-image-gallery header{display:block}.admin-image-gallery header small{display:block;margin-top:4px}.admin-image-gallery>div{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.shop-terms-check{display:flex;align-items:center;gap:10px;margin:0 32px 12px;padding:13px 16px;font-size:12px}.shop-terms-check input{width:18px;height:18px}.shop-terms-check a{color:#155fcb;font-weight:800}@media(max-width:820px){.shop-terms-check{margin-left:13px;margin-right:13px}}
