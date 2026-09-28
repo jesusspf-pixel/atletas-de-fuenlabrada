@@ -2308,6 +2308,23 @@ function AthletesAdmin({ onOpenAthlete, statusFilter }: { onOpenAthlete: (id: st
                             placeholder="Describe el acuerdo excepcional y las personas a las que se limita."
                           />
                         </label>
+                        <label>
+                          Confirmación económica final
+                          <select
+                            defaultValue=""
+                            onChange={(e) => {
+                              if (e.target.value !== "confirm") return;
+                              e.currentTarget.value = "";
+                              void save(true);
+                            }}
+                          >
+                            <option value="">Revisar importes antes de cobrar</option>
+                            <option value="confirm">Confirmar matrícula y calendario excepcional</option>
+                          </select>
+                          <small>
+                            Al seleccionar Confirmar se cobrará la matrícula indicada y se programarán únicamente las cuotas futuras del acuerdo.
+                          </small>
+                        </label>
                       </div>
                     )}
                   </>
