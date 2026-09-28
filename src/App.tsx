@@ -1666,6 +1666,10 @@ function AthletesAdmin({ onOpenAthlete, statusFilter }: { onOpenAthlete: (id: st
   const [enrolmentFee, setEnrolmentFee] = useState("");
   const [firstChargeMode, setFirstChargeMode] = useState<"prorated" | "full" | "custom">("prorated");
   const [customFirstCharge, setCustomFirstCharge] = useState("");
+  const [specialRecurring, setSpecialRecurring] = useState(false);
+  const [specialRecurringAmount, setSpecialRecurringAmount] = useState("");
+  const [specialRecurringStartsOn, setSpecialRecurringStartsOn] = useState("");
+  const [specialRecurringReason, setSpecialRecurringReason] = useState("");
   const [athleteSearch, setAthleteSearch] = useState("");
   useEffect(() => {
     if (loading || !rows.length) return;
@@ -1726,6 +1730,10 @@ function AthletesAdmin({ onOpenAthlete, statusFilter }: { onOpenAthlete: (id: st
           ? ""
           : (membership.first_recurring_charge_cents / 100).toFixed(2),
       );
+      setSpecialRecurring(false);
+      setSpecialRecurringAmount("");
+      setSpecialRecurringStartsOn("");
+      setSpecialRecurringReason("");
       setMessage("");
     }
   }, [selectedId]);
@@ -1753,7 +1761,23 @@ function AthletesAdmin({ onOpenAthlete, statusFilter }: { onOpenAthlete: (id: st
       const customFirstChargeCents = firstChargeMode === "custom"
         ? Math.round(Number(customFirstCharge.replace(",", ".")) * 100)
         : null;
-      if (firstChargeMode === "custom" && (!Number.isFinite(customFirstChargeCents) || customFirstChargeCents! < 0)) {
+      const recurringOverrideCents = specialRecurring
+        ? Math.round(Number(specialRecurringAmount.replace(",", ".")) * 100)
+        : null;
+      if (
+        specialRecurring &&
+        (selectedPlan !== "monthly" ||
+          !Number.isFinite(recurringOverrideCents) ||
+          recurringOverrideCents! < 0 ||
+          !specialRecurringStartsOn ||
+          specialRecurringReason.trim().length < 10)
+      ) {
+        setChanging("");
+        return setMessage(
+          "Esta excepción individual necesita plan mensual, importe, fecha de inicio y un motivo de al menos 10 caracteres.",
+        );
+      }
+      if (!specialRecurring && firstChargeMode === "custom" && (!Number.isFinite(customFirstChargeCents) || customFirstChargeCents! < 0)) {
         setChanging("");
         return setMessage("Indica un importe válido para la primera cuota.");
       }
@@ -1762,43 +1786,72 @@ function AthletesAdmin({ onOpenAthlete, statusFilter }: { onOpenAthlete: (id: st
         : firstChargeMode === "full"
           ? `completa (${selectedPlan === "monthly" ? "35 €" : "70 €"})`
           : `personalizada (${(customFirstChargeCents! / 100).toLocaleString("es-ES", { style: "currency", currency: "EUR" })})`;
-      if (!window.confirm(`Vas a validar el alta. Primera cuota: ${firstChargeDescription}. Solo esta primera cuota usará esa regla; las siguientes mantendrán el calendario normal. ¿Continuar?`)) {
+      const approvalDescription = specialRecurring
+        ? `Matrícula: ${(finalEnrolmentCents / 100).toLocaleString("es-ES", { style: "currency", currency: "EUR" })}. Acuerdo especial: ${(recurringOverrideCents! / 100).toLocaleString("es-ES", { style: "currency", currency: "EUR" })} al mes desde el ${new Date(`${specialRecurringStartsOn}T12:00:00`).toLocaleDateString("es-ES")}, sin cuotas anteriores.`
+        : `Primera cuota: ${firstChargeDescription}. Solo esta primera cuota usará esa regla; las siguientes mantendrán el calendario normal.`;
+      if (!window.confirm(`Vas a validar el alta. ${approvalDescription} ¿Continuar?`)) {
         setChanging("");
         return;
       }
       const {
         data: { session: billingSession },
       } = await supabase.auth.getSession();
-      const economicResponse = await apiFetch("/api/update-membership-billing", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          authorization: `Bearer ${billingSession?.access_token || ""}`,
-          "x-supabase-key": supabasePublishableKey,
-        },
-        body: JSON.stringify({
-          membershipId: membership.id,
-          plan: selectedPlan,
-          enrolmentFeeCents: finalEnrolmentCents,
-          firstChargeMode,
-          firstChargeCents: customFirstChargeCents,
-          rebuildSchedule: false,
-        }),
-      });
-      const economicResult = await economicResponse.json().catch(() => ({}));
-      if (!economicResponse.ok) {
-        setChanging("");
-        return setMessage(economicResult.error || "No se pudo guardar la configuración de cuotas.");
+      let draftId: string | null = null;
+      if (specialRecurring) {
+        const specialResponse = await apiFetch("/api/approve-special-registration", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            authorization: `Bearer ${billingSession?.access_token || ""}`,
+            "x-supabase-key": supabasePublishableKey,
+          },
+          body: JSON.stringify({
+            athleteId: selected.id,
+            membershipId: membership.id,
+            enrolmentFeeCents: finalEnrolmentCents,
+            recurringOverrideCents,
+            recurringStartsOn: specialRecurringStartsOn,
+            recurringOverrideReason: specialRecurringReason,
+          }),
+        });
+        const specialResult = await specialResponse.json().catch(() => ({}));
+        if (!specialResponse.ok || !specialResult.enrolmentDraftId) {
+          setChanging("");
+          return setMessage(specialResult.error || "No se pudo preparar el acuerdo especial.");
+        }
+        draftId = specialResult.enrolmentDraftId;
+      } else {
+        const economicResponse = await apiFetch("/api/update-membership-billing", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            authorization: `Bearer ${billingSession?.access_token || ""}`,
+            "x-supabase-key": supabasePublishableKey,
+          },
+          body: JSON.stringify({
+            membershipId: membership.id,
+            plan: selectedPlan,
+            enrolmentFeeCents: finalEnrolmentCents,
+            firstChargeMode,
+            firstChargeCents: customFirstChargeCents,
+            rebuildSchedule: false,
+          }),
+        });
+        const economicResult = await economicResponse.json().catch(() => ({}));
+        if (!economicResponse.ok) {
+          setChanging("");
+          return setMessage(economicResult.error || "No se pudo guardar la configuración de cuotas.");
+        }
+        const { data, error } = await supabase.rpc(
+          "approve_registration_and_schedule",
+          { target_athlete_id: selected.id, waive_enrolment: waiveEnrolment },
+        );
+        if (error) {
+          setChanging("");
+          return setMessage(error.message);
+        }
+        draftId = Array.isArray(data) ? data[0]?.enrolment_draft_id : null;
       }
-      const { data, error } = await supabase.rpc(
-        "approve_registration_and_schedule",
-        { target_athlete_id: selected.id, waive_enrolment: waiveEnrolment },
-      );
-      if (error) {
-        setChanging("");
-        return setMessage(error.message);
-      }
-      const draftId = Array.isArray(data) ? data[0]?.enrolment_draft_id : null;
       if (draftId) {
         const {
           data: { session },
@@ -1836,7 +1889,9 @@ function AthletesAdmin({ onOpenAthlete, statusFilter }: { onOpenAthlete: (id: st
       setMessage(
         waiveEnrolment
           ? "Alta validada: matrícula exenta y cuotas programadas."
-          : "Alta validada, matrícula cobrada y cuotas programadas.",
+          : specialRecurring
+            ? "Alta validada, matrícula cobrada y acuerdo mensual especial programado."
+            : "Alta validada, matrícula cobrada y cuotas programadas.",
       );
       void reload();
       return;
@@ -2168,6 +2223,7 @@ function AthletesAdmin({ onOpenAthlete, statusFilter }: { onOpenAthlete: (id: st
                     <label>
                       Primera cuota
                       <select
+                        disabled={specialRecurring}
                         value={firstChargeMode}
                         onChange={(e) => setFirstChargeMode(e.target.value as "prorated" | "full" | "custom")}
                       >
@@ -2191,6 +2247,58 @@ function AthletesAdmin({ onOpenAthlete, statusFilter }: { onOpenAthlete: (id: st
                         />
                         <small>Este importe exacto será el aprobado y enviado al cobro.</small>
                       </label>
+                    )}
+                    <label className="check-line">
+                      <input
+                        type="checkbox"
+                        checked={specialRecurring}
+                        onChange={(e) => {
+                          const enabled = e.target.checked;
+                          setSpecialRecurring(enabled);
+                          if (enabled) setSelectedPlan("monthly");
+                        }}
+                      />
+                      Aplicar un acuerdo mensual excepcional solo a este atleta
+                    </label>
+                    {specialRecurring && (
+                      <div className="panel">
+                        <strong>Excepción individual no reutilizable</strong>
+                        <small>
+                          No modifica las tarifas generales ni se aplicará a otras familias. No se crearán cuotas anteriores a la fecha indicada.
+                        </small>
+                        <label>
+                          Cuota mensual acordada (€)
+                          <input
+                            required
+                            min="0"
+                            step="0.01"
+                            inputMode="decimal"
+                            value={specialRecurringAmount}
+                            onChange={(e) => setSpecialRecurringAmount(e.target.value)}
+                            placeholder="Ej. 21,00"
+                          />
+                        </label>
+                        <label>
+                          Primera cuota mensual
+                          <input
+                            required
+                            type="date"
+                            value={specialRecurringStartsOn}
+                            onChange={(e) => setSpecialRecurringStartsOn(e.target.value)}
+                          />
+                        </label>
+                        <label>
+                          Motivo administrativo
+                          <textarea
+                            required
+                            minLength={10}
+                            maxLength={300}
+                            value={specialRecurringReason}
+                            onChange={(e) => setSpecialRecurringReason(e.target.value)}
+                            placeholder="Describe el acuerdo excepcional y las personas a las que se limita."
+                          />
+                        </label>
+                      </div>
                     )}
                   </>
                 )}
