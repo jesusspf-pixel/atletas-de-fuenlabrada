@@ -1682,9 +1682,10 @@ function AthletesAdmin({ onOpenAthlete, statusFilter }: { onOpenAthlete: (id: st
           .replace(/[\u0300-\u036f]/g, "")
           .toLocaleLowerCase("es") === requestedName,
     );
+    if (!athlete) return;
     url.searchParams.delete("athleteName");
     window.history.replaceState({}, "", url);
-    if (athlete) onOpenAthlete(athlete.id);
+    onOpenAthlete(athlete.id);
   }, [loading, rows, onOpenAthlete]);
   const baseRows = statusFilter ? rows.filter((athlete) => athlete.club_status === statusFilter) : rows;
   const normalizedSearch = athleteSearch.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("es");
