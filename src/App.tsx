@@ -2370,6 +2370,7 @@ function AthletesAdmin({ onOpenAthlete, statusFilter }: { onOpenAthlete: (id: st
                 </div>
               )}
               <button
+                type="button"
                 disabled={changing === selected.id}
                 onClick={() => void save()}
               >
