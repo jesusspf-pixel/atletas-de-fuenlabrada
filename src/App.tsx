@@ -1742,18 +1742,29 @@ function AthletesAdmin({ onOpenAthlete, statusFilter }: { onOpenAthlete: (id: st
         setChanging("");
         return;
       }
-      const { error: economicError } = await supabase
-        .from("memberships")
-        .update({
+      const {
+        data: { session: billingSession },
+      } = await supabase.auth.getSession();
+      const economicResponse = await apiFetch("/api/update-membership-billing", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${billingSession?.access_token || ""}`,
+          "x-supabase-key": supabasePublishableKey,
+        },
+        body: JSON.stringify({
+          membershipId: membership.id,
           plan: selectedPlan,
-          enrolment_fee_cents: finalEnrolmentCents,
-          first_recurring_charge_mode: firstChargeMode,
-          first_recurring_charge_cents: customFirstChargeCents,
-        })
-        .eq("id", membership.id);
-      if (economicError) {
+          enrolmentFeeCents: finalEnrolmentCents,
+          firstChargeMode,
+          firstChargeCents: customFirstChargeCents,
+          rebuildSchedule: false,
+        }),
+      });
+      const economicResult = await economicResponse.json().catch(() => ({}));
+      if (!economicResponse.ok) {
         setChanging("");
-        return setMessage(economicError.message);
+        return setMessage(economicResult.error || "No se pudo guardar la configuración de cuotas.");
       }
       const { data, error } = await supabase.rpc(
         "approve_registration_and_schedule",

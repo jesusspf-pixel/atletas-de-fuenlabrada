@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { apiFetch } from "../lib/clubApi";
 import { supabase } from "../lib/supabase";
 import "./admin-athlete-dossier.css";
 
@@ -94,6 +95,25 @@ export default function AdminAthleteDossier({ athleteId, adminProfileId, onBack 
     setNote(""); setNotice("Nota privada guardada."); void load();
   };
 
+  const persistBillingSelection = async (membershipId: string, customCents: number | null, rebuildSchedule: boolean, enrolmentFeeCents?: number) => {
+    if (!supabase) return "No se pudo abrir la sesión de administración.";
+    const { data: { session } } = await supabase.auth.getSession();
+    const response = await apiFetch("/api/update-membership-billing", {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${session?.access_token || ""}` },
+      body: JSON.stringify({
+        membershipId,
+        plan: selectedPlan,
+        enrolmentFeeCents,
+        firstChargeMode,
+        firstChargeCents: customCents,
+        rebuildSchedule,
+      }),
+    });
+    const result = await response.json().catch(() => ({})) as { error?: string };
+    return response.ok ? "" : result.error || "No se pudo guardar la configuración de cuotas.";
+  };
+
   const saveManagement = async (event: FormEvent) => {
     event.preventDefault();
     if (!supabase || !athlete) return;
@@ -112,13 +132,8 @@ export default function AdminAthleteDossier({ athleteId, adminProfileId, onBack 
           ? `completa (${selectedPlan === "monthly" ? "35 €" : "70 €"})`
           : `personalizada (${euro(customCents!)})`;
       if (!window.confirm(`Vas a validar el alta. Primera cuota: ${firstChargeDescription}. Solo esta primera cuota usará esa regla; las siguientes mantendrán el calendario normal. ¿Continuar?`)) { setSaving(false); return; }
-      const economic = await supabase.from("memberships").update({
-        plan: selectedPlan,
-        enrolment_fee_cents: cents,
-        first_recurring_charge_mode: firstChargeMode,
-        first_recurring_charge_cents: customCents,
-      }).eq("id", membership.id);
-      if (economic.error) { setSaving(false); return setNotice(economic.error.message); }
+      const economicError = await persistBillingSelection(membership.id, customCents, false, cents);
+      if (economicError) { setSaving(false); return setNotice(economicError); }
       const approval = await supabase.rpc("approve_registration_and_schedule", { target_athlete_id: athlete.id, waive_enrolment: waiveEnrolment });
       if (approval.error) { setSaving(false); return setNotice(approval.error.message); }
       const draftId = Array.isArray(approval.data) ? approval.data[0]?.enrolment_draft_id : null;
@@ -129,26 +144,27 @@ export default function AdminAthleteDossier({ athleteId, adminProfileId, onBack 
         if (!response.ok) { setSaving(false); await load(); return setNotice(result.error || "El banco ha rechazado la matrícula. El atleta continúa pendiente."); }
       }
     }
+    if (!initialApproval && membership && status === "active") {
+      const customCents = firstChargeMode === "custom" ? Math.round(Number(customFirstCharge.replace(",", ".")) * 100) : null;
+      if (firstChargeMode === "custom" && (!Number.isFinite(customCents) || customCents! < 0)) { setSaving(false); return setNotice("Indica un importe válido para la próxima cuota."); }
+      const billingChanged = membership.plan !== selectedPlan
+        || (membership.first_recurring_charge_mode || "prorated") !== firstChargeMode
+        || (membership.first_recurring_charge_cents ?? null) !== customCents;
+      if (billingChanged) {
+        const nextDescription = firstChargeMode === "prorated"
+          ? "calculada según la fecha"
+          : firstChargeMode === "full"
+            ? "completa"
+            : `personalizada (${euro(customCents!)})`;
+        if (!window.confirm(`Se guardará el plan ${selectedPlan === "monthly" ? "mensual" : "trimestral"} y la próxima cuota será ${nextDescription}. Los pagos ya realizados se conservarán y solo se reprogramarán cargos futuros. ¿Continuar?`)) { setSaving(false); return; }
+        const economicError = await persistBillingSelection(membership.id, customCents, true);
+        if (economicError) { setSaving(false); return setNotice(economicError); }
+      }
+    }
     const update = await supabase.from("athletes").update({ training_group_id: groupId || null, club_status: initialApproval ? "active" : status, license_status: licenseStatus, license_number: licenseNumber || null }).eq("id", athlete.id);
     setSaving(false);
     if (update.error) return setNotice(update.error.message);
-    setNotice(initialApproval ? (waiveEnrolment ? "Alta validada: matrícula exenta y cuotas programadas." : "Alta validada, matrícula cobrada y cuotas programadas.") : "Ficha actualizada.");
-    await load();
-  };
-
-  const changeBillingPlan = async () => {
-    if (!supabase || !athlete) return;
-    const membership = athlete.memberships?.[0];
-    if (!membership) return setNotice("No se encontró el plan económico de este atleta.");
-    if (membership.plan === selectedPlan) return setNotice("El atleta ya tiene seleccionado ese plan de cuotas.");
-    const from = membership.plan === "monthly" ? "mensual" : "trimestral";
-    const to = selectedPlan === "monthly" ? "mensual" : "trimestral";
-    if (!window.confirm(`Se cambiará el plan ${from} por el plan ${to}. Los pagos realizados se conservarán y se sustituirán únicamente las cuotas futuras. ¿Continuar?`)) return;
-    setSaving(true); setNotice("");
-    const { error } = await supabase.rpc("change_membership_billing_plan", { target_membership_id: membership.id, target_plan: selectedPlan });
-    setSaving(false);
-    if (error) return setNotice(error.message);
-    setNotice(`Plan cambiado a ${to}. Se ha generado el nuevo calendario de cuotas.`);
+    setNotice(initialApproval ? (waiveEnrolment ? "Alta validada: matrícula exenta y cuotas programadas." : "Alta validada, matrícula cobrada y cuotas programadas.") : "Ficha y configuración de cuotas guardadas y verificadas.");
     await load();
   };
 
@@ -166,7 +182,7 @@ export default function AdminAthleteDossier({ athleteId, adminProfileId, onBack 
       <form className="panel dossier-note" onSubmit={saveNote}><header><small>SEGUIMIENTO INTERNO</small><h2>Nota privada del club</h2></header><p>Solo la administración y los entrenadores autorizados pueden verla.</p><textarea value={note} onChange={event => setNote(event.target.value)} placeholder="Escribe una observación, acuerdo o seguimiento…" required /><button>Guardar nota</button>{notice && <p className={notice.includes("guardada") ? "success-note" : "error-note"}>{notice}</p>}<div className="note-history">{notes.map(item => <article key={item.id}><p>{item.body}</p><small>{item.profiles?.full_name || "Administración"} · {date(item.created_at)}</small></article>)}{!notes.length && <span>Aún no hay notas privadas.</span>}</div></form>
     </section>
     {athlete.families&&<article className="panel dossier-guardians"><header><small>UNIDAD FAMILIAR</small><h2>Tutores autorizados</h2><p>Todos pueden consultar la ficha. Solo el responsable de pago recibe cargos.</p></header><div className="dossier-charge-list">{guardians.map(g=><div className="dossier-charge" key={g.id}><i>👤</i><span><b>{g.profiles?.full_name||g.profiles?.email}</b><small>{g.relationship.replace("_"," ")} · {g.profiles?.email}{g.profiles?.phone?` · ${g.profiles.phone}`:""}</small></span></div>)}</div><form className="dossier-management-grid" onSubmit={addGuardian}><label>Correo del tutor<input type="email" value={guardianEmail} onChange={e=>setGuardianEmail(e.target.value)} placeholder="correo@ejemplo.com" required /></label><label>Relación<select value={guardianRelationship} onChange={e=>setGuardianRelationship(e.target.value)}><option value="padre">Padre</option><option value="madre">Madre</option><option value="tutor_legal">Tutor legal</option></select></label><button className="dossier-primary" disabled={saving}>Añadir tutor sin responsabilidad de pago</button></form></article>}
-    <form className="panel dossier-management" onSubmit={saveManagement}><header><div><small>ADMINISTRACIÓN DEPORTIVA</small><h2>Validación, cuota y asignación</h2></div><span>{athlete.club_status === "pending_review" ? "Pendiente de validar" : "Ficha activa"}</span></header><div className="dossier-management-grid"><label>Estado de alta<select value={status} onChange={e => setStatus(e.target.value)}><option value="pending_review">En revisión</option><option value="active">Activo</option><option value="inactive">Acceso suspendido</option><option value="withdrawn">Baja del club</option></select></label>{athlete.club_status === "pending_review" && status === "active" && <><label>Plan de cuotas<select value={selectedPlan} onChange={e => setSelectedPlan(e.target.value as "monthly" | "term")}><option value="monthly">Mensual · 35 €</option><option value="term">Trimestral · 70 €</option></select></label><label>Matrícula final (€)<input disabled={waiveEnrolment} min="0" step="0.01" inputMode="decimal" value={enrolmentFee} onChange={e => setEnrolmentFee(e.target.value)} /></label><label className="dossier-check"><input type="checkbox" checked={waiveEnrolment} onChange={e => setWaiveEnrolment(e.target.checked)} /><span><b>Matrícula ya abonada o exenta</b><small>No se realizará un nuevo cargo.</small></span></label><label>Primera cuota<select value={firstChargeMode} onChange={e => setFirstChargeMode(e.target.value as "prorated" | "full" | "custom")}><option value="prorated">Reducida según fecha de alta</option><option value="full">{selectedPlan === "monthly" ? "Mes completo · 35 €" : "Trimestre completo · 70 €"}</option><option value="custom">Importe personalizado</option></select><small>Solo afecta al primer cobro; el resto mantiene el calendario normal.</small></label>{firstChargeMode === "custom" && <label>Primera cuota personalizada (€)<input required min="0" step="0.01" inputMode="decimal" value={customFirstCharge} onChange={e => setCustomFirstCharge(e.target.value)} placeholder="Ej. 35,00" /><small>Este importe exacto será el aprobado y enviado al cobro.</small></label>}</>}{athlete.club_status !== "pending_review" && membership && <label>Plan de cuotas<select value={selectedPlan} onChange={e => setSelectedPlan(e.target.value as "monthly" | "term")}><option value="monthly">Mensual · 35 €</option><option value="term">Trimestral · 70 €</option></select><small>Los cobros ya realizados se conservarán.</small><button type="button" className="outline" disabled={saving || selectedPlan === membership.plan} onClick={() => void changeBillingPlan()}>Cambiar plan y reprogramar cuotas</button></label>}<label>Grupo<select value={groupId} onChange={e => setGroupId(e.target.value)}><option value="">Sin grupo</option>{groups.map(group => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label><label>Licencia<select value={licenseStatus} onChange={e => setLicenseStatus(e.target.value)}><option value="pending">Pendiente</option><option value="active">Activa</option><option value="rejected">Rechazada</option></select></label><label>Número de licencia<input value={licenseNumber} onChange={e => setLicenseNumber(e.target.value)} placeholder="Ej. M-12345" /></label></div><button className="dossier-primary" disabled={saving}>{saving ? "Procesando…" : athlete.club_status === "pending_review" && status === "active" ? "Validar alta, cobrar matrícula y programar cuotas" : "Guardar cambios"}</button>{notice && <p className={notice.includes("validada") || notice.includes("actualizada") || notice.includes("cambiado") ? "success-note" : "error-note"}>{notice}</p>}</form>
+    <form className="panel dossier-management" onSubmit={saveManagement}><header><div><small>ADMINISTRACIÓN DEPORTIVA</small><h2>Validación, cuota y asignación</h2></div><span>{athlete.club_status === "pending_review" ? "Pendiente de validar" : "Ficha activa"}</span></header><div className="dossier-management-grid"><label>Estado de alta<select value={status} onChange={e => setStatus(e.target.value)}><option value="pending_review">En revisión</option><option value="active">Activo</option><option value="inactive">Acceso suspendido</option><option value="withdrawn">Baja del club</option></select></label>{athlete.club_status === "pending_review" && status === "active" && <><label>Plan de cuotas<select value={selectedPlan} onChange={e => setSelectedPlan(e.target.value as "monthly" | "term")}><option value="monthly">Mensual · 35 €</option><option value="term">Trimestral · 70 €</option></select></label><label>Matrícula final (€)<input disabled={waiveEnrolment} min="0" step="0.01" inputMode="decimal" value={enrolmentFee} onChange={e => setEnrolmentFee(e.target.value)} /></label><label className="dossier-check"><input type="checkbox" checked={waiveEnrolment} onChange={e => setWaiveEnrolment(e.target.checked)} /><span><b>Matrícula ya abonada o exenta</b><small>No se realizará un nuevo cargo.</small></span></label><label>Primera cuota<select value={firstChargeMode} onChange={e => setFirstChargeMode(e.target.value as "prorated" | "full" | "custom")}><option value="prorated">Reducida según fecha de alta</option><option value="full">{selectedPlan === "monthly" ? "Mes completo · 35 €" : "Trimestre completo · 70 €"}</option><option value="custom">Importe personalizado</option></select><small>Solo afecta al primer cobro; el resto mantiene el calendario normal.</small></label>{firstChargeMode === "custom" && <label>Primera cuota personalizada (€)<input required min="0" step="0.01" inputMode="decimal" value={customFirstCharge} onChange={e => setCustomFirstCharge(e.target.value)} placeholder="Ej. 35,00" /><small>Este importe exacto será el aprobado y enviado al cobro.</small></label>}</>}{athlete.club_status !== "pending_review" && membership && <><label>Plan de cuotas<select value={selectedPlan} onChange={e => setSelectedPlan(e.target.value as "monthly" | "term")}><option value="monthly">Mensual · 35 €</option><option value="term">Trimestral · 70 €</option></select><small>Al guardar se conservarán los pagos realizados y se reprogramarán solo los futuros.</small></label><label>Próxima cuota pendiente<select value={firstChargeMode} onChange={e => setFirstChargeMode(e.target.value as "prorated" | "full" | "custom")}><option value="prorated">Calcular según fecha</option><option value="full">Importe completo del periodo</option><option value="custom">Asignar importe manual</option></select><small>La elección se guarda junto al plan económico.</small></label>{firstChargeMode === "custom" && <label>Importe manual de la próxima cuota (€)<input required min="0" step="0.01" inputMode="decimal" value={customFirstCharge} onChange={e => setCustomFirstCharge(e.target.value)} placeholder="Ej. 35,00" /><small>Se aplicará exactamente este importe al próximo cargo futuro.</small></label>}</>}<label>Grupo<select value={groupId} onChange={e => setGroupId(e.target.value)}><option value="">Sin grupo</option>{groups.map(group => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label><label>Licencia<select value={licenseStatus} onChange={e => setLicenseStatus(e.target.value)}><option value="pending">Pendiente</option><option value="active">Activa</option><option value="rejected">Rechazada</option></select></label><label>Número de licencia<input value={licenseNumber} onChange={e => setLicenseNumber(e.target.value)} placeholder="Ej. M-12345" /></label></div><button className="dossier-primary" disabled={saving}>{saving ? "Procesando…" : athlete.club_status === "pending_review" && status === "active" ? "Validar alta, cobrar matrícula y programar cuotas" : "Guardar ficha y cuotas"}</button>{notice && <p className={notice.includes("validada") || notice.includes("guardadas") || notice.includes("cambiado") ? "success-note" : "error-note"}>{notice}</p>}</form>
     <article className="panel dossier-charges"><header><div><small>CUOTAS Y PAGOS</small><h2>Histórico económico completo</h2></div><span>{charges.length} movimientos</span></header><div className="dossier-charge-list">{charges.map(item => { const amount = item.approved_amount_cents ?? item.calculated_amount_cents; return <div className={`dossier-charge ${item.status}`} key={item.id}><i>€</i><span><b>{item.charge_kind === "enrolment" ? "Matrícula" : item.charge_kind === "recurring" ? "Cuota" : "Cargo del club"}</b><small>{item.period_starts_on ? `${date(item.period_starts_on)} – ${date(item.period_ends_on)}` : date(item.scheduled_for)}</small></span><strong>{euro(amount)}</strong><em>{statusLabel[item.status] || item.status}</em></div> })}{!charges.length && <p>No hay movimientos económicos asignados a este atleta.</p>}</div></article>
   </section>;
 }
