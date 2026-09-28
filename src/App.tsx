@@ -1665,6 +1665,27 @@ function AthletesAdmin({ onOpenAthlete, statusFilter }: { onOpenAthlete: (id: st
   const [firstChargeMode, setFirstChargeMode] = useState<"prorated" | "full" | "custom">("prorated");
   const [customFirstCharge, setCustomFirstCharge] = useState("");
   const [athleteSearch, setAthleteSearch] = useState("");
+  useEffect(() => {
+    if (loading || !rows.length) return;
+    const url = new URL(window.location.href);
+    const requestedName = (url.searchParams.get("athleteName") || "")
+      .trim()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLocaleLowerCase("es");
+    if (!requestedName) return;
+    const athlete = rows.find(
+      (item) =>
+        `${item.first_name} ${item.last_name}`
+          .trim()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .toLocaleLowerCase("es") === requestedName,
+    );
+    url.searchParams.delete("athleteName");
+    window.history.replaceState({}, "", url);
+    if (athlete) onOpenAthlete(athlete.id);
+  }, [loading, rows, onOpenAthlete]);
   const baseRows = statusFilter ? rows.filter((athlete) => athlete.club_status === statusFilter) : rows;
   const normalizedSearch = athleteSearch.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("es");
   const visibleRows = normalizedSearch
