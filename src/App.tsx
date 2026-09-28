@@ -2248,17 +2248,19 @@ function AthletesAdmin({ onOpenAthlete, statusFilter }: { onOpenAthlete: (id: st
                         <small>Este importe exacto será el aprobado y enviado al cobro.</small>
                       </label>
                     )}
-                    <label className="check-line">
-                      <input
-                        type="checkbox"
-                        checked={specialRecurring}
+                    <label>
+                      Tipo de calendario de cuotas
+                      <select
+                        value={specialRecurring ? "special" : "normal"}
                         onChange={(e) => {
-                          const enabled = e.target.checked;
+                          const enabled = e.target.value === "special";
                           setSpecialRecurring(enabled);
                           if (enabled) setSelectedPlan("monthly");
                         }}
-                      />
-                      Aplicar un acuerdo mensual excepcional solo a este atleta
+                      >
+                        <option value="normal">Calendario normal del club</option>
+                        <option value="special">Acuerdo mensual excepcional solo para este atleta</option>
+                      </select>
                     </label>
                     {specialRecurring && (
                       <div className="panel">
