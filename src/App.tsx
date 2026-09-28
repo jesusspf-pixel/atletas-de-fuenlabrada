@@ -997,7 +997,10 @@ function Portal({
   signOut: () => void;
 }) {
   const [section, setSection] = useState(
-    () => new URLSearchParams(window.location.search).get("section") || "Inicio",
+    () =>
+      new URLSearchParams(window.location.search).get("section") ||
+      window.sessionStorage.getItem("admin-performance-section") ||
+      "Inicio",
   );
   const [focusedAthleteId, setFocusedAthleteId] = useState("");
   const [adminAthleteId, setAdminAthleteId] = useState(
@@ -1010,7 +1013,10 @@ function Portal({
     () => new URLSearchParams(window.location.search).get("orderId") || "",
   );
   useEffect(() => {
-    if (adminAthleteId) window.sessionStorage.removeItem("admin-performance-athlete");
+    if (adminAthleteId) {
+      window.sessionStorage.removeItem("admin-performance-athlete");
+      window.sessionStorage.removeItem("admin-performance-section");
+    }
   }, [adminAthleteId]);
   const [adminAthleteReturnSection, setAdminAthleteReturnSection] = useState("Atletas");
   const [challengeAthleteId, setChallengeAthleteId] = useState("");
@@ -1683,10 +1689,9 @@ function AthletesAdmin({ onOpenAthlete, statusFilter }: { onOpenAthlete: (id: st
           .toLocaleLowerCase("es") === requestedName,
     );
     if (!athlete) return;
-    url.searchParams.delete("athleteName");
-    url.searchParams.set("section", "Atletas");
-    url.searchParams.set("athleteId", athlete.id);
-    window.location.replace(url.toString());
+    window.sessionStorage.setItem("admin-performance-athlete", athlete.id);
+    window.sessionStorage.setItem("admin-performance-section", "Atletas");
+    window.location.replace(url.origin);
   }, [loading, rows, onOpenAthlete]);
   const baseRows = statusFilter ? rows.filter((athlete) => athlete.club_status === statusFilter) : rows;
   const normalizedSearch = athleteSearch.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("es");
