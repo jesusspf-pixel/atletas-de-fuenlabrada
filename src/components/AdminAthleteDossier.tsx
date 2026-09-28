@@ -130,6 +130,7 @@ export default function AdminAthleteDossier({
   const [specialRecurringStartsOn, setSpecialRecurringStartsOn] = useState("");
   const [specialRecurringReason, setSpecialRecurringReason] = useState("");
   const [saving, setSaving] = useState(false);
+  const [refundingId, setRefundingId] = useState("");
   const [guardians, setGuardians] = useState<Guardian[]>([]);
   const [guardianEmail, setGuardianEmail] = useState("");
   const [guardianRelationship, setGuardianRelationship] = useState("madre");
@@ -394,54 +395,62 @@ export default function AdminAthleteDossier({
         setSaving(false);
         return;
       }
-      const effectiveMode = specialRecurring ? "custom" : firstChargeMode;
-      const effectiveFirstCents = specialRecurring
-        ? recurringOverrideCents
-        : customCents;
-      const economicError = await persistBillingSelection(
-        membership.id,
-        effectiveFirstCents,
-        false,
-        cents,
-        recurringOverrideCents,
-        specialRecurring ? specialRecurringStartsOn : null,
-        specialRecurring ? specialRecurringReason : null,
-        effectiveMode,
-      );
-      if (economicError) {
-        setSaving(false);
-        return setNotice(economicError);
-      }
-      const approval = await supabase.rpc("approve_registration_and_schedule", {
-        target_athlete_id: athlete.id,
-        waive_enrolment: waiveEnrolment,
-      });
-      if (approval.error) {
-        setSaving(false);
-        return setNotice(approval.error.message);
-      }
+      let draftId: string | null = null;
       if (specialRecurring) {
-        const scheduleError = await persistBillingSelection(
-          membership.id,
-          recurringOverrideCents,
-          true,
-          cents,
-          recurringOverrideCents,
-          specialRecurringStartsOn,
-          specialRecurringReason,
-          "custom",
-        );
-        if (scheduleError) {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        const specialResponse = await apiFetch("/api/approve-special-registration", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            authorization: `Bearer ${session?.access_token || ""}`,
+          },
+          body: JSON.stringify({
+            athleteId: athlete.id,
+            membershipId: membership.id,
+            enrolmentFeeCents: cents,
+            recurringOverrideCents,
+            recurringStartsOn: specialRecurringStartsOn,
+            recurringOverrideReason: specialRecurringReason,
+          }),
+        });
+        const specialResult = (await specialResponse.json().catch(() => ({}))) as {
+          error?: string;
+          enrolmentDraftId?: string;
+        };
+        if (!specialResponse.ok || !specialResult.enrolmentDraftId) {
           setSaving(false);
-          await load();
-          return setNotice(
-            `Alta validada, pero ${scheduleError} No se ha iniciado el cobro de matrícula.`,
-          );
+          return setNotice(specialResult.error || "No se pudo preparar el acuerdo especial.");
         }
+        draftId = specialResult.enrolmentDraftId;
+      } else {
+        const economicError = await persistBillingSelection(
+          membership.id,
+          customCents,
+          false,
+          cents,
+          null,
+          null,
+          null,
+          firstChargeMode,
+        );
+        if (economicError) {
+          setSaving(false);
+          return setNotice(economicError);
+        }
+        const approval = await supabase.rpc("approve_registration_and_schedule", {
+          target_athlete_id: athlete.id,
+          waive_enrolment: waiveEnrolment,
+        });
+        if (approval.error) {
+          setSaving(false);
+          return setNotice(approval.error.message);
+        }
+        draftId = Array.isArray(approval.data)
+          ? approval.data[0]?.enrolment_draft_id
+          : null;
       }
-      const draftId = Array.isArray(approval.data)
-        ? approval.data[0]?.enrolment_draft_id
-        : null;
       if (draftId) {
         const {
           data: { session },
@@ -539,6 +548,26 @@ export default function AdminAthleteDossier({
             : "Alta validada, matrícula cobrada y cuotas programadas."
         : "Ficha y configuración de cuotas guardadas y verificadas.",
     );
+    await load();
+  };
+
+  const refundCharge = async (charge: Charge) => {
+    const amount = charge.approved_amount_cents ?? charge.calculated_amount_cents;
+    const reason = "Cuota de septiembre cobrada por error al aplicar un acuerdo especial con inicio en octubre.";
+    if (!window.confirm(`Se devolverán ${euro(amount)} mediante Stripe. El movimiento quedará registrado como reembolsado. ¿Continuar?`)) return;
+    if (!supabase) return;
+    setRefundingId(charge.id);
+    setNotice("");
+    const { data: { session } } = await supabase.auth.getSession();
+    const response = await apiFetch("/api/refund-billing-charge", {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${session?.access_token || ""}` },
+      body: JSON.stringify({ draftId: charge.id, reason }),
+    });
+    const result = (await response.json().catch(() => ({}))) as { error?: string };
+    setRefundingId("");
+    if (!response.ok) return setNotice(result.error || "No se pudo completar el reembolso.");
+    setNotice("Reembolso completado y registrado.");
     await load();
   };
 
@@ -1091,6 +1120,11 @@ export default function AdminAthleteDossier({
                 </span>
                 <strong>{euro(amount)}</strong>
                 <em>{statusLabel[item.status] || item.status}</em>
+                {item.status === "paid" && item.charge_kind === "recurring" && (
+                  <button type="button" disabled={Boolean(refundingId)} onClick={() => void refundCharge(item)}>
+                    {refundingId === item.id ? "Reembolsando…" : "Reembolsar"}
+                  </button>
+                )}
               </div>
             );
           })}
