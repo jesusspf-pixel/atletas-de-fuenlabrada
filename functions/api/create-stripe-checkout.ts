@@ -19,17 +19,19 @@ export async function onRequestPost(context: any) {
   const [order] = await orderResponse.json().catch(() => []) as any[];
   if (!orderResponse.ok || !order || order.created_by !== user.id) return json({ error: "No se encontró tu pedido." }, 404);
   if (order.status === "cancelled") return json({ error: "Este pedido está cancelado." }, 409);
-  const line = order.club_order_items?.[0];
-  if (!line) return json({ error: "El pedido no tiene artículos." }, 400);
+  const lines = order.club_order_items || [];
+  if (!lines.length) return json({ error: "El pedido no tiene artículos." }, 400);
   const params = new URLSearchParams();
   params.set("mode", "payment");
   if (user.email) params.set("customer_email", user.email);
   params.set("success_url", `${new URL(context.request.url).origin}/?checkout=success`);
   params.set("cancel_url", `${new URL(context.request.url).origin}/?checkout=cancelled`);
-  params.set("line_items[0][price_data][currency]", "eur");
-  params.set("line_items[0][price_data][product_data][name]", `${line.product_name}${line.size ? ` · talla ${line.size}` : ""}`);
-  params.set("line_items[0][price_data][unit_amount]", String(line.unit_price_cents));
-  params.set("line_items[0][quantity]", String(line.quantity));
+  lines.forEach((line: any, index: number) => {
+    params.set(`line_items[${index}][price_data][currency]`, "eur");
+    params.set(`line_items[${index}][price_data][product_data][name]`, `${line.product_name}${line.size ? ` · talla ${line.size}` : ""}`);
+    params.set(`line_items[${index}][price_data][unit_amount]`, String(line.unit_price_cents));
+    params.set(`line_items[${index}][quantity]`, String(line.quantity));
+  });
   params.set("metadata[order_id]", order.id);
   params.set("payment_intent_data[metadata][order_id]", order.id);
   params.set("integration_identifier", integrationId());
