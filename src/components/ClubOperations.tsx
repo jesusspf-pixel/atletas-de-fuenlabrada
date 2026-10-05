@@ -24,6 +24,7 @@ type Recipient = {
   first_name: string;
   last_name: string;
   user_profile_id: string | null;
+  training_group_id?: string | null;
   families?: any;
 };
 type Competition = {
@@ -59,6 +60,64 @@ type PlannerSession = {
   rpe: string;
   volume: string;
   intensity: string;
+};
+type PlanningDraft = {
+  form: { group: string; title: string; body: string; week: string };
+  activeDay: string;
+  weekPlan: Record<string, PlannerSession>;
+};
+const planningDays = [
+  "Lunes",
+  "Martes",
+  "Miércoles",
+  "Jueves",
+  "Viernes",
+  "Sábado",
+  "Domingo",
+];
+const emptyPlannerSession = (): PlannerSession => ({
+  objective: "",
+  warmup: "",
+  technique: "",
+  main: "",
+  cooldown: "",
+  notes: "",
+  coachNotes: "",
+  duration: "60",
+  rpe: "5",
+  volume: "",
+  intensity: "Media",
+});
+const emptyPlanningWeek = () =>
+  Object.fromEntries(
+    planningDays.map((day) => [day, emptyPlannerSession()]),
+  ) as Record<string, PlannerSession>;
+const readPlanningDraft = (key: string): PlanningDraft | null => {
+  try {
+    const saved = window.localStorage.getItem(key);
+    if (!saved) return null;
+    const draft = JSON.parse(saved) as Partial<PlanningDraft>;
+    if (!draft.form || !draft.weekPlan) return null;
+    return {
+      form: {
+        group: String(draft.form.group || ""),
+        title: String(draft.form.title || ""),
+        body: String(draft.form.body || ""),
+        week: String(draft.form.week || mondayKey()),
+      },
+      activeDay: planningDays.includes(draft.activeDay || "")
+        ? String(draft.activeDay)
+        : "Lunes",
+      weekPlan: Object.fromEntries(
+        planningDays.map((day) => [
+          day,
+          { ...emptyPlannerSession(), ...(draft.weekPlan?.[day] || {}) },
+        ]),
+      ),
+    };
+  } catch {
+    return null;
+  }
 };
 const mondayKey = (value = new Date()) => {
   const date = new Date(value);
@@ -564,6 +623,10 @@ export function CompetitionManager({
 }
 
 export function PlanningWorkspace({ profile }: { profile: Profile }) {
+  const draftStorageKey = `coach-training-plan-draft:${profile.id}`;
+  const [restoredDraft] = useState<PlanningDraft | null>(() =>
+    readPlanningDraft(draftStorageKey),
+  );
   const [groups, setGroups] = useState<Group[]>([]);
   const [plans, setPlans] = useState<
     {
@@ -576,14 +639,20 @@ export function PlanningWorkspace({ profile }: { profile: Profile }) {
     }[]
   >([]);
   const [documents, setDocuments] = useState<ClubDocument[]>([]);
-  const [form, setForm] = useState({
-    group: "",
-    title: "",
-    body: "",
-    week: mondayKey(),
-  });
+  const [form, setForm] = useState(
+    restoredDraft?.form || {
+      group: "",
+      title: "",
+      body: "",
+      week: mondayKey(),
+    },
+  );
   const [file, setFile] = useState<File | null>(null);
-  const [notice, setNotice] = useState("");
+  const [notice, setNotice] = useState(
+    restoredDraft
+      ? "Hemos recuperado el plan que estabas preparando. Puedes seguir editándolo o publicarlo."
+      : "",
+  );
   const [aiContext, setAiContext] = useState({
     startingPoint: "",
     objective: "",
@@ -599,32 +668,14 @@ export function PlanningWorkspace({ profile }: { profile: Profile }) {
   const [aiProposals, setAiProposals] = useState<
     { id: string; training_group_id: string; week_starts_on: string; title: string; sessions: Record<string, PlannerSession>; rationale: string; aggregate_snapshot: { activeAthletes?: number; participatingAthletes?: number; coveragePercent?: number }; status: string }[]
   >([]);
-  const days = [
-    "Lunes",
-    "Martes",
-    "Miércoles",
-    "Jueves",
-    "Viernes",
-    "Sábado",
-    "Domingo",
-  ];
-  const emptySession = (): PlannerSession => ({
-    objective: "",
-    warmup: "",
-    technique: "",
-    main: "",
-    cooldown: "",
-    notes: "",
-    coachNotes: "",
-    duration: "60",
-    rpe: "5",
-    volume: "",
-    intensity: "Media",
-  });
-  const [activeDay, setActiveDay] = useState("Lunes");
+  const days = planningDays;
+  const emptySession = emptyPlannerSession;
+  const [activeDay, setActiveDay] = useState(
+    restoredDraft?.activeDay || "Lunes",
+  );
   const [weekPlan, setWeekPlan] = useState<
     Record<string, ReturnType<typeof emptySession>>
-  >(() => Object.fromEntries(days.map((day) => [day, emptySession()])));
+  >(() => restoredDraft?.weekPlan || emptyPlanningWeek());
   const builder = weekPlan[activeDay];
   const selectedGroup = groups.find((group) => group.id === form.group);
   const visiblePlans = form.group
@@ -706,6 +757,34 @@ export function PlanningWorkspace({ profile }: { profile: Profile }) {
   useEffect(() => {
     void load();
   }, []);
+  useEffect(() => {
+    try {
+      const hasContent =
+        Boolean(form.title.trim() || form.body.trim()) ||
+        Object.values(weekPlan).some((session) =>
+          [
+            session.objective,
+            session.warmup,
+            session.technique,
+            session.main,
+            session.cooldown,
+            session.notes,
+            session.coachNotes,
+            session.volume,
+          ].some((value) => value.trim()),
+        );
+      if (!hasContent) {
+        window.localStorage.removeItem(draftStorageKey);
+        return;
+      }
+      window.localStorage.setItem(
+        draftStorageKey,
+        JSON.stringify({ form, activeDay, weekPlan } satisfies PlanningDraft),
+      );
+    } catch {
+      // El plan sigue siendo editable aunque el dispositivo bloquee localStorage.
+    }
+  }, [draftStorageKey, form, activeDay, weekPlan]);
   useEffect(() => {
     const setting = aiSettings.find((item) => item.training_group_id === form.group);
     if (!setting) {
@@ -835,8 +914,32 @@ export function PlanningWorkspace({ profile }: { profile: Profile }) {
       body: form.title,
       url: "/?access=1",
     });
-    setNotice("Plan y documento publicados para el grupo.");
+    let publicationNotice = "Plan y documento publicados para el grupo.";
+    const { data: sessionData } = await supabase.auth.getSession();
+    if (sessionData.session?.access_token) {
+      const emailResponse = await fetch("/api/send-event-notification", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${sessionData.session.access_token}`,
+        },
+        body: JSON.stringify({ announcementId: savedPlan.id }),
+      }).catch(() => null);
+      const emailResult = emailResponse
+        ? ((await emailResponse.json().catch(() => null)) as {
+            sent?: number;
+            error?: string;
+          } | null)
+        : null;
+      publicationNotice = emailResponse?.ok
+        ? `Plan publicado y correo enviado a ${emailResult?.sent || 0} cuenta(s) del grupo.`
+        : "Plan publicado; el correo queda pendiente de reintento.";
+    }
+    setNotice(publicationNotice);
     setForm({ group: "", title: "", body: "", week: mondayKey() });
+    setWeekPlan(emptyPlanningWeek());
+    setActiveDay("Lunes");
+    window.localStorage.removeItem(draftStorageKey);
     setFile(null);
     void load();
   };
@@ -1318,10 +1421,14 @@ export function PlanningWorkspace({ profile }: { profile: Profile }) {
                   className="outline"
                   onClick={() => preview()}
                 >
-                  Vista PDF / guardar
+                  Previsualizar PDF
                 </button>
                 <button>Publicar plan</button>
               </div>
+              <small>
+                El borrador se guarda automáticamente en este dispositivo hasta
+                que lo publiques.
+              </small>
             </div>
             <aside>
               <small>YA TENGO EL PDF</small>
@@ -1507,7 +1614,7 @@ export function AnnouncementManager({
       supabase
         .from("athletes")
         .select(
-          "id,first_name,last_name,user_profile_id,families!athletes_family_id_fkey(primary_profile_id,profiles:profiles!families_primary_profile_id_fkey(id,email,full_name))",
+          "id,first_name,last_name,user_profile_id,training_group_id,families!athletes_family_id_fkey(primary_profile_id,profiles:profiles!families_primary_profile_id_fkey(id,email,full_name))",
         )
         .order("last_name"),
       supabase
@@ -1595,6 +1702,15 @@ export function AnnouncementManager({
             .filter(Boolean),
         ),
       ] as string[];
+    if (scope === "group")
+      return [
+        ...new Set(
+          athletes
+            .filter((a) => a.training_group_id === group)
+            .map((a) => a.user_profile_id || a.families?.primary_profile_id)
+            .filter(Boolean),
+        ),
+      ] as string[];
     if (scope === "staff") return staff.map((person) => person.id);
     return [];
   };
@@ -1667,13 +1783,34 @@ export function AnnouncementManager({
       body,
       url: "/?access=1",
     });
+    let deliveryNotice = "Aviso publicado y notificado a los dispositivos activos.";
+    if (email) {
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        if (!sessionData.session) throw new Error("La sesión ha caducado.");
+        const endpoint = scope === "club" ? "/api/send-announcement-email" : "/api/send-event-notification";
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            authorization: `Bearer ${sessionData.session.access_token}`,
+          },
+          body: JSON.stringify({ announcementId: data.id }),
+        });
+        const result = (await response.json().catch(() => null)) as {
+          sent?: number;
+          error?: string;
+        } | null;
+        if (!response.ok)
+          throw new Error(result?.error || "No se pudo completar el correo.");
+        deliveryNotice = `Aviso publicado y correo enviado a ${result?.sent || 0} cuenta(s).`;
+      } catch (error) {
+        deliveryNotice = `Aviso publicado; el correo queda pendiente de reintento${error instanceof Error ? `: ${error.message}` : "."}`;
+      }
+    }
     setTitle("");
     setBody("");
-    setNotice(
-      email
-        ? "Aviso publicado en la aplicación y notificado a los dispositivos activos. Los correos quedan según la preferencia elegida."
-        : "Aviso publicado y notificado a los dispositivos activos.",
-    );
+    setNotice(deliveryNotice);
     void load();
   };
   const remove = async (id: string) => {
@@ -1694,18 +1831,20 @@ export function AnnouncementManager({
     );
     void load();
   };
-  const forceClubEmail = async (announcementId: string) => {
+  const forceEmail = async (announcement: ManagedAnnouncement) => {
     if (!supabase || !isManager || emailSending) return;
-    if (!window.confirm("¿Enviar ahora este aviso por correo a todas las cuentas registradas del club?")) return;
-    setEmailSending(announcementId);
+    const target = announcement.audience === "club" ? "todas las cuentas registradas del club" : "los destinatarios de este aviso";
+    if (!window.confirm(`¿Enviar ahora este aviso por correo a ${target}?`)) return;
+    setEmailSending(announcement.id);
     setNotice("");
     try {
       const { data } = await supabase.auth.getSession();
       if (!data.session) throw new Error("La sesión ha caducado. Entra de nuevo.");
-      const response = await fetch("/api/send-announcement-email", {
+      const endpoint = announcement.audience === "club" ? "/api/send-announcement-email" : "/api/send-event-notification";
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: { authorization: `Bearer ${data.session.access_token}`, "content-type": "application/json" },
-        body: JSON.stringify({ announcementId }),
+        body: JSON.stringify({ announcementId: announcement.id }),
       });
       const result = await response.json().catch(() => null) as { sent?: number; error?: string } | null;
       if (!response.ok) throw new Error(result?.error || "No se pudo completar el envío por correo.");
@@ -1973,9 +2112,9 @@ export function AnnouncementManager({
             {openedAnnouncement === item.id && (
               <div className="announcement-history-detail">
                 <p>{item.body}</p>
-                {isManager && item.audience === "club" && (
-                  <button type="button" disabled={Boolean(emailSending)} onClick={() => void forceClubEmail(item.id)}>
-                    {emailSending === item.id ? "Enviando a todo el club…" : "Enviar por correo a todas las cuentas"}
+                {isManager && item.delivery_channels?.includes("email") && (
+                  <button type="button" disabled={Boolean(emailSending)} onClick={() => void forceEmail(item)}>
+                    {emailSending === item.id ? "Enviando correo…" : "Enviar o reintentar correo"}
                   </button>
                 )}
               </div>

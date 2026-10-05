@@ -65,6 +65,7 @@ export function printTrainingPlan(
   week: string,
   groupName: string,
 ) {
+  const returnUrl = escapeHtml(window.location.href);
   const sessions = parseSessions(body);
   const sessionCards = sessions
     .map(
@@ -121,11 +122,18 @@ export function printTrainingPlan(
     .detail p{margin:.8mm 0 0;color:#173858;font-size:6.7pt;line-height:1.28;overflow-wrap:anywhere}
     .fallback{grid-column:1/-1;grid-row:1/-1;white-space:pre-wrap;background:#fff;border:.3mm solid #d8e6f4;border-radius:4mm;padding:6mm;font-size:9pt}
     .plan-foot{height:6mm;display:flex;justify-content:space-between;align-items:center;color:#627895;font-size:6.2pt;padding:0 1mm}
-    @media screen{body{padding:18px}.page{max-width:794px;margin:auto;background:#edf4fb;padding:20px;border-radius:24px;box-shadow:0 20px 60px rgba(7,29,61,.16)}}
-    @media print{body{background:#fff}.page{gap:3.2mm}.session{box-shadow:none}}
+    .preview-actions{position:sticky;z-index:10;top:0;display:flex;justify-content:center;gap:10px;padding:12px;background:rgba(237,244,251,.96);backdrop-filter:blur(10px)}
+    .preview-actions a,.preview-actions button{min-height:44px;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:999px;padding:0 18px;font:700 15px Arial,Helvetica,sans-serif;text-decoration:none;cursor:pointer}
+    .preview-actions a{background:#fff;color:#0a4c9a;box-shadow:inset 0 0 0 1px #b9cfe6}.preview-actions button{background:#0c58b6;color:#fff}
+    @media screen{body{padding:0 18px 18px}.page{max-width:794px;margin:auto;background:#edf4fb;padding:20px;border-radius:24px;box-shadow:0 20px 60px rgba(7,29,61,.16)}}
+    @media print{body{background:#fff}.preview-actions{display:none!important}.page{gap:3.2mm}.session{box-shadow:none}}
   </style>
 </head>
 <body>
+  <nav class="preview-actions" aria-label="Acciones de la vista previa">
+    <a href="${returnUrl}">← Volver al plan</a>
+    <button type="button" onclick="window.print()">Imprimir / guardar PDF</button>
+  </nav>
   <main class="page">
     <header class="plan-head">
       <div class="brand"><img src="/logo-af-v1.png" alt=""><span>CLUB ATLETAS DE FUENLABRADA</span></div>
@@ -137,7 +145,6 @@ export function printTrainingPlan(
     <section class="sessions">${sessionCards || `<article class="fallback">${escapeHtml(body)}</article>`}</section>
     <footer class="plan-foot"><span>Club Atletas de Fuenlabrada · atletasdefuenlabrada.com</span><span>Sigue las indicaciones de tu entrenador</span></footer>
   </main>
-  <script>window.addEventListener("load",()=>setTimeout(()=>window.print(),250));<\/script>
 </body>
 </html>`);
   popup.document.close();
