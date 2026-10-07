@@ -7,7 +7,7 @@ import ClubChallenge from "./ClubChallenge";
 import AppNavIcon from "./AppNavIcon";
 import { withOfficialTrainingSchedule, withOfficialTrainingSchedules } from "../lib/trainingGroupSchedule";
 
-type Role = "owner" | "admin" | "coach" | "parent" | "adult_athlete" | "minor_athlete";
+type Role = "owner" | "admin" | "administrative_viewer" | "coach" | "parent" | "adult_athlete" | "minor_athlete";
 type Profile = { id: string; email: string; full_name: string | null; role: Role };
 type Group = { id: string; name: string; category_label: string; colour: string; schedule_days?: string | null; starts_at?: string | null; ends_at?: string | null };
 type Athlete = { id: string; first_name: string; last_name: string; license_number: string | null; federation_license?: string | null; license_status: string; training_group_id: string | null; user_profile_id?: string | null; training_groups?: Group | null };

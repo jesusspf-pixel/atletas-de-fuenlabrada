@@ -6,6 +6,7 @@ import "./club-admin-family.css";
 type Role =
   | "owner"
   | "admin"
+  | "administrative_viewer"
   | "coach"
   | "parent"
   | "adult_athlete"

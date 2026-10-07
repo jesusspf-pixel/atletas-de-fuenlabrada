@@ -31,6 +31,7 @@ import CoachHomeNext from "./components/CoachHomeNext";
 import CoachPerformanceOverview from "./components/CoachPerformanceOverview";
 import AppNavIcon from "./components/AppNavIcon";
 import AdminAthleteDossier from "./components/AdminAthleteDossier";
+import AdministrativeViewer from "./components/AdministrativeViewer";
 import {
   ensureSupabase,
   supabase,
@@ -41,6 +42,7 @@ import "./club-app.css";
 type Role =
   | "owner"
   | "admin"
+  | "administrative_viewer"
   | "coach"
   | "parent"
   | "adult_athlete"
@@ -124,6 +126,7 @@ const initialAdminAthleteName =
 const roleName: Record<Role, string> = {
   owner: "Propietario",
   admin: "Administrador",
+  administrative_viewer: "Administración · solo lectura",
   coach: "Entrenador",
   parent: "Familia",
   adult_athlete: "Atleta",
@@ -1049,6 +1052,8 @@ function Portal({
           "Rendimiento",
           "Club Challenge",
         ]
+      : profile.role === "administrative_viewer"
+        ? ["Inicio", "Atletas", "Cuotas"]
       : ["owner", "admin"].includes(profile.role)
         ? [
             "Inicio",
@@ -1234,6 +1239,8 @@ function Portal({
       </>
     ) : section === "Mis menores" && profile.role !== "minor_athlete" ? (
       <FamilyAthletes initialAthleteId={focusedAthleteId} dependentsOnly />
+    ) : profile.role === "administrative_viewer" ? (
+      <AdministrativeViewer section={section} />
     ) : ["owner", "admin"].includes(profile.role) ? (
       <Admin
         section={section}
@@ -2695,7 +2702,7 @@ function Invitations() {
   }>("family_renewal_invitations");
   const [kind, setKind] = useState<"staff" | "renewal" | "demo">("staff");
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<"admin" | "coach">("coach");
+  const [role, setRole] = useState<"admin" | "coach" | "administrative_viewer">("coach");
   const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
   const [link, setLink] = useState("");
   const [error, setError] = useState("");
@@ -2847,10 +2854,11 @@ function Invitations() {
                 <span>Permiso dentro del club</span>
                 <select
                   value={role}
-                  onChange={(e) => setRole(e.target.value as "admin" | "coach")}
+                  onChange={(e) => setRole(e.target.value as "admin" | "coach" | "administrative_viewer")}
                 >
                   <option value="coach">Entrenador</option>
                   <option value="admin">Administrador</option>
+                  <option value="administrative_viewer">Administración · solo lectura</option>
                 </select>
               </label>
             )}
@@ -2919,7 +2927,7 @@ function Invitations() {
               ? "Crear enlace de renovación"
               : kind === "demo"
                 ? "Crear acceso de demostración"
-                : `Invitar como ${role === "coach" ? "entrenador" : "administrador"}`}
+                : `Invitar como ${role === "coach" ? "entrenador" : role === "admin" ? "administrador" : "administración de solo lectura"}`}
           </button>
           {error && <p className="error-note">{error}</p>}
         </section>
@@ -2988,6 +2996,8 @@ function Invitations() {
                       ? "Entrenador"
                       : i.role === "admin"
                         ? "Administrador"
+                        : i.role === "administrative_viewer"
+                          ? "Administración · solo lectura"
                         : "Atleta de demostración"}
                   </small>
                 </span>

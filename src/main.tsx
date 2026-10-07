@@ -21,7 +21,7 @@ import "./admin-fixes.css";
 import "./responsive-guardrails.css";
 // El acceso de ranking abre siempre la vista de resultados del área deportiva.
 
-type Role = "owner" | "admin" | "coach" | "parent" | "adult_athlete" | "minor_athlete";
+type Role = "owner" | "admin" | "administrative_viewer" | "coach" | "parent" | "adult_athlete" | "minor_athlete";
 
 function Root() {
   const params = new URLSearchParams(window.location.search);

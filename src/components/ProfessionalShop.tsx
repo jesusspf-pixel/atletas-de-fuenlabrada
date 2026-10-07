@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
 import "./professional-shop.css";
 
-type Role = "owner" | "admin" | "coach" | "parent" | "adult_athlete" | "minor_athlete";
+type Role = "owner" | "admin" | "administrative_viewer" | "coach" | "parent" | "adult_athlete" | "minor_athlete";
 type Profile = { id: string; role: Role };
 type Product = { id: string; name: string; description: string | null; price_cents: number; sizes: string[]; active: boolean; image_url: string | null };
 type ProductImage = { id: string; product_id: string; image_url: string; storage_path: string | null; alt_text: string | null; sort_order: number; is_primary: boolean; created_at: string };
