@@ -3,7 +3,7 @@ import { supabase } from "../lib/supabase";
 import { apiFetch } from "../lib/clubApi";
 import "./challenge-icons.css";
 
-type Role="owner"|"admin"|"coach"|"parent"|"adult_athlete"|"minor_athlete";
+type Role="owner"|"admin"|"administrative_viewer"|"coach"|"parent"|"adult_athlete"|"minor_athlete";
 type Metric="distance"|"activities"|"active_days"|"elevation"|"duration"|"relative_effort";
 type Row={athlete_id:string;first_name:string;last_name:string;group_name:string|null;avatar_url?:string|null;activities:number;distance_m:number;moving_time_s:number;elevation_gain_m:number;relative_effort?:number;active_days?:number;longest_streak_days?:number};
 type Progress={challenge_id:string;title:string;description:string;metric:Metric;scope:"club"|"group"|"duel";target_value:number;ends_on:string;athlete_id:string;participant_status:"pending"|"accepted"|"declined";first_name:string;last_name:string;group_name:string|null;avatar_url:string|null;progress_value:number};
