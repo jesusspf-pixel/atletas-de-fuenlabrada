@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { printTrainingPlan } from "../lib/trainingPlanPrint";
 import { withOfficialTrainingSchedules } from "../lib/trainingGroupSchedule";
+import { federationCategory } from "../lib/athleticsCategories";
 import "./club-operations.css";
 
 type Profile = {
@@ -36,7 +37,37 @@ type Competition = {
   internal_deadline: string | null;
   rules_summary: string | null;
   published: boolean;
+  created_by: string;
   club_documents?: ClubDocument[];
+};
+type CompetitionTest = {
+  id: string;
+  competition_event_id: string;
+  name: string;
+  eligible_categories: string[];
+  eligible_sex: "all" | "female" | "male";
+  min_birth_year: number | null;
+  max_birth_year: number | null;
+  notes: string | null;
+  sort_order: number;
+  active: boolean;
+};
+type CompetitionAthlete = {
+  id: string;
+  first_name: string;
+  last_name: string;
+  training_group_id: string | null;
+  birth_date: string | null;
+  federative_sex: string | null;
+  official_competition_category: string | null;
+};
+type CompetitionEntry = {
+  id: string;
+  competition_event_id: string;
+  athlete_id: string;
+  requested_events: string[];
+  status: string;
+  notes: string | null;
 };
 type ClubDocument = {
   id: string;
@@ -208,16 +239,19 @@ export function CompetitionManager({
     }[]
   >([]);
   const [athletes, setAthletes] = useState<
-    {
-      id: string;
-      first_name: string;
-      last_name: string;
-      training_group_id: string | null;
-    }[]
+    CompetitionAthlete[]
   >([]);
-  const [entries, setEntries] = useState<
-    { competition_event_id: string; athlete_id: string; status: string }[]
-  >([]);
+  const [entries, setEntries] = useState<CompetitionEntry[]>([]);
+  const [tests, setTests] = useState<CompetitionTest[]>([]);
+  const [selectedTests, setSelectedTests] = useState<Record<string, string[]>>({});
+  const [testForms, setTestForms] = useState<Record<string, {
+    name: string;
+    categories: string;
+    sex: "all" | "female" | "male";
+    minBirthYear: string;
+    maxBirthYear: string;
+    notes: string;
+  }>>({});
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [file, setFile] = useState<File | null>(null);
@@ -237,6 +271,7 @@ export function CompetitionManager({
       { data: attendanceData },
       { data: athleteData },
       { data: entryData },
+      { data: testData },
     ] = await Promise.all([
       supabase
         .from("competition_events")
@@ -247,10 +282,14 @@ export function CompetitionManager({
         .select("competition_event_id,coach_profile_id,available"),
       supabase
         .from("athletes")
-        .select("id,first_name,last_name,training_group_id"),
+        .select("id,first_name,last_name,training_group_id,birth_date,federative_sex,official_competition_category"),
       supabase
         .from("competition_entries")
-        .select("competition_event_id,athlete_id,status"),
+        .select("id,competition_event_id,athlete_id,requested_events,status,notes"),
+      supabase
+        .from("competition_event_tests")
+        .select("id,competition_event_id,name,eligible_categories,eligible_sex,min_birth_year,max_birth_year,notes,sort_order,active")
+        .order("sort_order", { ascending: true }),
     ]);
     setEvents((eventData ?? []) as Competition[]);
     setAvailability(
@@ -262,6 +301,7 @@ export function CompetitionManager({
     );
     setAthletes((athleteData ?? []) as typeof athletes);
     setEntries((entryData ?? []) as typeof entries);
+    setTests((testData ?? []) as CompetitionTest[]);
     if (error) setNotice(error.message);
   };
   useEffect(() => {
@@ -365,16 +405,74 @@ export function CompetitionManager({
       void load();
     }
   };
+  const selectionKey = (eventId: string, athleteId: string) => `${eventId}:${athleteId}`;
+  const athleteCategory = (athlete: CompetitionAthlete, event: Competition) =>
+    athlete.official_competition_category ||
+    (athlete.birth_date ? federationCategory(athlete.birth_date, new Date(event.starts_at).getFullYear()) : "");
+  const normalized = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const eligibleFor = (test: CompetitionTest, athlete: CompetitionAthlete, event: Competition) => {
+    if (!test.active || !athlete.birth_date) return false;
+    const birthYear = Number(athlete.birth_date.slice(0, 4));
+    const category = normalized(athleteCategory(athlete, event));
+    const sex = (athlete.federative_sex || "").toLowerCase();
+    const categoryOk = !test.eligible_categories.length || test.eligible_categories.some(item => normalized(item) === category);
+    const yearOk = (test.min_birth_year === null || birthYear >= test.min_birth_year) && (test.max_birth_year === null || birthYear <= test.max_birth_year);
+    const sexOk = test.eligible_sex === "all" ||
+      (test.eligible_sex === "female" && ["f", "female", "femenino", "mujer"].includes(sex)) ||
+      (test.eligible_sex === "male" && ["m", "male", "masculino", "hombre"].includes(sex));
+    return categoryOk && yearOk && sexOk;
+  };
   const requestEntry = async (eventId: string, athleteId: string) => {
     if (!supabase) return;
     setNotice("");
+    const requestedTestIds = selectedTests[selectionKey(eventId, athleteId)] || [];
+    if (!requestedTestIds.length) return setNotice("Selecciona al menos una prueba compatible.");
     const { error } = await supabase.rpc("request_competition_entry", {
       target_event_id: eventId,
       target_athlete_id: athleteId,
+      target_test_ids: requestedTestIds,
     });
     if (error) setNotice(error.message);
     else {
-      setNotice("Solicitud enviada al entrenador del grupo y al club.");
+      setNotice("Solicitud enviada al entrenador que publicó la competición y a administración.");
+      void load();
+    }
+  };
+  const saveTest = async (eventId: string) => {
+    if (!supabase) return;
+    const draft = testForms[eventId] || { name: "", categories: "", sex: "all", minBirthYear: "", maxBirthYear: "", notes: "" };
+    if (!draft.name.trim()) return setNotice("Indica el nombre de la prueba.");
+    setBusy(true);
+    setNotice("");
+    const categories = draft.categories.split(",").map(item => item.trim()).filter(Boolean);
+    const { error } = await supabase.from("competition_event_tests").insert({
+      competition_event_id: eventId,
+      name: draft.name.trim(),
+      eligible_categories: categories,
+      eligible_sex: draft.sex,
+      min_birth_year: draft.minBirthYear ? Number(draft.minBirthYear) : null,
+      max_birth_year: draft.maxBirthYear ? Number(draft.maxBirthYear) : null,
+      notes: draft.notes.trim() || null,
+      sort_order: tests.filter(item => item.competition_event_id === eventId).length,
+      created_by: profile.id,
+    });
+    setBusy(false);
+    if (error) return setNotice(error.message);
+    setTestForms(current => ({ ...current, [eventId]: { name: "", categories: "", sex: "all", minBirthYear: "", maxBirthYear: "", notes: "" } }));
+    setNotice("Prueba añadida a la competición.");
+    void load();
+  };
+  const reviewEntry = async (entryId: string, status: "approved" | "rejected") => {
+    if (!supabase) return;
+    setNotice("");
+    const { error } = await supabase.from("competition_entries").update({
+      status,
+      reviewed_by: profile.id,
+      reviewed_at: new Date().toISOString(),
+    }).eq("id", entryId);
+    if (error) setNotice(error.message);
+    else {
+      setNotice(status === "approved" ? "Solicitud aprobada." : "Solicitud rechazada.");
       void load();
     }
   };
@@ -508,6 +606,14 @@ export function CompetitionManager({
           const requested = entries.filter(
             (entry) => entry.competition_event_id === event.id,
           );
+          const eventTests = tests.filter(test => test.competition_event_id === event.id && test.active);
+          const testName = (id: string) => eventTests.find(test => test.id === id)?.name || "Prueba no disponible";
+          const testDraft = testForms[event.id] || { name: "", categories: "", sex: "all" as const, minBirthYear: "", maxBirthYear: "", notes: "" };
+          const canManageEvent = manager && (
+            profile.role === "owner" ||
+            profile.role === "admin" ||
+            event.created_by === profile.id
+          );
           return (
             <article className="panel event-card" key={event.id}>
               <div className="event-date">
@@ -533,6 +639,12 @@ export function CompetitionManager({
                   </small>
                 )}
                 {event.rules_summary && <p>{event.rules_summary}</p>}
+                {eventTests.length > 0 && (
+                  <div className="competition-test-summary">
+                    <b>Pruebas publicadas</b>
+                    <span>{eventTests.map(test => test.name).join(" · ")}</span>
+                  </div>
+                )}
                 {event.club_documents?.map((doc) => (
                   <button
                     className="outline small-button"
@@ -544,39 +656,54 @@ export function CompetitionManager({
                 ))}
               </div>
               <aside>
-                {profile.role === "coach" ? (
-                  <>
-                    <b>Asistencia del entrenador</b>
-                    <small>
-                      {mine
-                        ? mine.available
-                          ? "Confirmada"
-                          : "No disponible"
-                        : "Sin responder"}
-                    </small>
-                    <div className="answer-buttons">
-                      <button
-                        className={mine?.available ? "yes" : "outline"}
-                        onClick={() => void respond(event.id, true)}
-                      >
-                        Puedo asistir
-                      </button>
-                      <button
-                        className={mine && !mine.available ? "no" : "outline"}
-                        onClick={() => void respond(event.id, false)}
-                      >
-                        No puedo
-                      </button>
-                    </div>
-                  </>
-                ) : manager ? (
+                {canManageEvent ? (
                   <>
                     <b>{requested.length}</b>
                     <small>
                       solicitudes recibidas · {attending} entrenador(es)
                       disponible(s)
                     </small>
+                    <div className="competition-request-list">
+                      {requested.map(entry => {
+                        const athlete = athletes.find(item => item.id === entry.athlete_id);
+                        return <div key={entry.id}>
+                          <b>{athlete ? `${athlete.first_name} ${athlete.last_name}` : "Atleta"}</b>
+                          <small>{(entry.requested_events || []).map(testName).join(", ") || "Sin pruebas indicadas"}</small>
+                          <small>Estado: {entry.status}</small>
+                          {entry.status === "requested" && <div className="answer-buttons">
+                            <button onClick={() => void reviewEntry(entry.id, "approved")}>Aprobar</button>
+                            <button className="outline" onClick={() => void reviewEntry(entry.id, "rejected")}>Rechazar</button>
+                          </div>}
+                        </div>;
+                      })}
+                    </div>
+                    {profile.role === "coach" && <>
+                      <b>Asistencia del entrenador</b>
+                      <small>
+                        {mine
+                          ? mine.available
+                            ? "Confirmada"
+                            : "No disponible"
+                          : "Sin responder"}
+                      </small>
+                      <div className="answer-buttons">
+                        <button
+                          className={mine?.available ? "yes" : "outline"}
+                          onClick={() => void respond(event.id, true)}
+                        >
+                          Puedo asistir
+                        </button>
+                        <button
+                          className={mine && !mine.available ? "no" : "outline"}
+                          onClick={() => void respond(event.id, false)}
+                        >
+                          No puedo
+                        </button>
+                      </div>
+                    </>}
                   </>
+                ) : profile.role === "coach" ? (
+                  <small>Esta competición la gestiona el entrenador que la publicó.</small>
                 ) : (
                   <>
                     {athletes.map((athlete) => {
@@ -586,21 +713,31 @@ export function CompetitionManager({
                       const ownAdult =
                         profile.role === "adult_athlete" ||
                         profile.role === "minor_athlete";
+                      const eligibleTests = eventTests.filter(test => eligibleFor(test, athlete, event));
+                      const key = selectionKey(event.id, athlete.id);
+                      const selected = selectedTests[key] || [];
                       return (
-                        <button
-                          className="outline small-button"
-                          key={athlete.id}
-                          disabled={Boolean(entry)}
-                          onClick={() =>
-                            void requestEntry(event.id, athlete.id)
-                          }
-                        >
-                          {entry
-                            ? "Solicitud enviada"
-                            : ownAdult
-                              ? "Solicitar inscripción"
-                              : `Apuntar a ${athlete.first_name}`}
-                        </button>
+                        <div className="competition-athlete-picker" key={athlete.id}>
+                          <b>{athlete.first_name} {athlete.last_name}</b>
+                          <small>{athleteCategory(athlete, event) || "Categoría por revisar"}</small>
+                          {entry ? <>
+                            <span className={`entry-status ${entry.status}`}>Solicitud: {entry.status}</span>
+                            <small>{(entry.requested_events || []).map(testName).join(", ")}</small>
+                          </> : eligibleTests.length ? <>
+                            <div className="competition-test-options">
+                              {eligibleTests.map(test => <label key={test.id}>
+                                <input type="checkbox" checked={selected.includes(test.id)} onChange={e => setSelectedTests(current => ({
+                                  ...current,
+                                  [key]: e.target.checked ? [...(current[key] || []), test.id] : (current[key] || []).filter(id => id !== test.id),
+                                }))}/>
+                                <span><b>{test.name}</b>{test.notes && <small>{test.notes}</small>}</span>
+                              </label>)}
+                            </div>
+                            <button className="outline small-button" disabled={!selected.length} onClick={() => void requestEntry(event.id, athlete.id)}>
+                              {ownAdult ? "Solicitar inscripción" : `Solicitar para ${athlete.first_name}`}
+                            </button>
+                          </> : <small>No hay pruebas compatibles con su fecha de nacimiento, categoría federativa y sexo.</small>}
+                        </div>
                       );
                     })}
                     {!athletes.length && (
@@ -609,6 +746,20 @@ export function CompetitionManager({
                   </>
                 )}
               </aside>
+              {canManageEvent && (
+                <div className="competition-test-editor">
+                  <h3>Añadir prueba a esta competición</h3>
+                  <div className="ops-grid">
+                    <label>Prueba<input value={testDraft.name} placeholder="60 m vallas" onChange={e => setTestForms(current => ({ ...current, [event.id]: { ...testDraft, name: e.target.value } }))}/></label>
+                    <label>Categorías FAM<input value={testDraft.categories} placeholder="Sub 14, Sub 16" onChange={e => setTestForms(current => ({ ...current, [event.id]: { ...testDraft, categories: e.target.value } }))}/></label>
+                    <label>Sexo<select value={testDraft.sex} onChange={e => setTestForms(current => ({ ...current, [event.id]: { ...testDraft, sex: e.target.value as "all" | "female" | "male" } }))}><option value="all">Todos</option><option value="female">Femenino</option><option value="male">Masculino</option></select></label>
+                    <label>Año nacimiento mínimo<input type="number" value={testDraft.minBirthYear} placeholder="2011" onChange={e => setTestForms(current => ({ ...current, [event.id]: { ...testDraft, minBirthYear: e.target.value } }))}/></label>
+                    <label>Año nacimiento máximo<input type="number" value={testDraft.maxBirthYear} placeholder="2012" onChange={e => setTestForms(current => ({ ...current, [event.id]: { ...testDraft, maxBirthYear: e.target.value } }))}/></label>
+                    <label>Indicaciones<input value={testDraft.notes} placeholder="Marca mínima, horario…" onChange={e => setTestForms(current => ({ ...current, [event.id]: { ...testDraft, notes: e.target.value } }))}/></label>
+                  </div>
+                  <button type="button" disabled={busy} onClick={() => void saveTest(event.id)}>Añadir prueba</button>
+                </div>
+              )}
             </article>
           );
         })}
