@@ -5,7 +5,8 @@ export const competitionCategory = (athlete: RegistrationAthlete, event: Pick<Re
   if (!athlete.birth_date) return "";
   const age = Number(event.starts_at.slice(0, 4)) - Number(athlete.birth_date.slice(0, 4));
   if (!Number.isFinite(age) || age < 0) return "";
-  for (const limit of [6, 8, 10, 12, 14, 16, 18, 20, 23]) if (age < limit) return `Sub ${limit}`;
+  // RFEA 2026: Sub 8 includes all younger athletes; Sub 6 is a club training group.
+  for (const limit of [8, 10, 12, 14, 16, 18, 20, 23]) if (age < limit) return `Sub ${limit}`;
   return "Absoluto / Máster";
 };
 export const competitionClosed = (event: RegistrationEvent, now = Date.now()) =>

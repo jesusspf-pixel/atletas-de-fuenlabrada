@@ -98,3 +98,19 @@ test('no general requests or unconfigured competitions are accepted', async () =
     assert.equal(result.writes.length, 0);
   }
 });
+
+// Official RFEA 2026 licence regulations, Annex 2.
+test('all youth birth-year boundaries follow the federation table, including club Sub 6', () => {
+  const race = { starts_at: '2026-11-01T09:30:00+01:00' };
+  const groups = [[2019, 2020, 2021, 2022], [2017, 2018], [2015, 2016], [2013, 2014], [2011, 2012], [2009, 2010], [2007, 2008], [2004, 2005, 2006]];
+  const categories = ['Sub 8', 'Sub 10', 'Sub 12', 'Sub 14', 'Sub 16', 'Sub 18', 'Sub 20', 'Sub 23'];
+  groups.forEach((years, index) => years.forEach(year => {
+    const child = { birth_date: `${year}-12-31`, federative_sex: 'F', training_category: 'Sub 6' };
+    assert.equal(competitionCategory(child, race), categories[index]);
+    categories.forEach((category, candidate) => {
+      assert.equal(eligibleCompetitionTest({ ...compatible, eligible_categories: [category], min_birth_year: null, max_birth_year: null }, child, race), index === candidate);
+    });
+  }));
+  const young = { birth_date: '2021-06-01', federative_sex: 'F' };
+  assert.equal(eligibleCompetitionTest({ ...compatible, eligible_categories: ['Sub 8'], min_birth_year: 2019, max_birth_year: 2020 }, young, race), false);
+});
