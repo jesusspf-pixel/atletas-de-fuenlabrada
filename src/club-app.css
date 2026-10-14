@@ -147,3 +147,5 @@ button:disabled{opacity:.6;cursor:not-allowed}
 .historical-rank.top-eight{background:linear-gradient(90deg,#fff7dc,#fff)}
 .historical-rank.top-eight b{color:#8b5b00}
 .historical-rank.top-eight small{color:#9b711c}
+.account-privacy-links{margin-bottom:16px}.account-delete-card{border:1px solid #f2c5c8;background:#fffafa}.account-delete-card>small{color:#a8323b;font-weight:900;letter-spacing:.12em}.account-delete-confirm{max-width:520px;margin:18px 0}.account-delete-confirm button.danger{background:#a8323b;color:#fff}.account-delete-confirm button.danger:disabled{opacity:.45}.account-delete-card>a{display:inline-block;margin-top:12px;color:#285fcf;font-weight:750}
+.challenge-moderation{display:flex!important;gap:5px!important;justify-content:flex-end}.challenge-moderation button{padding:4px 6px!important;border:0!important;background:transparent!important;color:#60738c!important;font-size:7px!important;text-decoration:underline!important}

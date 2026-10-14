@@ -32,6 +32,7 @@ import CoachPerformanceOverview from "./components/CoachPerformanceOverview";
 import AppNavIcon from "./components/AppNavIcon";
 import AdminAthleteDossier from "./components/AdminAthleteDossier";
 import AdministrativeViewer from "./components/AdministrativeViewer";
+import AccountPrivacy from "./components/AccountPrivacy";
 import {
   ensureSupabase,
   supabase,
@@ -1051,9 +1052,10 @@ function Portal({
           "Avisos",
           "Rendimiento",
           "Club Challenge",
+          "Mi cuenta",
         ]
       : profile.role === "administrative_viewer"
-        ? ["Inicio", "Atletas", "Cuotas"]
+        ? ["Inicio", "Atletas", "Cuotas", "Mi cuenta"]
       : ["owner", "admin"].includes(profile.role)
         ? [
             "Inicio",
@@ -1069,9 +1071,10 @@ function Portal({
             "Rendimiento",
             "Club Challenge",
             "Configuración",
+            "Mi cuenta",
           ]
         : profile.role === "minor_athlete"
-          ? ["Inicio", "Mi perfil", "Carreras", "Avisos"]
+          ? ["Inicio", "Mi perfil", "Carreras", "Avisos", "Mi cuenta"]
           : [
               "Inicio",
               profile.role === "parent" ? "Mis atletas" : "Mi perfil",
@@ -1079,6 +1082,7 @@ function Portal({
               "Cuotas",
               "Avisos",
               "Tienda",
+              "Mi cuenta",
             ];
   useEffect(() => {
     if (!supabase) return;
@@ -1183,8 +1187,9 @@ function Portal({
       : ["parent", "adult_athlete", "minor_athlete"].includes(profile.role)
         ? "member-next-shell"
         : "admin-next-shell";
-  const portalContent =
-    profile.role === "minor_athlete" && section === "Challenge" ? (
+  const portalContent = section === "Mi cuenta" ? (
+      <AccountPrivacy email={profile.email} />
+    ) : profile.role === "minor_athlete" && section === "Challenge" ? (
       <><Header title="Acceso deportivo" text="El Challenge se gestiona desde la cuenta familiar." /><article className="panel"><h2>Sección reservada a la familia</h2><p>El padre, madre o tutor puede decidir la participación en el Challenge desde su cuenta.</p></article></>
     ) : section === "Challenge" ? (
       challengeAthleteId ? (

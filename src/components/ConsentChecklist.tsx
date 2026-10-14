@@ -31,6 +31,7 @@ const documents: Record<ConsentKey, ConsentDocument> = {
       "Esta autorización es voluntaria y puede retirarse para publicaciones futuras escribiendo al club, sin afectar a los usos realizados lícitamente con anterioridad.",
     ],
     optional: true,
+    href: "/terminos.html#imagenes",
   },
   fam_data: {
     title: "Tramitación de licencia FAM",
@@ -39,6 +40,7 @@ const documents: Record<ConsentKey, ConsentDocument> = {
       "El club tratará y remitirá a la Federación de Atletismo de Madrid los datos imprescindibles para tramitar o renovar la licencia solicitada. La base jurídica es la ejecución de la relación deportiva y federativa.",
       "La Federación tratará los datos como responsable independiente. La licencia permanecerá pendiente hasta que el club revise la solicitud y complete la tramitación.",
     ],
+    href: "/terminos.html#federacion",
   },
   club_rules: {
     title: "Normativa del club y condiciones de uso",
@@ -56,6 +58,7 @@ const documents: Record<ConsentKey, ConsentDocument> = {
       "Aceptas la cuota seleccionada en esta solicitud y que los futuros cargos se realicen mediante el proveedor seguro que configure el club.",
       "No se realiza ningún cargo al enviar el formulario. Administración revisará matrícula, fecha de alta y descuentos antes de solicitar la vinculación del medio de pago.",
     ],
+    href: "/terminos.html#cuotas",
   },
 };
 
