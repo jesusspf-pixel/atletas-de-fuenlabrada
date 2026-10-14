@@ -5,6 +5,7 @@ import { withOfficialTrainingSchedules } from "../lib/trainingGroupSchedule";
 import { competitionCategory, competitionClosed, eligibleCompetitionTest, competitionEntryLabel } from "../lib/competitionRegistration";
 import { apiFetch } from "../lib/clubApi";
 import "./club-operations.css";
+import { CompetitionCircularImport, type CircularTest } from "./CompetitionCircularImport";
 
 type Profile = {
   id: string;
@@ -249,6 +250,8 @@ export function CompetitionManager({
   const [pendingEntries, setPendingEntries] = useState<Record<string, boolean>>({});
   const [entryNotices, setEntryNotices] = useState<Record<string, string>>({});
   const [selectedTests, setSelectedTests] = useState<Record<string, string[]>>({});
+  const [circularTests, setCircularTests] = useState<CircularTest[]>([]);
+  const [circularReviewed, setCircularReviewed] = useState(false);
   const [editingTests, setEditingTests] = useState<Record<string, string>>({});
   const [checkAthletes, setCheckAthletes] = useState<Record<string, string>>({});
   const [testForms, setTestForms] = useState<Record<string, {
@@ -313,6 +316,7 @@ export function CompetitionManager({
   const save = async (e: FormEvent) => {
     e.preventDefault();
     if (!supabase) return;
+    if (file && (!circularReviewed || !circularTests.length)) return setNotice("Revisa las pruebas extraídas de la circular antes de publicar.");
     setBusy(true);
     setNotice("");
     const { data, error } = await supabase
@@ -328,7 +332,7 @@ export function CompetitionManager({
           ? new Date(form.clubDeadline).toISOString()
           : null,
         rules_summary: form.rules || null,
-        published: form.published,
+        published: false,
         created_by: profile.id,
       })
       .select()
@@ -337,32 +341,31 @@ export function CompetitionManager({
       setBusy(false);
       return setNotice(error?.message || "No se pudo crear la competición.");
     }
-    if (file) {
-      const path = `competitions/${data.id}/${fileKey(file)}`;
-      const { error: uploadError } = await supabase.storage
-        .from("club-private-documents")
-        .upload(path, file);
-      if (uploadError)
-        setNotice(
-          `Competición creada, pero el PDF no se pudo subir: ${uploadError.message}`,
-        );
-      else {
-        const { error: docError } = await supabase
-          .from("club_documents")
-          .insert({
-            document_type: "competition_circular",
-            title: file.name,
-            storage_path: path,
-            competition_event_id: data.id,
-            uploaded_by: profile.id,
-          });
-        if (docError)
-          setNotice(
-            `Competición creada, pero no se registró el PDF: ${docError.message}`,
-          );
+    let publicationError = "";
+    try {
+      if (file) {
+        const path = `competitions/${data.id}/${fileKey(file)}`;
+        const { error: uploadError } = await supabase.storage.from("club-private-documents").upload(path, file);
+        if (uploadError) throw uploadError;
+        const { error: docError } = await supabase.from("club_documents").insert({
+          document_type: "competition_circular", title: file.name, storage_path: path,
+          competition_event_id: data.id, uploaded_by: profile.id,
+        });
+        if (docError) throw docError;
+        const { error: testsError } = await supabase.from("competition_event_tests").insert(circularTests.map((t,i)=>({
+          competition_event_id:data.id,name:t.name.trim(),eligible_categories:t.categories,eligible_sex:t.sex,
+          min_birth_year:t.minYear,max_birth_year:t.maxYear,notes:t.notes||null,active:true,sort_order:i,created_by:profile.id,
+        })));
+        if (testsError) throw testsError;
       }
+      if (form.published) {
+        const { error: publishError } = await supabase.from("competition_events").update({published:true}).eq("id",data.id);
+        if (publishError) throw publishError;
+      }
+    } catch (error) {
+      publicationError = "No se ha publicado. Se ha conservado un borrador para el responsable: " + (error instanceof Error ? error.message : String((error as {message?:string})?.message||"Error al guardar PDF o pruebas."));
     }
-    if (form.published)
+    if (form.published && !publicationError)
       void pushNotice({
         kind: "competition",
         scope: "club",
@@ -380,8 +383,10 @@ export function CompetitionManager({
       published: true,
     });
     setFile(null);
+    setCircularTests([]);
+    setCircularReviewed(false);
     setBusy(false);
-    if (!notice) setNotice("Competición publicada en el calendario interno.");
+    setNotice(publicationError || (form.published ? "Competición publicada con sus pruebas y circular." : "Borrador guardado."));
     void load();
   };
   const respond = async (eventId: string, available: boolean) => {
@@ -548,10 +553,12 @@ export function CompetitionManager({
               <input
                 type="file"
                 accept="application/pdf"
-                onChange={(e) => setFile(e.target.files?.[0] || null)}
+                disabled={busy}
+                onChange={(e) => { setFile(e.target.files?.[0] || null); setCircularReviewed(false); setCircularTests([]); }}
               />
             </label>
           </div>
+          {file && <CompetitionCircularImport file={file} onReview={(items,reviewed)=>{setCircularTests(items);setCircularReviewed(reviewed);}} />}
           <label>
             Indicaciones para las familias y entrenadores
             <textarea
@@ -570,7 +577,7 @@ export function CompetitionManager({
             />
             Visible en la app
           </label>
-          <button disabled={busy}>
+          <button disabled={busy || Boolean(file && !circularReviewed)}>
             {busy ? "Publicando…" : "Publicar en calendario"}
           </button>
         </form>
