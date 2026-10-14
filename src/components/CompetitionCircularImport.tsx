@@ -41,7 +41,7 @@ export function CompetitionCircularImport({file,onReview}:{file:File;onReview:(t
     {warnings.length>0&&<div role="alert"><strong>Revisar en la circular</strong><ul>{warnings.map((w,i)=><li key={i}>{w}</li>)}</ul></div>}
     {tests.map((t,i)=><fieldset key={i} disabled={reading}><legend>Prueba {i+1}</legend><div className="form-grid">
       <label>Nombre de prueba<input value={t.name} onChange={e=>edit(i,{name:e.target.value})}/></label>
-      <label>Categorías (separadas por comas)<input value={t.categories.join(', ')} onChange={e=>edit(i,{categories:e.target.value.split(',').map(s=>s.trim())})}/></label>
+      <fieldset><legend>Categorías</legend>{categories.map(category=><label className="check-line" key={category}><input type="checkbox" checked={t.categories.includes(category)} onChange={e=>edit(i,{categories:e.target.checked?[...t.categories,category]:t.categories.filter(c=>c!==category)})}/>{category}</label>)}</fieldset>
       <label>Sexo<select value={t.sex} onChange={e=>edit(i,{sex:e.target.value as CircularTest['sex']})}><option value="all">Todos</option><option value="female">Femenino</option><option value="male">Masculino</option></select></label>
       <label>Año de nacimiento desde<input type="number" min="1900" max="2200" value={t.minYear??''} onChange={e=>edit(i,{minYear:e.target.value?Number(e.target.value):null})}/></label>
       <label>Año de nacimiento hasta<input type="number" min="1900" max="2200" value={t.maxYear??''} onChange={e=>edit(i,{maxYear:e.target.value?Number(e.target.value):null})}/></label>
