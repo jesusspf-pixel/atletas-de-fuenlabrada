@@ -26,6 +26,8 @@
 	<true/>
 	<key>NSHealthShareUsageDescription</key>
 	<string>Atletas de Fuenlabrada lee tus entrenamientos y la frecuencia cardiaca asociada para mostrar tu historial deportivo y facilitar el seguimiento por tus entrenadores autorizados.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>Atletas de Fuenlabrada puede guardar en Apple Salud los entrenamientos que decidas sincronizar para mantener actualizado tu historial deportivo.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
