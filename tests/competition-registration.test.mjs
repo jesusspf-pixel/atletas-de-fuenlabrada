@@ -34,12 +34,12 @@ async function run(options = {}) {
     }
     if (table === 'competition_events') return Response.json([{ ...event, ...options.event }]);
     if (table === 'competition_entries') return Response.json(saved ? [saved] : []);
-    if (table === 'competition_event_tests') return Response.json(options.tests || [], { status: options.testsFail ? 500 : 200 });
+    if (table === 'competition_event_tests') return Response.json(options.tests || [compatible], { status: options.testsFail ? 500 : 200 });
     if (table === 'profiles') return Response.json([{ id: 'admin' }]);
     throw new Error(`Unexpected read ${table}`);
   };
   try {
-    const response = await onRequest({ env: { SUPABASE_URL: 'https://example.invalid', SUPABASE_SERVICE_ROLE_KEY: 'test-only' }, request: new Request('https://club.invalid/api/competition-registration', { method: options.method || 'POST', headers: options.anonymous ? {} : { authorization: 'Bearer session' }, ...((options.method || 'POST') === 'POST' ? { body: JSON.stringify({ eventId: eid, athleteId: aid, testIds: options.ids || [] }) } : {}) }) });
+    const response = await onRequest({ env: { SUPABASE_URL: 'https://example.invalid', SUPABASE_SERVICE_ROLE_KEY: 'test-only' }, request: new Request('https://club.invalid/api/competition-registration', { method: options.method || 'POST', headers: options.anonymous ? {} : { authorization: 'Bearer session' }, ...((options.method || 'POST') === 'POST' ? { body: JSON.stringify({ eventId: eid, athleteId: aid, testIds: options.ids || [tid] }) } : {}) }) });
     return { status: response.status, body: await response.json(), calls, writes };
   } finally { globalThis.fetch = original; }
 }
@@ -48,10 +48,10 @@ test('requires a valid session and current family ownership before accessing eve
     const result = await run(opts); assert.equal(result.status, opts.anonymous || opts.authStatus ? 401 : 403); assert.equal(result.writes.length, 0); assert.ok(!result.calls.some(c => c.table === 'competition_events'));
   }
 });
-test('primary, active additional guardian and own athlete can submit general requests', async () => {
+test('primary, active additional guardian and own athlete can submit eligible test requests', async () => {
   for (const opts of [{ primary: true }, { guardian: true }, { adult: true }]) {
     const result = await run(opts); assert.equal(result.status, 200); assert.equal(result.body.entry.status, 'requested'); assert.equal(result.body.notificationPending, false);
-    assert.deepEqual(result.writes.find(w => w.table === 'competition_entries').body.requested_events, []);
+    assert.deepEqual(result.writes.find(w => w.table === 'competition_entries').body.requested_events, [tid]);
     assert.equal(result.writes.find(w => w.table === 'competition_entries').body.requested_by, 'caller');
     assert.equal(result.writes.filter(w => w.table === 'announcement_deliveries').length, 1);
     assert.equal(result.calls.find(c => c.table === 'family_guardians').query.get('access_status'), 'eq.active');
@@ -89,4 +89,12 @@ test('category follows competition year, not stale stored training category', ()
   assert.equal(competitionCategory({ birth_date: '2014-06-01' }, { starts_at: '2028-01-01' }), 'Sub 16');
   assert.equal(competitionClosed({ ...event, internal_deadline: '2026-10-14T10:00:00Z' }, Date.parse('2026-10-14T10:00:00Z')), true);
   assert.equal(eligibleCompetitionTest(compatible, athlete, event), true);
+});
+
+test('no general requests or unconfigured competitions are accepted', async () => {
+  for (const options of [{ tests: [], ids: [] }, { tests: [], ids: [tid] }, { ids: [] }]) {
+    const result = await run({ primary: true, ...options });
+    assert.equal(result.status, 400);
+    assert.equal(result.writes.length, 0);
+  }
 });

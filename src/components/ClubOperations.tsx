@@ -719,10 +719,8 @@ export function CompetitionManager({
                           </> : registrationLoading ? <small>Cargando opciones…</small>
                             : registrationError ? <small>No se puede solicitar hasta completar la carga. Pulsa Reintentar arriba.</small>
                             : competitionClosed(event) ? <small>Plazo cerrado o competición ya iniciada.</small>
-                            : !eventTests.length ? <>
-                              <small>Solicita la participación de {athlete.first_name}. El club concretará las pruebas y revisará la solicitud.</small>
-                              <button type="button" className="outline small-button" disabled={pendingEntries[key]} onClick={() => void requestEntry(event.id, athlete.id)}>{pendingEntries[key] ? "Enviando…" : `Solicitar participación para ${athlete.first_name}`}</button>
-                            </> : eligibleTests.length ? <>
+                            : !eventTests.length ? <small>El club debe configurar las pruebas y sus categorías federativas antes de abrir las solicitudes.</small>
+                            : eligibleTests.length ? <>
                             <small>Marca la prueba o pruebas y pulsa Solicitar.</small>
                             <div className="competition-test-options">
                               {eligibleTests.map(test => <label key={test.id}>

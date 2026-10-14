@@ -47,9 +47,8 @@ export async function onRequest({ request, env }: { request: Request; env: Env }
     if (competitionClosed(event)) return json({ error: "El plazo de solicitud ha terminado o la competición ya ha comenzado." }, 409);
     const tests = await db<Test>("competition_event_tests", { competition_event_id: `eq.${event.id}`, active: "eq.true", select: "id,name,active,eligible_categories,eligible_sex,min_birth_year,max_birth_year" });
     const testIds = [...new Set(body.testIds as string[])];
-    if (tests.length && !testIds.length) return json({ error: "Selecciona al menos una prueba compatible." }, 400);
+    if (!testIds.length) return json({ error: "Selecciona al menos una prueba compatible." }, 400);
     if (testIds.some(id => !tests.some(t => t.id === id && eligibleCompetitionTest(t, athlete, event)))) return json({ error: "Una prueba no corresponde a esta competición o a la edad, categoría y sexo del atleta." }, 400);
-    // No configured tests means a general participation REQUEST, never a confirmed federation entry.
     // Ignore duplicate inserts atomically, preserving approved/rejected/registered requests.
     const inserted = await db("competition_entries", { on_conflict: "competition_event_id,athlete_id", select: entryFields }, {
       method: "POST", headers: { Prefer: "resolution=ignore-duplicates,return=representation" },
