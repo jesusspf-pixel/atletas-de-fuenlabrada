@@ -249,6 +249,8 @@ export function CompetitionManager({
   const [pendingEntries, setPendingEntries] = useState<Record<string, boolean>>({});
   const [entryNotices, setEntryNotices] = useState<Record<string, string>>({});
   const [selectedTests, setSelectedTests] = useState<Record<string, string[]>>({});
+  const [editingTests, setEditingTests] = useState<Record<string, string>>({});
+  const [checkAthletes, setCheckAthletes] = useState<Record<string, string>>({});
   const [testForms, setTestForms] = useState<Record<string, {
     name: string;
     categories: string;
@@ -430,24 +432,27 @@ export function CompetitionManager({
     if (!supabase) return;
     const draft = testForms[eventId] || { name: "", categories: "", sex: "all", minBirthYear: "", maxBirthYear: "", notes: "" };
     if (!draft.name.trim()) return setNotice("Indica el nombre de la prueba.");
+    if (draft.minBirthYear && draft.maxBirthYear && Number(draft.minBirthYear) > Number(draft.maxBirthYear)) return setNotice("El año mínimo no puede ser posterior al máximo.");
     setBusy(true);
     setNotice("");
     const categories = draft.categories.split(",").map(item => item.trim()).filter(Boolean);
-    const { error } = await supabase.from("competition_event_tests").insert({
-      competition_event_id: eventId,
+    const values = {
       name: draft.name.trim(),
       eligible_categories: categories,
       eligible_sex: draft.sex,
       min_birth_year: draft.minBirthYear ? Number(draft.minBirthYear) : null,
       max_birth_year: draft.maxBirthYear ? Number(draft.maxBirthYear) : null,
       notes: draft.notes.trim() || null,
-      sort_order: tests.filter(item => item.competition_event_id === eventId).length,
-      created_by: profile.id,
-    });
+    };
+    const editingId = editingTests[eventId];
+    const { error } = editingId
+      ? await supabase.from("competition_event_tests").update(values).eq("id", editingId).eq("competition_event_id", eventId)
+      : await supabase.from("competition_event_tests").insert({ ...values, competition_event_id: eventId, sort_order: tests.filter(item => item.competition_event_id === eventId).length, created_by: profile.id });
     setBusy(false);
     if (error) return setNotice(error.message);
     setTestForms(current => ({ ...current, [eventId]: { name: "", categories: "", sex: "all", minBirthYear: "", maxBirthYear: "", notes: "" } }));
-    setNotice("Prueba añadida a la competición.");
+    setEditingTests(current => ({ ...current, [eventId]: "" }));
+    setNotice(editingId ? "Prueba actualizada." : "Prueba añadida a la competición.");
     void load();
   };
   const reviewEntry = async (entryId: string, status: "approved" | "rejected") => {
@@ -709,7 +714,7 @@ export function CompetitionManager({
                       return (
                         <div className="competition-athlete-picker" key={athlete.id}>
                           <b>{athlete.first_name} {athlete.last_name}</b>
-                          <small>{athleteCategory(athlete, event) || "Categoría por revisar"}</small>
+                          <small>Nacimiento: {athlete.birth_date?.slice(0, 4) || "No indicado"} · Categoría federativa de referencia: {athleteCategory(athlete, event) || "Por revisar"}</small>
                           {entryNotices[key] && <p role="status" aria-live="polite">{entryNotices[key]}</p>}
                           {entry ? <>
                             <span className={`entry-status ${entry.status}`}>{competitionEntryLabel[entry.status] || entry.status}</span>
@@ -746,7 +751,25 @@ export function CompetitionManager({
               </aside>
               {canManageEvent && (
                 <div className="competition-test-editor">
-                  <h3>Añadir prueba a esta competición</h3>
+                  <h3>Pruebas y requisitos de participación</h3>
+                  {eventTests.map(test => <section key={test.id} className="panel">
+                    <b>{test.name}</b>
+                    <p>Categorías FAM: {test.eligible_categories.join(", ") || "Todas"} · Sexo: {test.eligible_sex === "all" ? "Todos" : test.eligible_sex === "female" ? "Femenino" : "Masculino"}</p>
+                    <p>Años de nacimiento: {test.min_birth_year ?? "sin mínimo"} – {test.max_birth_year ?? "sin máximo"}</p>
+                    <button type="button" disabled={busy} onClick={() => {
+                      setEditingTests(current => ({ ...current, [event.id]: test.id }));
+                      setTestForms(current => ({ ...current, [event.id]: { name: test.name, categories: test.eligible_categories.join(", "), sex: test.eligible_sex, minBirthYear: test.min_birth_year == null ? "" : String(test.min_birth_year), maxBirthYear: test.max_birth_year == null ? "" : String(test.max_birth_year), notes: test.notes || "" } }));
+                    }}>Editar {test.name}</button>
+                  </section>)}
+                  <label>Comprobar atleta<select value={checkAthletes[event.id] || ""} onChange={e => setCheckAthletes(current => ({ ...current, [event.id]: e.target.value }))}>
+                    <option value="">Selecciona atleta</option>
+                    {athletes.map(a => <option key={a.id} value={a.id}>{a.first_name} {a.last_name}</option>)}
+                  </select></label>
+                  {(() => { const a = athletes.find(a => a.id === checkAthletes[event.id]); return a ? <div role="status">
+                    <p>{a.first_name} {a.last_name} · Nacimiento: {a.birth_date?.slice(0, 4)} · Categoría federativa de referencia: {athleteCategory(a, event)}</p>
+                    {eventTests.map(t => <p key={t.id}>{t.name}: {eligibleFor(t, a, event) ? "Compatible" : "No compatible con los requisitos configurados"}</p>)}
+                  </div> : null; })()}
+                  <h3>{editingTests[event.id] ? "Editar requisitos de la prueba" : "Añadir prueba a esta competición"}</h3>
                   <div className="ops-grid">
                     <label>Prueba<input value={testDraft.name} placeholder="60 m vallas" onChange={e => setTestForms(current => ({ ...current, [event.id]: { ...testDraft, name: e.target.value } }))}/></label>
                     <label>Categorías FAM<input value={testDraft.categories} placeholder="Sub 14, Sub 16" onChange={e => setTestForms(current => ({ ...current, [event.id]: { ...testDraft, categories: e.target.value } }))}/></label>
@@ -755,7 +778,11 @@ export function CompetitionManager({
                     <label>Año nacimiento máximo<input type="number" value={testDraft.maxBirthYear} placeholder="2012" onChange={e => setTestForms(current => ({ ...current, [event.id]: { ...testDraft, maxBirthYear: e.target.value } }))}/></label>
                     <label>Indicaciones<input value={testDraft.notes} placeholder="Marca mínima, horario…" onChange={e => setTestForms(current => ({ ...current, [event.id]: { ...testDraft, notes: e.target.value } }))}/></label>
                   </div>
-                  <button type="button" disabled={busy} onClick={() => void saveTest(event.id)}>Añadir prueba</button>
+                  <button type="button" disabled={busy} onClick={() => void saveTest(event.id)}>{editingTests[event.id] ? "Guardar prueba" : "Añadir prueba"}</button>
+                  {editingTests[event.id] && <button type="button" className="outline" onClick={() => {
+                    setEditingTests(current => ({ ...current, [event.id]: "" }));
+                    setTestForms(current => ({ ...current, [event.id]: { name: "", categories: "", sex: "all", minBirthYear: "", maxBirthYear: "", notes: "" } }));
+                  }}>Cancelar edición</button>}
                 </div>
               )}
             </article>
