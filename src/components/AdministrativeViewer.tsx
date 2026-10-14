@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
+import AdministrativeAthleteDetails from "./AdministrativeAthleteDetails";
 
 type AthleteRow = {
   id: string;
@@ -50,6 +51,7 @@ const statusLabel: Record<string, string> = {
 export default function AdministrativeViewer({ section }: { section: string }) {
   const [athletes, setAthletes] = useState<AthleteRow[]>([]);
   const [charges, setCharges] = useState<ChargeRow[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
   const [loading, setLoading] = useState(true);
@@ -129,7 +131,8 @@ export default function AdministrativeViewer({ section }: { section: string }) {
   }
 
   if (section === "Atletas") return <section className="readonly-admin-view">
-    <div className="page-head"><div><small>SOLO LECTURA</small><h1>Atletas</h1><p>Datos de contacto, grupo y estado administrativo. No se permite modificar fichas.</p></div></div>
+    <div className="page-head"><div><small>SOLO LECTURA</small><h1>Atletas</h1><p>Consulta la ficha del atleta, sus familiares, teléfonos y datos de federación.</p></div></div>
+    {selectedId ? <AdministrativeAthleteDetails key={selectedId} athleteId={selectedId} onClose={() => setSelectedId(null)} /> : <>
     <article className="panel readonly-toolbar"><label>Buscar atleta o familiar<input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Nombre, correo o teléfono" /></label></article>
     <article className="panel table readonly-table">
       {visibleAthletes.map((athlete) => {
@@ -140,16 +143,16 @@ export default function AdministrativeViewer({ section }: { section: string }) {
         return <div className="row readonly-athlete-row" key={athlete.id}>
           <span><b>{athlete.first_name} {athlete.last_name}</b><small>{group?.name || "Sin grupo"} · {athlete.club_status}</small></span>
           <span><b>{profile?.email || guardian?.email || "Sin correo"}</b><small>{profile?.phone || guardian?.phone || family?.emergency_phone || "Sin teléfono"}</small></span>
-          <span><b>{athlete.license_status}</b><small>{athlete.birth_date ? new Date(`${athlete.birth_date}T12:00:00`).toLocaleDateString("es-ES") : "Sin fecha de nacimiento"}</small></span>
+          <span><b>{athlete.license_status}</b><small>{athlete.birth_date ? new Date(`${athlete.birth_date}T12:00:00`).toLocaleDateString("es-ES") : "Sin fecha de nacimiento"}</small><button type="button" aria-label={`Ver ficha completa de ${athlete.first_name} ${athlete.last_name}`} onClick={() => setSelectedId(athlete.id)}>Ver ficha completa</button></span>
         </div>;
       })}
       {!visibleAthletes.length && <p>No hay atletas que coincidan con la búsqueda.</p>}
-    </article>
+    </article></>}
   </section>;
 
   return <section className="readonly-admin-view">
     <div className="page-head"><div><small>ADMINISTRACIÓN · SOLO LECTURA</small><h1>Panel de consulta</h1><p>Acceso limitado a atletas y pagos, sin permisos para realizar cambios.</p></div></div>
     <section className="metric-grid readonly-summary"><article className="metric"><small>ATLETAS</small><b>{athletes.length}</b><span>Fichas consultables</span></article><article className="metric"><small>COBROS</small><b>{charges.length}</b><span>Operaciones visibles</span></article><article className="metric"><small>IMPAGADAS</small><b>{charges.filter((charge) => ["failed", "checkout_pending"].includes(charge.status)).length}</b><span>Requieren seguimiento</span></article></section>
-    <article className="panel"><h2>Permisos de esta cuenta</h2><p>Puede consultar información de atletas y cuotas. No puede editar datos, validar altas, cambiar importes, realizar cobros ni acceder a la configuración del club.</p></article>
+    <article className="panel"><h2>Permisos de esta cuenta</h2><p>Puede consultar las fichas de atletas, padres y tutores, teléfonos, datos de federación y cuotas. No puede editar datos, validar altas, cambiar importes, realizar cobros ni acceder a la configuración del club.</p></article>
   </section>;
 }
