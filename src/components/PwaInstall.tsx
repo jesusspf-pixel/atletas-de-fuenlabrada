@@ -1,12 +1,13 @@
 "use client";
 import {useEffect,useState} from "react";
+import {Capacitor} from "@capacitor/core";
 import {supabase} from "../lib/supabase";
 
 type InstallEvent=Event&{prompt:()=>Promise<void>;userChoice:Promise<{outcome:string}>};
 const keyBytes=(value:string)=>{const padding="=".repeat((4-value.length%4)%4);const raw=atob((value+padding).replace(/-/g,"+").replace(/_/g,"/"));return Uint8Array.from([...raw].map(char=>char.charCodeAt(0)))};
 const runningInstalled=()=>window.matchMedia("(display-mode: standalone)").matches||Boolean((navigator as Navigator&{standalone?:boolean}).standalone);
 
-export default function PwaInstall(){
+function WebPwaInstall(){
   const[prompt,setPrompt]=useState<InstallEvent|null>(null);
   const[ios,setIos]=useState(false);
   const[show,setShow]=useState(false);
@@ -32,4 +33,8 @@ export default function PwaInstall(){
   const showActions=!installed||pushState==="off";
 
   return <>{showActions&&<div className="pwa-actions">{!installed&&<button className="install" onClick={install}>↓ Instalar aplicación</button>}{pushState==="off"&&<button className="install" onClick={()=>void enablePush()}>🔔 Activar avisos</button>}</div>}{message&&<div className="install-help"><button onClick={()=>setMessage("")}>×</button><b>Notificaciones</b><p>{message}</p></div>}{show&&!installed&&<div className="install-help"><button onClick={()=>setShow(false)}>×</button><b>{ios?"Instalar en iPhone o iPad":"Instalar en este dispositivo"}</b><p>{ios?"Abre el menú Compartir de Safari y pulsa «Añadir a pantalla de inicio».":"Abre el menú del navegador y elige «Instalar aplicación» o «Añadir a pantalla de inicio»."}</p></div>}</>;
+}
+
+export default function PwaInstall(){
+  return Capacitor.isNativePlatform()?null:<WebPwaInstall/>;
 }

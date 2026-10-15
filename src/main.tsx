@@ -1,5 +1,6 @@
 import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
+import { Capacitor } from "@capacitor/core";
 import App from "./App";
 import SportsCenter from "./components/SportsCenter";
 import SelfAthleteRegistration from "./components/SelfAthleteRegistration";
@@ -25,7 +26,8 @@ type Role = "owner" | "admin" | "administrative_viewer" | "coach" | "parent" | "
 
 function Root() {
   const params = new URLSearchParams(window.location.search);
-  const forcedAccess = params.has("access") || params.has("signup") || params.has("invitation") || params.has("code") || params.has("reset-password") || params.has("error_description") || window.location.hash.includes("type=recovery") || window.location.hash.includes("error_description");
+  const isNativeApp = Capacitor.isNativePlatform();
+  const forcedAccess = isNativeApp || params.has("access") || params.has("signup") || params.has("invitation") || params.has("code") || params.has("reset-password") || params.has("error_description") || window.location.hash.includes("type=recovery") || window.location.hash.includes("error_description");
   const [signedIn, setSignedIn] = useState(false);
   const [showAccess, setShowAccess] = useState(forcedAccess);
   const [role, setRole] = useState<Role | null>(null);
@@ -37,6 +39,11 @@ function Root() {
   const publicGroups = window.location.pathname === "/grupos-precios";
   const publicClub = window.location.pathname === "/club";
   const coachDesignPreview = window.location.pathname === "/preview-entrenador";
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("native-app", isNativeApp);
+    return () => document.documentElement.classList.remove("native-app");
+  }, [isNativeApp]);
 
   if (coachDesignPreview) return <CoachDesignPreview />;
 
@@ -292,7 +299,7 @@ function Root() {
 
   const signup = () => { window.history.replaceState({}, "", "/?signup=1"); setShowAccess(true); };
   if (!signedIn && !showAccess) return <PublicClubSite onLogin={() => { window.history.replaceState({}, "", "/?access=1"); setShowAccess(true); }} onSignup={signup} />;
-  if (!signedIn && showAccess) return <><button className="public-back-access" onClick={() => { window.history.replaceState({}, "", "/"); setShowAccess(false); }}>← Volver a la web del club</button><App /></>;
+  if (!signedIn && showAccess) return <>{!isNativeApp && <button className="public-back-access" onClick={() => { window.history.replaceState({}, "", "/"); setShowAccess(false); }}>← Volver a la web del club</button>}<App /></>;
   return <App />;
 }
 

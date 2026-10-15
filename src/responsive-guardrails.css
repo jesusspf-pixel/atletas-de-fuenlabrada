@@ -1,4 +1,15 @@
 /* Shared responsive contract for member, family, coach and administration portals. */
+html,body,#root{width:100%;max-width:100%;margin:0;overflow-x:hidden}
+.native-app .secure-screen{min-height:100dvh;padding-top:max(18px,env(safe-area-inset-top));padding-right:max(18px,env(safe-area-inset-right));padding-bottom:max(18px,env(safe-area-inset-bottom));padding-left:max(18px,env(safe-area-inset-left))}
+.native-app .secure-screen .access-box{width:min(480px,100%);max-width:100%;box-sizing:border-box}
+.native-app .visual-next-shell>.club-content>.topbar{display:none}
+.native-app .visual-next-shell>.club-content{padding-top:env(safe-area-inset-top)}
+.native-app .visual-next-shell .visual-page-body{overflow-x:hidden}
+@media(max-width:820px){
+  .native-app .visual-next-shell{padding-bottom:calc(86px + env(safe-area-inset-bottom))}
+  .native-app .visual-next-shell .club-side{left:max(10px,env(safe-area-inset-left));right:max(10px,env(safe-area-inset-right));bottom:max(10px,env(safe-area-inset-bottom))}
+  .native-app .visual-next-shell .visual-page-body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)}
+}
 .visual-next-shell,.visual-next-shell .club-content,.visual-next-shell .visual-page-body,.visual-next-shell .admin-reference-page,.visual-next-shell .admin-reference-sheet,.visual-next-shell .coach-reference-page,.visual-next-shell .coach-reference-sheet{min-width:0;max-width:100%}
 .visual-next-shell :where(.panel,.metric,.row,.cards,.metric-grid,.two-columns,.detail-grid,.ops-grid,.table,.inline-form,.stacked-form,.invite-form,.event-list,.event-card,.shop-workspace,.product-editor,.product-image-picker,.billing-control,.financial-control,.finance-workspace,.results-workspace,.coach-week-planner,.coach-plan-output,.coach-plan-meta,.coach-load-grid,.coach-builder-grid,.group-detail-layout,.group-editor,.settings-workspace,.athlete-detail,.admin-athlete-dossier,.dossier-grid,.dossier-charges){min-width:0;max-width:100%}
 .visual-next-shell :where(img,svg,video,canvas){max-width:100%}
