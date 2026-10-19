@@ -8,7 +8,7 @@ const json = (body: unknown, status = 200) => Response.json(body, { status, head
 const entryFields = "id,competition_event_id,athlete_id,requested_events,status,notes";
 
 export async function onRequest({ request, env }: { request: Request; env: Env }) {
-  if (!["GET", "POST"].includes(request.method)) return json({ error: "Método no permitido." }, 405);
+  if (!["GET", "POST", "PATCH"].includes(request.method)) return json({ error: "Método no permitido." }, 405);
   if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) return json({ error: "Servicio no disponible." }, 503);
   const authorization = request.headers.get("authorization") || "";
   if (!/^Bearer \S+$/i.test(authorization)) return json({ error: "Inicia sesión de nuevo." }, 401);
@@ -24,6 +24,87 @@ export async function onRequest({ request, env }: { request: Request; env: Env }
       const text = await response.text();
       return text ? JSON.parse(text) as T[] : [];
     }
+    if (request.method === "PATCH") {
+      const body = await request.json().catch(() => null) as { entryId?: unknown; status?: unknown } | null;
+      if (!body || !uuid(body.entryId) || !["approved", "rejected"].includes(String(body.status))) {
+        return json({ error: "Revisión no válida." }, 400);
+      }
+      const status = body.status as "approved" | "rejected";
+      const [reviewer] = await db<{ id: string; role: string }>("profiles", { id: `eq.${user.id}`, select: "id,role", limit: "1" });
+      const [entry] = await db<{ id: string; competition_event_id: string; athlete_id: string; requested_events: string[]; requested_by: string | null; status: string; notes: string | null }>(
+        "competition_entries",
+        { id: `eq.${body.entryId}`, select: "id,competition_event_id,athlete_id,requested_events,requested_by,status,notes", limit: "1" },
+      );
+      if (!reviewer || !entry) return json({ error: "Solicitud no encontrada." }, 404);
+      const [[event], [athlete]] = await Promise.all([
+        db<Event>("competition_events", { id: `eq.${entry.competition_event_id}`, select: "id,title,starts_at,internal_deadline,published,created_by", limit: "1" }),
+        db<Athlete>("athletes", { id: `eq.${entry.athlete_id}`, select: "id,first_name,last_name,family_id,user_profile_id,birth_date,federative_sex", limit: "1" }),
+      ]);
+      const canReview = reviewer.role === "owner" || reviewer.role === "admin" || (reviewer.role === "coach" && event?.created_by === user.id);
+      if (!canReview) return json({ error: "Solo el entrenador que publicó la competición o administración puede revisar esta solicitud." }, 403);
+      if (!event || !athlete) return json({ error: "No se han encontrado los datos de la inscripción." }, 404);
+      if (entry.status !== "requested") return json({ error: "Esta solicitud ya ha sido revisada." }, 409);
+
+      const updated = await db<{ id: string; competition_event_id: string; athlete_id: string; requested_events: string[]; status: string; notes: string | null }>(
+        "competition_entries",
+        { id: `eq.${entry.id}`, status: "eq.requested", select: entryFields },
+        {
+          method: "PATCH",
+          headers: { Prefer: "return=representation" },
+          body: JSON.stringify({ status, reviewed_by: user.id, reviewed_at: new Date().toISOString() }),
+        },
+      );
+      if (!updated.length) return json({ error: "La solicitud ya no estaba pendiente. Recarga la pantalla." }, 409);
+
+      const testRows = entry.requested_events?.length
+        ? await db<{ id: string; name: string }>("competition_event_tests", { id: `in.(${entry.requested_events.join(",")})`, select: "id,name" })
+        : [];
+      const testNames = testRows.map(test => test.name).join(", ");
+      const notificationTitle = status === "approved" ? "Inscripción confirmada" : "Solicitud de inscripción revisada";
+      const notificationBody = status === "approved"
+        ? `${athlete.first_name} ${athlete.last_name} ha quedado inscrito/a en «${event.title}»${testNames ? ` para: ${testNames}` : ""}.`
+        : `La solicitud de ${athlete.first_name} ${athlete.last_name} para «${event.title}» no ha sido aprobada. Contacta con el club si necesitas más información.`;
+      let notificationPending = false;
+      if (entry.requested_by) {
+        try {
+          const [announcement] = await db<{ id: string }>("announcements", { select: "id" }, {
+            method: "POST",
+            headers: { Prefer: "return=representation" },
+            body: JSON.stringify({
+              title: notificationTitle,
+              body: notificationBody,
+              audience: "individual",
+              delivery_channels: ["app", "email"],
+              published_at: new Date().toISOString(),
+              created_by: user.id,
+            }),
+          });
+          if (!announcement) throw new Error("Notification unavailable");
+          await db("announcement_deliveries", {}, {
+            method: "POST",
+            headers: { Prefer: "return=minimal" },
+            body: JSON.stringify(["app", "email"].map(channel => ({
+              announcement_id: announcement.id,
+              recipient_profile_id: entry.requested_by,
+              channel,
+              delivery_status: channel === "app" ? "sent" : "pending",
+            }))),
+          });
+        } catch {
+          notificationPending = true;
+        }
+      } else {
+        notificationPending = true;
+      }
+      return json({
+        entry: updated[0],
+        notificationPending,
+        recipientId: entry.requested_by,
+        notificationTitle,
+        notificationBody,
+      });
+    }
+
     // Derive family access from current database links, never from client-supplied roles or IDs.
     const [primary, guardians] = await Promise.all([
       db<{ id: string }>("families", { primary_profile_id: `eq.${user.id}`, select: "id" }),
