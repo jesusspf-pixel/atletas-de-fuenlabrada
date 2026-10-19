@@ -265,6 +265,7 @@ export function CompetitionManager({
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [file, setFile] = useState<File | null>(null);
+  const [editingEventId, setEditingEventId] = useState("");
   const [form, setForm] = useState({
     title: "",
     venue: "",
@@ -274,6 +275,18 @@ export function CompetitionManager({
     rules: "",
     published: true,
   });
+  const blankCompetitionForm = {
+    title: "",
+    venue: "",
+    startsAt: "",
+    famDeadline: "",
+    clubDeadline: "",
+    rules: "",
+    published: true,
+  };
+  const dateTimeInput = (value: string | null) => value
+    ? new Date(new Date(value).getTime() - new Date(value).getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+    : "";
   const registrationApi = async (body?: { eventId: string; athleteId: string; testIds: string[] }) => {
     const session = await supabase?.auth.getSession();
     const token = session?.data.session?.access_token;
@@ -340,9 +353,7 @@ export function CompetitionManager({
     if (file && (!circularReviewed || !circularTests.length)) return setNotice("Revisa las pruebas extraídas de la circular antes de publicar.");
     setBusy(true);
     setNotice("");
-    const { data, error } = await supabase
-      .from("competition_events")
-      .insert({
+    const eventValues = {
         title: form.title,
         venue: form.venue || null,
         starts_at: new Date(form.startsAt).toISOString(),
@@ -353,11 +364,12 @@ export function CompetitionManager({
           ? new Date(form.clubDeadline).toISOString()
           : null,
         rules_summary: form.rules || null,
-        published: false,
-        created_by: profile.id,
-      })
-      .select()
-      .single();
+        published: editingEventId ? form.published : false,
+      };
+    const eventResult = editingEventId
+      ? await supabase.from("competition_events").update(eventValues).eq("id", editingEventId).select().single()
+      : await supabase.from("competition_events").insert({ ...eventValues, created_by: profile.id }).select().single();
+    const { data, error } = eventResult;
     if (error || !data) {
       setBusy(false);
       return setNotice(error?.message || "No se pudo crear la competición.");
@@ -366,27 +378,46 @@ export function CompetitionManager({
     try {
       if (file) {
         const path = `competitions/${data.id}/${fileKey(file)}`;
-        const { error: uploadError } = await supabase.storage.from("club-private-documents").upload(path, file);
+        const { error: uploadError } = await supabase.storage.from("club-private-documents").upload(path, file, {
+          contentType: "application/pdf",
+          upsert: false,
+        });
         if (uploadError) throw uploadError;
-        const { error: docError } = await supabase.from("club_documents").insert({
+        const { data: savedDocument, error: docError } = await supabase.from("club_documents").insert({
           document_type: "competition_circular", title: file.name, storage_path: path,
           competition_event_id: data.id, uploaded_by: profile.id,
-        });
+        }).select("id").single();
         if (docError) throw docError;
+        if (editingEventId) {
+          const previousDocuments = (events.find(item => item.id === data.id)?.club_documents || [])
+            .filter(item => item.id !== savedDocument?.id);
+          if (previousDocuments.length) {
+            const { error: oldFileError } = await supabase.storage
+              .from("club-private-documents")
+              .remove(previousDocuments.map(item => item.storage_path));
+            if (oldFileError) throw oldFileError;
+            const { error: oldDocumentError } = await supabase.from("club_documents")
+              .delete().in("id", previousDocuments.map(item => item.id));
+            if (oldDocumentError) throw oldDocumentError;
+          }
+          const { error: oldTestsError } = await supabase.from("competition_event_tests")
+            .delete().eq("competition_event_id", data.id);
+          if (oldTestsError) throw oldTestsError;
+        }
         const { error: testsError } = await supabase.from("competition_event_tests").insert(circularTests.map((t,i)=>({
           competition_event_id:data.id,name:t.name.trim(),eligible_categories:t.categories,eligible_sex:t.sex,
           min_birth_year:t.minYear,max_birth_year:t.maxYear,notes:t.notes||null,active:true,sort_order:i,created_by:profile.id,
         })));
         if (testsError) throw testsError;
       }
-      if (form.published) {
+      if (form.published && !editingEventId) {
         const { error: publishError } = await supabase.from("competition_events").update({published:true}).eq("id",data.id);
         if (publishError) throw publishError;
       }
     } catch (error) {
       publicationError = "No se ha publicado. Se ha conservado un borrador para el responsable: " + (error instanceof Error ? error.message : String((error as {message?:string})?.message||"Error al guardar PDF o pruebas."));
     }
-    if (form.published && !publicationError)
+    if (form.published && !publicationError && !editingEventId)
       void pushNotice({
         kind: "competition",
         scope: "club",
@@ -394,20 +425,53 @@ export function CompetitionManager({
         body: `${form.title} · ${new Date(form.startsAt).toLocaleString("es-ES")}`,
         url: "/?access=1",
       });
-    setForm({
-      title: "",
-      venue: "",
-      startsAt: "",
-      famDeadline: "",
-      clubDeadline: "",
-      rules: "",
-      published: true,
-    });
+    const wasEditing = Boolean(editingEventId);
+    setForm(blankCompetitionForm);
+    setEditingEventId("");
     setFile(null);
     setCircularTests([]);
     setCircularReviewed(false);
     setBusy(false);
-    setNotice(publicationError || (form.published ? "Competición publicada con sus pruebas y circular." : "Borrador guardado."));
+    setNotice(publicationError || (wasEditing ? "Competición actualizada correctamente." : form.published ? "Competición publicada con sus pruebas y circular." : "Borrador guardado."));
+    void load();
+  };
+  const editEvent = (event: Competition) => {
+    setEditingEventId(event.id);
+    setForm({
+      title: event.title,
+      venue: event.venue || "",
+      startsAt: dateTimeInput(event.starts_at),
+      famDeadline: dateTimeInput(event.federation_deadline),
+      clubDeadline: dateTimeInput(event.internal_deadline),
+      rules: event.rules_summary || "",
+      published: event.published,
+    });
+    setFile(null);
+    setCircularTests([]);
+    setCircularReviewed(false);
+    setNotice("Editando la competición. Puedes cambiar todos sus datos y sustituir la circular.");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+  const deleteEvent = async (event: Competition) => {
+    if (!supabase || busy || !window.confirm(`¿Eliminar definitivamente «${event.title}» y todas sus inscripciones?`)) return;
+    setBusy(true);
+    setNotice("");
+    const documents = event.club_documents || [];
+    if (documents.length) {
+      const { error: storageError } = await supabase.storage.from("club-private-documents").remove(documents.map(item => item.storage_path));
+      if (storageError) {
+        setBusy(false);
+        return setNotice(storageError.message);
+      }
+    }
+    const { error } = await supabase.from("competition_events").delete().eq("id", event.id);
+    setBusy(false);
+    if (error) return setNotice(error.message);
+    if (editingEventId === event.id) {
+      setEditingEventId("");
+      setForm(blankCompetitionForm);
+    }
+    setNotice("Competición eliminada correctamente.");
     void load();
   };
   const respond = async (eventId: string, available: boolean) => {
@@ -540,7 +604,7 @@ export function CompetitionManager({
       </Heading>
       {manager && (
         <form className="panel stacked-form" onSubmit={save}>
-          <h2>Publicar competición</h2>
+          <h2>{editingEventId ? "Editar competición" : "Publicar competición"}</h2>
           <div className="ops-grid">
             <label>
               Nombre de la prueba
@@ -618,8 +682,9 @@ export function CompetitionManager({
             Visible en la app
           </label>
           <button disabled={busy || Boolean(file && !circularReviewed)}>
-            {busy ? "Publicando…" : "Publicar en calendario"}
+            {busy ? "Guardando…" : editingEventId ? "Guardar todos los cambios" : "Publicar en calendario"}
           </button>
+          {editingEventId && <button type="button" className="outline" onClick={() => { setEditingEventId(""); setForm(blankCompetitionForm); setFile(null); setCircularTests([]); setCircularReviewed(false); setNotice(""); }}>Cancelar edición</button>}
         </form>
       )}
       {notice && (
@@ -696,6 +761,10 @@ export function CompetitionManager({
                     Abrir circular PDF
                   </button>
                 ))}
+                {canManageEvent && <div className="answer-buttons">
+                  <button type="button" className="outline" onClick={() => editEvent(event)}>Editar competición</button>
+                  <button type="button" className="outline danger" disabled={busy} onClick={() => void deleteEvent(event)}>Eliminar competición</button>
+                </div>}
               </div>
               <aside>
                 {canManageEvent ? (
@@ -1805,6 +1874,8 @@ export function AnnouncementManager({
   const [correctionSending, setCorrectionSending] = useState(false);
   const [sent, setSent] = useState<ManagedAnnouncement[]>([]);
   const [received, setReceived] = useState<ManagedAnnouncement[]>([]);
+  const [replies, setReplies] = useState<Record<string, string>>({});
+  const [replying, setReplying] = useState<string | null>(null);
   const isManager = profile.role === "owner" || profile.role === "admin";
   const availableScopes = isManager
     ? ([
@@ -2139,6 +2210,37 @@ export function AnnouncementManager({
     );
     void load();
   };
+  const replyToNotice = async (announcement: ManagedAnnouncement) => {
+    if (!supabase || replying || !replies[announcement.id]?.trim()) return;
+    setReplying(announcement.id);
+    setNotice("");
+    try {
+      const { data: replyId, error } = await supabase.rpc("reply_to_announcement", {
+        target_announcement_id: announcement.id,
+        reply_body: replies[announcement.id].trim(),
+      });
+      if (error) throw error;
+      if (replyId) {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const response = await fetch("/api/send-event-notification", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            authorization: `Bearer ${sessionData.session?.access_token || ""}`,
+          },
+          body: JSON.stringify({ announcementId: replyId }),
+        });
+        if (!response.ok) throw new Error("La respuesta está guardada en la app, pero el correo ha quedado pendiente de reintento.");
+      }
+      setReplies(current => ({ ...current, [announcement.id]: "" }));
+      setNotice("Respuesta enviada a la familia. El club conserva copia en la app y por correo.");
+      void load();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "No se pudo enviar la respuesta.");
+    } finally {
+      setReplying(null);
+    }
+  };
   return (
     <>
       <Heading
@@ -2176,6 +2278,21 @@ export function AnnouncementManager({
                   <small>{new Date(item.created_at).toLocaleString("es-ES")}</small>
                 </span>
                 <p>{item.body}</p>
+                <div className="operational-reply">
+                  <textarea
+                    aria-label={`Responder a ${item.title}`}
+                    value={replies[item.id] || ""}
+                    onChange={(event) => setReplies(current => ({ ...current, [item.id]: event.target.value }))}
+                    placeholder="Escribe una respuesta para la familia"
+                  />
+                  <button
+                    type="button"
+                    disabled={replying === item.id || !replies[item.id]?.trim()}
+                    onClick={() => void replyToNotice(item)}
+                  >
+                    {replying === item.id ? "Enviando…" : "Responder a la familia"}
+                  </button>
+                </div>
               </article>
             ),
           )}

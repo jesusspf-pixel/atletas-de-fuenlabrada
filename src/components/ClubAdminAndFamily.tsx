@@ -1029,15 +1029,26 @@ export function FamilyAthletes({
     e.preventDefault();
     if (!supabase || !selected || !message.trim()) return;
     setSending(true);
-    const { error } = await supabase.rpc("send_message_to_athlete_coach", {
+    const { data: announcementId, error } = await supabase.rpc("send_family_message", {
       target_athlete_id: selected.id,
       message_body: message.trim(),
     });
     setSending(false);
     if (error) return alert(error.message);
+    if (announcementId) {
+      const { data: sessionData } = await supabase.auth.getSession();
+      await fetch("/api/send-event-notification", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${sessionData.session?.access_token || ""}`,
+        },
+        body: JSON.stringify({ announcementId }),
+      }).catch(() => undefined);
+    }
     setMessage("");
     alert(
-      "Mensaje enviado al entrenador asignado. Si no hay entrenador, lo recibe el club.",
+      "Mensaje enviado. Lo reciben los entrenadores responsables y el club conserva una copia.",
     );
   };
   const inviteMinorAccess = async (e: FormEvent) => {

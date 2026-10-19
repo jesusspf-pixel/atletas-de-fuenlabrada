@@ -339,6 +339,23 @@
   color: #123c73;
   white-space: nowrap;
 }
+.operational-reply {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: end;
+  padding-top: 10px;
+  border-top: 1px solid #e6ebf1;
+}
+.operational-reply textarea {
+  min-height: 76px;
+  resize: vertical;
+}
+.answer-buttons .danger {
+  color: #a8323b;
+  border-color: #e3a8ad;
+}
 @media (max-width: 850px) {
   .ops-grid {
     grid-template-columns: 1fr 1fr;
@@ -357,6 +374,9 @@
   .operational-notice-card {
     grid-template-columns: 1fr;
     gap: 8px;
+  }
+  .operational-reply {
+    grid-template-columns: 1fr;
   }
   .ops-grid {
     grid-template-columns: 1fr;
