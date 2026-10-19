@@ -287,6 +287,27 @@ export function CompetitionManager({
     if (!response.ok) throw new Error(data.error || "No se pudo consultar la inscripción.");
     return data;
   };
+  const reviewRegistrationApi = async (entryId: string, status: "approved" | "rejected") => {
+    const session = await supabase?.auth.getSession();
+    const token = session?.data.session?.access_token;
+    if (!token) throw new Error("La sesión ha caducado. Vuelve a entrar.");
+    const response = await apiFetch("/api/competition-registration", {
+      method: "PATCH",
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+      body: JSON.stringify({ entryId, status }),
+    });
+    const data = await response.json() as {
+      entry?: CompetitionEntry;
+      error?: string;
+      notificationPending?: boolean;
+      recipientId?: string | null;
+      notificationTitle?: string;
+      notificationBody?: string;
+    };
+    if (!response.ok) throw new Error(data.error || "No se pudo revisar la inscripción.");
+    return data;
+  };
+
   const load = async () => {
     if (!supabase) return;
     setRegistrationLoading(true);
@@ -461,17 +482,36 @@ export function CompetitionManager({
     void load();
   };
   const reviewEntry = async (entryId: string, status: "approved" | "rejected") => {
-    if (!supabase) return;
+    if (!supabase || busy) return;
+    setBusy(true);
     setNotice("");
-    const { error } = await supabase.from("competition_entries").update({
-      status,
-      reviewed_by: profile.id,
-      reviewed_at: new Date().toISOString(),
-    }).eq("id", entryId);
-    if (error) setNotice(error.message);
-    else {
-      setNotice(status === "approved" ? "Solicitud aprobada." : "Solicitud rechazada.");
-      void load();
+    try {
+      const data = await reviewRegistrationApi(entryId, status);
+      if (!data.entry) throw new Error("No se pudo confirmar el cambio. Recarga para comprobarlo.");
+      setEntries(current => current.map(entry => entry.id === entryId ? data.entry! : entry));
+      if (data.recipientId && data.notificationTitle && data.notificationBody) {
+        void pushNotice({
+          kind: "competition_entry_review",
+          scope: "individual",
+          recipientIds: [data.recipientId],
+          title: data.notificationTitle,
+          body: data.notificationBody,
+          url: "/?access=1&section=Carreras",
+        });
+      }
+      setNotice(
+        status === "approved"
+          ? data.notificationPending
+            ? "Inscripción aprobada. La familia ya puede verla en la app, pero el correo automático ha quedado pendiente."
+            : "Inscripción aprobada. La familia ha recibido la confirmación por la app y por correo."
+          : data.notificationPending
+            ? "Solicitud rechazada. El estado está guardado, pero el aviso automático ha quedado pendiente."
+            : "Solicitud rechazada. La familia ha recibido el aviso por la app y por correo.",
+      );
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "No se pudo revisar la inscripción.");
+    } finally {
+      setBusy(false);
     }
   };
   const openDocument = async (document: ClubDocument) => {
@@ -673,8 +713,8 @@ export function CompetitionManager({
                           <small>{(entry.requested_events || []).map(testName).join(", ") || "Solicitud de participación general · pruebas por concretar"}</small>
                           <small>{competitionEntryLabel[entry.status] || entry.status}</small>
                           {entry.status === "requested" && <div className="answer-buttons">
-                            <button onClick={() => void reviewEntry(entry.id, "approved")}>Aprobar</button>
-                            <button className="outline" onClick={() => void reviewEntry(entry.id, "rejected")}>Rechazar</button>
+                            <button disabled={busy} onClick={() => void reviewEntry(entry.id, "approved")}>{busy ? "Guardando…" : "Aprobar e informar"}</button>
+                            <button disabled={busy} className="outline" onClick={() => void reviewEntry(entry.id, "rejected")}>Rechazar e informar</button>
                           </div>}
                         </div>;
                       })}
