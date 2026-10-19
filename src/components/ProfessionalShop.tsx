@@ -39,7 +39,20 @@ export function Shop({ profile, initialOrderId = "" }: { profile: Profile; initi
   const [adminView, setAdminView] = useState<"orders" | "catalog">("orders");
 
   const selected = products.find(item => item.id === selectedId);
-  const variantsFor = (id: string) => variants.filter(item => item.product_id === id);
+  const variantsFor = (id: string) => {
+    const productOrder = products.find(product => product.id === id)?.sizes || [];
+    const rank = (size: string) => {
+      const index = productOrder.indexOf(size);
+      return index === -1 ? Number.MAX_SAFE_INTEGER : index;
+    };
+
+    return variants
+      .filter(item => item.product_id === id)
+      .sort((left, right) =>
+        rank(left.size) - rank(right.size) ||
+        left.size.localeCompare(right.size, "es", { numeric: true })
+      );
+  };
   const imagesFor = (id: string) => productImages.filter(item => item.product_id === id).sort((a, b) => Number(b.is_primary) - Number(a.is_primary) || a.sort_order - b.sort_order || a.created_at.localeCompare(b.created_at));
   const primaryImageFor = (product: Product) => {
     const images = imagesFor(product.id);
