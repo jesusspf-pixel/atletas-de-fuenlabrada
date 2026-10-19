@@ -41,14 +41,29 @@ on public.competition_entries for select using (
 );
 
 drop policy if exists "athletes competition publisher read" on public.athletes;
-create policy "athletes competition publisher read"
-on public.athletes for select using (
-  exists (
+
+create or replace function public.can_read_competition_athlete(target_athlete_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
     select 1
     from public.competition_entries ce
     join public.competition_events e on e.id = ce.competition_event_id
-    where ce.athlete_id = athletes.id and e.created_by = auth.uid()
+    where ce.athlete_id = target_athlete_id
+      and (public.is_admin() or e.created_by = auth.uid())
   )
+$$;
+
+revoke all on function public.can_read_competition_athlete(uuid) from public;
+grant execute on function public.can_read_competition_athlete(uuid) to authenticated;
+
+create policy "athletes competition publisher read"
+on public.athletes for select using (
+  public.can_read_competition_athlete(id)
 );
 
 drop policy if exists "club documents competition publisher insert" on public.club_documents;
