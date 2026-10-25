@@ -30,13 +30,17 @@ test("an active additional guardian inherits the athlete access state", async ()
       calls.push(table);
       if (table === "families") return query([]);
       if (table === "family_guardians") return query([{ family_id: "family-2" }]);
-      if (table === "athletes") return query([{ club_status: "active" }]);
+      if (table === "athletes") return query([{ club_status: "inactive", family_id: "family-2" }]);
       throw new Error(`Unexpected table ${table}`);
     },
   };
 
   assert.deepEqual(await loadParentAthleteStatuses(client, "mother"), [
-    { club_status: "active" },
+    {
+      club_status: "inactive",
+      family_id: "family-2",
+      access_via_additional_guardian: true,
+    },
   ]);
   assert.deepEqual(calls, ["families", "family_guardians", "athletes"]);
 });
@@ -61,4 +65,23 @@ test("primary and additional links are deduplicated before loading athletes", as
 
   await loadParentAthleteStatuses(client, "parent");
   assert.deepEqual(familyIds, ["family-1"]);
+});
+
+test("the primary guardian remains subject to the athlete status", async () => {
+  const client = {
+    from(table) {
+      if (table === "families") return query([{ id: "family-1" }]);
+      if (table === "family_guardians") return query([{ family_id: "family-1" }]);
+      if (table === "athletes") return query([{ club_status: "inactive", family_id: "family-1" }]);
+      throw new Error(`Unexpected table ${table}`);
+    },
+  };
+
+  assert.deepEqual(await loadParentAthleteStatuses(client, "parent"), [
+    {
+      club_status: "inactive",
+      family_id: "family-1",
+      access_via_additional_guardian: false,
+    },
+  ]);
 });

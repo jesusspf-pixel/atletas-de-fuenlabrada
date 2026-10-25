@@ -19,7 +19,10 @@ import BillingControlCenter from "./components/BillingControlCenter";
 import MemberFees from "./components/MemberFees";
 import { withOfficialTrainingSchedules } from "./lib/trainingGroupSchedule";
 import { federationCategory, trainingCategory, trainingSeasonYear } from "./lib/athleticsCategories";
-import { loadParentAthleteStatuses } from "./lib/registrationAccess";
+import {
+  loadParentAthleteStatuses,
+  type AthleteAccessRow,
+} from "./lib/registrationAccess";
 import FamilyNotices from "./components/FamilyNotices";
 import ClubChallenge from "./components/ClubChallenge";
 import { AthleteResults } from "./components/AthleteResults";
@@ -320,7 +323,7 @@ export default function App() {
             ) {
               setRegistrationAccess("allowed");
             } else {
-              let athletes: { club_status: string }[] = [];
+              let athletes: AthleteAccessRow[] = [];
               if (loadedProfile.role === "parent") {
                 athletes = await loadParentAthleteStatuses(client, next.user.id);
               } else {
@@ -333,7 +336,11 @@ export default function App() {
               setRegistrationAccess(
                 athletes.length === 0
                   ? "incomplete"
-                  : !athletes.some((item) => item.club_status === "active")
+                  : !athletes.some(
+                        (item) =>
+                          item.club_status === "active" ||
+                          item.access_via_additional_guardian,
+                      )
                     ? "pending"
                     : "allowed",
               );
@@ -388,7 +395,7 @@ export default function App() {
     const refreshAccess = async () => {
       const client = await ensureSupabase();
       if (!client || cancelled) return;
-      let athletes: { club_status: string }[] = [];
+      let athletes: AthleteAccessRow[] = [];
       if (profile.role === "parent") {
         athletes = await loadParentAthleteStatuses(client, session.user.id);
       } else {
@@ -402,7 +409,11 @@ export default function App() {
       setRegistrationAccess(
         athletes.length === 0
           ? "incomplete"
-          : athletes.some((item) => item.club_status === "active")
+          : athletes.some(
+                (item) =>
+                  item.club_status === "active" ||
+                  item.access_via_additional_guardian,
+              )
             ? "allowed"
             : "pending",
       );
