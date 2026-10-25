@@ -19,6 +19,7 @@ import BillingControlCenter from "./components/BillingControlCenter";
 import MemberFees from "./components/MemberFees";
 import { withOfficialTrainingSchedules } from "./lib/trainingGroupSchedule";
 import { federationCategory, trainingCategory, trainingSeasonYear } from "./lib/athleticsCategories";
+import { loadParentAthleteStatuses } from "./lib/registrationAccess";
 import FamilyNotices from "./components/FamilyNotices";
 import ClubChallenge from "./components/ClubChallenge";
 import { AthleteResults } from "./components/AthleteResults";
@@ -321,18 +322,7 @@ export default function App() {
             } else {
               let athletes: { club_status: string }[] = [];
               if (loadedProfile.role === "parent") {
-                const { data: familyRows } = await client
-                  .from("families")
-                  .select("id")
-                  .eq("primary_profile_id", next.user.id);
-                const familyIds = (familyRows || []).map((item) => item.id);
-                if (familyIds.length) {
-                  const { data: rows } = await client
-                    .from("athletes")
-                    .select("club_status")
-                    .in("family_id", familyIds);
-                  athletes = (rows || []) as { club_status: string }[];
-                }
+                athletes = await loadParentAthleteStatuses(client, next.user.id);
               } else {
                 const { data: rows } = await client
                   .from("athletes")
@@ -400,18 +390,7 @@ export default function App() {
       if (!client || cancelled) return;
       let athletes: { club_status: string }[] = [];
       if (profile.role === "parent") {
-        const { data: familyRows } = await client
-          .from("families")
-          .select("id")
-          .eq("primary_profile_id", session.user.id);
-        const familyIds = (familyRows || []).map((item) => item.id);
-        if (familyIds.length) {
-          const { data: rows } = await client
-            .from("athletes")
-            .select("club_status")
-            .in("family_id", familyIds);
-          athletes = (rows || []) as { club_status: string }[];
-        }
+        athletes = await loadParentAthleteStatuses(client, session.user.id);
       } else {
         const { data: rows } = await client
           .from("athletes")
