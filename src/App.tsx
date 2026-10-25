@@ -1987,7 +1987,7 @@ function AthletesAdmin({ onOpenAthlete, statusFilter }: { onOpenAthlete: (id: st
               <button
                 className={`row athlete-row ${selectedId === a.id ? "selected-row" : ""}`}
                 key={a.id}
-                onClick={() => setSelectedId(a.id)}
+                onClick={() => onOpenAthlete(a.id)}
               >
                 <span className="admin-athlete-avatar">
                   {avatarFor(a.id) ? (
