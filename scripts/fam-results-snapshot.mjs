@@ -1,5 +1,8 @@
 import { extractTextItems, getDocumentProxy } from "unpdf";
+import dns from "node:dns";
 import { __test } from "../workers/results-collector/src/continuous.js";
+
+dns.setDefaultResultOrder("ipv4first");
 
 const ORIGIN = "https://www.atletismomadrid.com";
 const START = "2024-09";
@@ -53,9 +56,13 @@ const token = process.env.FAM_INGEST_TOKEN || "", now = new Date(), current = ne
 let cursor = monthDate(process.env.FAM_CURSOR_MONTH || await cursorMonth(token)); if (cursor > current || cursor < monthDate(START)) cursor = monthDate(START);
 const months = [...new Set([month(cursor), month(addMonth(current, -1)), month(current)])].map(monthDate);
 const found = [];
+const scanErrors = [];
 for (const date of months) {
   try { found.push(...await scanMonth(date)); }
-  catch (error) { console.warn(`No se pudo escanear ${month(date)}: ${error.message}`); }
+  catch (error) {
+    const message = `No se pudo escanear ${month(date)}: ${error.message}`;
+    scanErrors.push(message); console.warn(message);
+  }
 }
 const key = (row) => [row.source_url, normal(row.event_name), normal(row.athlete), row.birth, row.mark].join("|");
 const merged = new Map();
@@ -65,12 +72,12 @@ const output = { updated_at: new Date().toISOString(), cursor_month: month(next)
 if (!token) {
   const clubCounts = {};
   for (const row of output.results) if (/FUENLABRADA|URJC/i.test(row.club || "")) clubCounts[row.club] = (clubCounts[row.club] || 0) + 1;
-  console.log(JSON.stringify({ dry_run: true, months: months.map(month), found: found.length, total: output.results.length, next: output.cursor_month, club_counts: clubCounts }));
+  console.log(JSON.stringify({ dry_run: true, months: months.map(month), found: found.length, total: output.results.length, next: output.cursor_month, club_counts: clubCounts, scan_errors: scanErrors }));
 } else {
   const response = await fetch(`${WORKER}/fam-snapshot`, {
     method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body: JSON.stringify(output), signal: AbortSignal.timeout(120_000)
   });
   const body = await response.text();
   if (!response.ok) throw new Error(`La carga FAM falló (${response.status}): ${body.slice(0, 500)}`);
-  console.log(JSON.stringify({ months: months.map(month), found: found.length, total: output.results.length, next: output.cursor_month, imported: JSON.parse(body) }));
+  console.log(JSON.stringify({ months: months.map(month), found: found.length, total: output.results.length, next: output.cursor_month, scan_errors: scanErrors, imported: JSON.parse(body) }));
 }
