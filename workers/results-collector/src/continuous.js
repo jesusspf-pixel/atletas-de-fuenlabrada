@@ -16,9 +16,13 @@ const CATEGORIES = [
   [147, "Sub 10", "F", 2], [148, "Sub 10", "M", 1],
   [161, "Sub 8", "F", 2], [162, "Sub 8", "M", 1]
 ];
-const CONFIGS = ["AL", "PC", "RT", "MA"].flatMap((style) =>
-  CATEGORIES.map(([category, label, sex, gender]) => ({ style, category, label, sex, gender }))
-);
+// El ranking absoluto de la RFEA ya contiene las marcas de todas las edades.
+// Consultarlo por sexo y modalidad evita repetir la misma marca en 18 categorías
+// y permite completar un ciclo entero en unos 40 minutos.
+const CONFIGS = ["AL", "PC", "RT", "MA"].flatMap((style) => [
+  { style, category: 145, label: "Absoluta", sex: "F", gender: 2 },
+  { style, category: 146, label: "Absoluta", sex: "M", gender: 1 }
+]);
 const ACCEPTED_CLUBS = [
   "ATLETISMO URJC FUENLABRADA", "ATLETAS DE FUENLABRADA", "CDB ATLETAS DE FUENLABRADA",
   "CLUB ATLETAS DE FUENLABRADA", "CLUB DEPORTIVO BASICO ATLETAS DE FUENLABRADA"
@@ -201,6 +205,15 @@ function matchAthlete(byName, row) {
   const birth = parseDate(row.birth, 2000); return candidates.find((athlete) => athlete.birth_date === birth) || null;
 }
 
+function categoryForBirth(birth, season, sex) {
+  const parsed = parseDate(birth, season); const year = Number(parsed?.slice(0, 4));
+  if (!year) return `Absoluta ${sex}`;
+  const age = season - year;
+  const category = age <= 7 ? "Sub 8" : age <= 9 ? "Sub 10" : age <= 11 ? "Sub 12" : age <= 13 ? "Sub 14"
+    : age <= 15 ? "Sub 16" : age <= 17 ? "Sub 18" : age <= 19 ? "Sub 20" : age <= 22 ? "Sub 23" : "Absoluta";
+  return `${category} ${sex}`;
+}
+
 async function scanRfea(env, settings, forcedSlot) {
   if (!settings.rfea_enabled) return { enabled: false };
   const season = new Date().getUTCFullYear();
@@ -222,7 +235,7 @@ async function scanRfea(env, settings, forcedSlot) {
       const competition = `${info.name} · ${row.venue || "RFEA"}`;
       results.push({ athlete_id: athlete?.id || null, external_athlete_name: row.athlete, federation_license: athlete?.federation_license || null,
         athletics_event_id: id, competition_name: competition, competition_date: date, venue: row.venue || null, season: String(season),
-        category_label: `${config.label} ${config.sex}`, result_text: row.mark, result_value: value,
+        category_label: categoryForBirth(row.birth, season, config.sex), result_text: row.mark, result_value: value,
         result_unit: info.result_kind === "time" ? "s" : info.result_kind === "points" ? "pts" : "m",
         position: /^\d+$/.test(row.position) ? Number(row.position) : null,
         wind: Number.isFinite(Number(String(row.wind).replace(",", "."))) ? Number(String(row.wind).replace(",", ".")) : null,
@@ -264,4 +277,4 @@ export default {
   async scheduled(_event, env, ctx) { ctx.waitUntil(run(env).catch(async (error) => { await saveError(env, error); console.error("results collector", error?.message || error); })); }
 };
 
-export const __test = { text, normal, parseDate, famRows, options, rankingRows, eventInfo, markValue, matchAthlete };
+export const __test = { text, normal, parseDate, famRows, options, rankingRows, eventInfo, markValue, matchAthlete, categoryForBirth };
