@@ -49,7 +49,7 @@ async function scanMonth(date) {
 }
 
 const token = process.env.FAM_INGEST_TOKEN || "", now = new Date(), current = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-let cursor = monthDate(await cursorMonth(token)); if (cursor > current || cursor < monthDate(START)) cursor = monthDate(START);
+let cursor = monthDate(process.env.FAM_CURSOR_MONTH || await cursorMonth(token)); if (cursor > current || cursor < monthDate(START)) cursor = monthDate(START);
 const months = [...new Set([month(cursor), month(addMonth(current, -1)), month(current)])].map(monthDate);
 const found = [];
 for (const date of months) {
@@ -62,7 +62,9 @@ for (const row of found) merged.set(key(row), row);
 const next = cursor < current ? addMonth(cursor, 1) : monthDate(START);
 const output = { updated_at: new Date().toISOString(), cursor_month: month(next), results: [...merged.values()].sort((a, b) => `${a.competition_date}|${a.athlete}`.localeCompare(`${b.competition_date}|${b.athlete}`)) };
 if (!token) {
-  console.log(JSON.stringify({ dry_run: true, months: months.map(month), found: found.length, total: output.results.length, next: output.cursor_month }));
+  const clubCounts = {};
+  for (const row of output.results) if (/FUENLABRADA|URJC/i.test(row.club || "")) clubCounts[row.club] = (clubCounts[row.club] || 0) + 1;
+  console.log(JSON.stringify({ dry_run: true, months: months.map(month), found: found.length, total: output.results.length, next: output.cursor_month, club_counts: clubCounts }));
 } else {
   const response = await fetch(`${WORKER}/fam-snapshot`, {
     method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body: JSON.stringify(output), signal: AbortSignal.timeout(120_000)
