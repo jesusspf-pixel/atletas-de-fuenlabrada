@@ -30,9 +30,41 @@ async function fetchOk(url) {
   return response;
 }
 
+async function feedSources(date) {
+  const response = await fetchOk(`${ORIGIN}/index.php?format=feed&type=rss`);
+  const xml = await response.text();
+  const wantedMonth = month(date);
+  const urls = [...xml.matchAll(/https?:[^\s"'<>]+\/images\/stories\/ficheros\/eventos\/[^\s"'<>]+\.pdf(?:\?[^\s"'<>]*)?/gi)]
+    .map((match) => match[0].replaceAll("&amp;", "&"));
+  const sources = new Map();
+  for (const resultsUrl of urls) {
+    const filename = decodeURIComponent(new URL(resultsUrl).pathname.split("/").pop() || "");
+    const dateMatch = filename.match(/^(\d{4})[._-](\d{2})[._-](\d{2})[_-](.+)\.pdf$/i);
+    if (!dateMatch) continue;
+    const competitionDate = `${dateMatch[1]}-${dateMatch[2]}-${dateMatch[3]}`;
+    if (!competitionDate.startsWith(wantedMonth)) continue;
+    const competitionName = dateMatch[4].replaceAll("_", " ").replace(/\s+/g, " ").trim();
+    sources.set(resultsUrl, {
+      federation: "FAM",
+      competition_name: competitionName,
+      competition_date: competitionDate,
+      calendar_url: `${ORIGIN}/index.php?format=feed&type=rss`,
+      results_url: resultsUrl
+    });
+  }
+  return [...sources.values()];
+}
+
 async function scanMonth(date) {
-  const url = calendarUrl(date), html = await (await fetchOk(url)).text();
-  const sources = __test.famRows(html, date.getUTCFullYear(), url).filter((source) => /\.pdf(?:$|\?)/i.test(source.results_url || ""));
+  const url = calendarUrl(date);
+  let sources;
+  try {
+    const html = await (await fetchOk(url)).text();
+    sources = __test.famRows(html, date.getUTCFullYear(), url).filter((source) => /\.pdf(?:$|\?)/i.test(source.results_url || ""));
+  } catch (calendarError) {
+    sources = await feedSources(date);
+    if (!sources.length) throw calendarError;
+  }
   const results = [];
   for (const source of sources) {
     try {
