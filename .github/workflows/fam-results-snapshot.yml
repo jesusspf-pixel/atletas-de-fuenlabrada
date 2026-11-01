@@ -1,0 +1,23 @@
+name: Actualizar resultados oficiales FAM
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "7,22,37,52 * * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: node scripts/fam-results-snapshot.mjs
+        env:
+          FAM_INGEST_TOKEN: ${{ secrets.FAM_INGEST_TOKEN }}

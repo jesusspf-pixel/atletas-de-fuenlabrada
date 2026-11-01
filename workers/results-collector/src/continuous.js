@@ -8,6 +8,8 @@ const BATCH_SIZE = 16;
 const SLOT_MS = 5 * 60 * 1000;
 const MAX_FAM_PDF_BYTES = 20 * 1024 * 1024;
 const MAX_FAM_PDF_PAGES = 100;
+const FAM_SNAPSHOT_MAX_ROWS = 50_000;
+const FAM_SNAPSHOT_MAX_BYTES = 20 * 1024 * 1024;
 
 const CATEGORIES = [
   [145, "Absoluta", "F", 2], [146, "Absoluta", "M", 1],
@@ -345,6 +347,47 @@ async function importFamPdf(env, settings) {
     matched: selected.filter((row) => row.matchedAthlete).length, stored: results.length };
 }
 
+async function importFamSnapshot(env, settings, snapshot) {
+  if (settings.fam_enabled === false) return { enabled: false };
+  const rows = Array.isArray(snapshot?.results) ? snapshot.results : [];
+  if (rows.length > FAM_SNAPSHOT_MAX_ROWS) throw new Error(`La copia FAM contiene demasiadas marcas (${rows.length}).`);
+  const byName = await athletes(env), selected = [];
+  for (const row of rows) {
+    if (!row?.athlete || !row?.event_name || !row?.mark || !row?.competition_date || !row?.source_url) continue;
+    const matchedAthlete = matchAthlete(byName, row);
+    if (matchedAthlete || acceptedFamClub(row.club, settings)) selected.push({ ...row, matchedAthlete });
+  }
+  const infos = selected.map((row) => eventInfo(row.event_name, row.style)), ids = await eventIds(env, infos);
+  const results = [], sources = new Map(), importedAt = new Date().toISOString();
+  for (const row of selected) {
+    const info = eventInfo(row.event_name, row.style), eventId = ids.get(info.code), value = markValue(row.mark, info.result_kind);
+    if (!eventId || value === null) continue;
+    const season = Number(String(row.competition_date).slice(0, 4)), categoryLabel = categoryForBirth(row.birth, season, row.sex || "");
+    results.push({ athlete_id: row.matchedAthlete?.id || null, external_athlete_name: row.athlete,
+      federation_license: row.matchedAthlete?.federation_license || row.license || null,
+      athletics_event_id: eventId, competition_name: row.competition_name, competition_date: row.competition_date,
+      venue: "Comunidad de Madrid", season: String(season), category_label: categoryLabel.trim(), result_text: row.mark,
+      result_value: value, result_unit: info.result_kind === "time" ? "s" : info.result_kind === "points" ? "pts" : "m",
+      position: row.position || null, wind: null, official: true, source: "fam", source_url: row.source_url,
+      source_external_id: await hash(["fam", row.source_url, info.code, row.athlete, row.birth, row.mark]),
+      source_club_name: row.club || null, verified: true, imported_at: importedAt });
+    const sourceKey = `${row.competition_name}|${row.competition_date}`;
+    sources.set(sourceKey, { federation: "FAM", competition_name: row.competition_name,
+      competition_date: row.competition_date, calendar_url: row.calendar_url || row.source_url,
+      results_url: row.source_url, status: "imported", last_checked_at: importedAt, imported_at: importedAt,
+      error_message: null });
+  }
+  for (let index = 0; index < results.length; index += 250) {
+    await db(env, "athlete_results", { method: "POST", headers: { Prefer: "resolution=ignore-duplicates,return=minimal" },
+      body: JSON.stringify(results.slice(index, index + 250)) });
+  }
+  if (sources.size) await db(env, "federation_import_sources?on_conflict=federation,competition_name,competition_date", {
+    method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify([...sources.values()])
+  });
+  return { enabled: true, snapshot_updated_at: snapshot?.updated_at || null, available: rows.length,
+    selected: selected.length, matched: selected.filter((row) => row.matchedAthlete).length, stored: results.length };
+}
+
 function categoryForBirth(birth, season, sex) {
   const parsed = parseDate(birth, season); const year = /^\d{4}$/.test(String(birth || "")) ? Number(birth) : Number(parsed?.slice(0, 4));
   if (!year) return `Absoluta ${sex}`;
@@ -411,12 +454,12 @@ async function run(env, slot) {
   }
   const next = cursor < now ? addMonth(cursor, 1) : from;
   await db(env, "federation_import_settings?id=eq.true", { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ history_cursor_month: next.toISOString().slice(0, 10), fam_last_scan_at: new Date().toISOString() }) });
-  let famResults = null;
-  try { famResults = await importFamPdf(env, config); }
-  catch (error) { const message = String(error?.message || error); warnings.push(message); famResults = { enabled: true, stored: 0, warning: message }; }
+  let famPdf = null;
+  try { famPdf = await importFamPdf(env, config); }
+  catch (error) { const message = String(error?.message || error); warnings.push(message); famPdf = { enabled: true, stored: 0, warning: message }; }
   const ranking = await scanRfea(env, config, slot);
   await db(env, "federation_import_settings?id=eq.true", { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ import_job_last_error: warnings.length ? warnings.join(" | ").slice(0, 1500) : null }) });
-  return { calendar, fam_results: famResults, ranking, warnings };
+  return { calendar, fam_results: { direct_pdf: famPdf }, ranking, warnings };
 }
 
 export default {
@@ -424,6 +467,22 @@ export default {
     const url = new URL(request.url);
     if (url.pathname === "/health") return json({ ok: true, service: "club-atletas-results-collector", mode: "continuous", schedule: "cada 5 minutos", sources: ["Federación de Atletismo de Madrid", "RFEA"] });
     if (!env.MANUAL_RUN_TOKEN || url.searchParams.get("token") !== env.MANUAL_RUN_TOKEN) return json({ ok: false, error: "No autorizado" }, 401);
+    if (url.pathname === "/fam-cursor") {
+      try { const config = await settings(env); return json({ ok: true, cursor_month: config.history_cursor_month || config.history_from || "2024-09-01" }); }
+      catch (error) { return json({ ok: false, error: error?.message || "Error desconocido" }, 500); }
+    }
+    if (url.pathname === "/fam-snapshot" && request.method === "POST") {
+      try {
+        const size = Number(request.headers.get("content-length") || 0);
+        if (size > FAM_SNAPSHOT_MAX_BYTES) return json({ ok: false, error: "Carga FAM demasiado grande" }, 413);
+        const snapshot = await request.json(), config = await settings(env), imported = await importFamSnapshot(env, config, snapshot);
+        if (/^\d{4}-\d{2}$/.test(String(snapshot?.cursor_month || ""))) {
+          await db(env, "federation_import_settings?id=eq.true", { method: "PATCH", headers: { Prefer: "return=minimal" },
+            body: JSON.stringify({ history_cursor_month: `${snapshot.cursor_month}-01`, fam_last_scan_at: new Date().toISOString(), import_job_last_error: null }) });
+        }
+        return json({ ok: true, fam_results: imported });
+      } catch (error) { await saveError(env, error); return json({ ok: false, error: error?.message || "Error desconocido" }, 500); }
+    }
     try { return json({ ok: true, ...(await run(env, url.searchParams.get("slot"))) }); }
     catch (error) { await saveError(env, error); return json({ ok: false, error: error?.message || "Error desconocido" }, 500); }
   },
