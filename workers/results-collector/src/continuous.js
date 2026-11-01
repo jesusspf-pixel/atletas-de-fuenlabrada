@@ -1,9 +1,13 @@
+import { extractTextItems, getDocumentProxy } from "unpdf";
+
 const FAM_ORIGIN = "https://www.atletismomadrid.com";
 const RFEA_ORIGIN = "https://atletismorfea.es";
 const RFEA_FEDERATION = "0017Q00000ntHy5QAE";
 const USER_AGENT = "Club Atletas de Fuenlabrada official-results collector/3.0";
 const BATCH_SIZE = 16;
 const SLOT_MS = 5 * 60 * 1000;
+const MAX_FAM_PDF_BYTES = 20 * 1024 * 1024;
+const MAX_FAM_PDF_PAGES = 100;
 
 const CATEGORIES = [
   [145, "Absoluta", "F", 2], [146, "Absoluta", "M", 1],
@@ -99,12 +103,23 @@ function famRows(html, year, calendarUrl) {
 
 async function scanFam(env, date) {
   const url = famUrl(date);
-  const response = await fetch(url, { headers: { "user-agent": USER_AGENT, accept: "text/html" } });
+  const response = await fetch(url, { headers: {
+    "user-agent": "Mozilla/5.0 (compatible; Club Atletas de Fuenlabrada results collector/4.0)",
+    accept: "text/html,application/xhtml+xml", "accept-language": "es-ES,es;q=0.9", referer: `${FAM_ORIGIN}/`
+  } });
   if (!response.ok) throw new Error(`FAM respondió ${response.status} en ${monthId(date)}.`);
   const rows = famRows(await response.text(), date.getUTCFullYear(), url);
-  if (rows.length) await db(env, "federation_import_sources?on_conflict=federation,competition_name,competition_date", {
-    method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify(rows)
-  });
+  if (rows.length) {
+    const existing = await db(env, `federation_import_sources?federation=eq.FAM&competition_date=gte.${monthId(date)}-01&competition_date=lt.${monthId(addMonth(date, 1))}-01&select=competition_name,competition_date,status,error_message`, { method: "GET" });
+    const previous = new Map((existing || []).map((row) => [`${row.competition_name}|${row.competition_date}`, row]));
+    const prepared = rows.map((row) => {
+      const current = previous.get(`${row.competition_name}|${row.competition_date}`);
+      return current && ["imported", "needs_review"].includes(current.status) ? { ...row, status: current.status, error_message: current.error_message } : row;
+    });
+    await db(env, "federation_import_sources?on_conflict=federation,competition_name,competition_date", {
+      method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify(prepared)
+    });
+  }
   return { month: monthId(date), competitions: rows.length, with_results: rows.filter((row) => row.results_url).length };
 }
 
@@ -166,7 +181,8 @@ function rankingRows(html) {
 }
 
 function eventInfo(eventName, style) {
-  const name = text(eventName).replace(/\s+ST$/i, "").trim();
+  const name = text(eventName).replace(/\s+ST$/i, "").replace(/\s+(?:MASC\.?|FEM\.?|MASCULINO|FEMENINO)(?:\s+AL)?$/i, "")
+    .replace(/\s+Sub\s*\d+\s+(?:Masc|Fem)$/i, "").trim();
   const n = normal(name), compact = n.replace(/\s+/g, "");
   let code = compact, discipline = style === "RT" ? "road" : "track", kind = "time", direction = "asc";
   const field = (newCode, resultKind = "distance") => { code = newCode; discipline = "field"; kind = resultKind; direction = "desc"; };
@@ -177,6 +193,7 @@ function eventInfo(eventName, style) {
   else if (/MARTILLO/.test(n)) field(`HAMMER${n.match(/(\d+(?:[.,]\d+)?)\s*KG/)?.[1]?.replace(/[.,]/g, "") || ""}`);
   else if (/JABALINA/.test(n)) field(`JAVELIN${n.match(/(\d+)\s*G/)?.[1] || ""}`);
   else if (/DECATLON|HEPTATLON|PENTATLON|TRIATLON|COMBINAD/.test(n)) { discipline = "combined"; kind = "points"; direction = "desc"; }
+  else if (/CAMPO A TRAVES|CROSS/.test(n)) discipline = "cross";
   else if (/MARCHA/.test(n)) discipline = "road";
   return { code: code.slice(0, 80), name, discipline, result_kind: kind, sort_direction: direction, active: true };
 }
@@ -202,11 +219,134 @@ async function eventIds(env, events) {
 
 function matchAthlete(byName, row) {
   const candidates = byName.get(normal(row.athlete)) || []; if (candidates.length === 1) return candidates[0];
+  if (/^\d{4}$/.test(String(row.birth || ""))) return candidates.find((athlete) => String(athlete.birth_date || "").startsWith(String(row.birth))) || null;
   const birth = parseDate(row.birth, 2000); return candidates.find((athlete) => athlete.birth_date === birth) || null;
 }
 
+function famPageLines(items) {
+  const lines = [];
+  for (const item of items || []) {
+    let line = lines.find((candidate) => Math.abs(candidate.y - item.y) <= 2);
+    if (!line) { line = { y: item.y, items: [] }; lines.push(line); }
+    line.items.push(item);
+  }
+  return lines.sort((a, b) => b.y - a.y).map((line) => line.items.sort((a, b) => a.x - b.x)
+    .map((item) => item.str).join(" ").replace(/\s+/g, " ").trim()).filter(Boolean);
+}
+
+function famEventHeading(line) {
+  const value = String(line || "").trim();
+  if (/^(?:\d+(?:[.,]\d+)?\s*(?:m|km)(?:\s|$)|media marat[oó]n|marat[oó]n|milla|altura|p[eé]rtiga|longitud|triple|peso|disco|martillo|jabalina|relevo|4\s*[xX]|pentatl[oó]n|triatl[oó]n|heptatl[oó]n|decatl[oó]n)/i.test(value)) return value;
+  if (/^(?:SUB\s*\d+|ABSOLUT[OA]|M[AÁ]STER).*(?:MASCULIN|FEMENIN)/i.test(value)) return `Campo a través · ${value}`;
+  return null;
+}
+
+function famSex(value) {
+  const n = normal(value);
+  if (/FEMENIN|\bFEM\b|\bABF\b|\bU\d+F\b/.test(n)) return "F";
+  if (/MASCULIN|\bMASC\b|\bABM\b|\bU\d+M\b/.test(n)) return "M";
+  return "";
+}
+
+function famName(value) {
+  const clean = String(value || "").replace(/^\(f\)\s*/i, "").replace(/\s+/g, " ").trim();
+  const comma = clean.match(/^([^,]+),\s*(.+)$/);
+  return comma ? `${comma[2]} ${comma[1]}`.trim() : clean;
+}
+
+function famTrackRow(line, eventName) {
+  const match = String(line).match(/^(\d+)\s+\d+\s+(.+?)\s+(\d{2}\/\d{2}\/\d{4})\s+(.+)$/);
+  if (!match) return null;
+  const info = eventInfo(eventName, "AL"), tail = match[4].trim().split(/\s+/);
+  const mark = info.discipline === "field" ? tail.find((token) => /^\d+[.,]\d+$/.test(token))
+    : tail.find((token, index) => index > 0 && /^(?:\d+:)?\d{1,2}(?::\d{2})?[.,]\d+$/.test(token));
+  if (!mark) return null;
+  return { position: Number(match[1]), athlete: famName(match[2]), birth: match[3], mark, event_name: eventName,
+    sex: famSex(eventName), style: "AL", club: "", license: "" };
+}
+
+function famCrossRow(line, eventName) {
+  const match = String(line).match(/^(\d+)\s+\d+\s+(\d+(?::\d{2}){1,2})\s+\S+\s+(.+?)\s+(\d{4})\s+([A-Z0-9]+)\s+\d+\s+([A-Z0-9]+)\s+\d+\s+(.+?)(?:\s+\d+(?:[.,]\d+)?)?$/i);
+  if (!match) return null;
+  return { position: Number(match[1]), athlete: famName(match[3]), birth: match[4], mark: match[2], event_name: eventName,
+    sex: famSex(`${eventName} ${match[6]}`), style: "RT", club: match[7], license: match[5] };
+}
+
+function famRoadRow(line, eventName) {
+  const match = String(line).match(/^(\d+)\s+\d+\s+(\d+(?::\d{2}){1,2})\s+\d+(?::\d{2}){1,2}\s+\S+\s+(.+?)\s+(\d{4})\s+\d+\s+([A-Z0-9]+)\s+\d+(?:\s+(.+?))?(?:\s+\d+)?$/i);
+  if (!match) return null;
+  return { position: Number(match[1]), athlete: famName(match[3]), birth: match[4], mark: match[2], event_name: eventName,
+    sex: famSex(`${eventName} ${match[5]}`), style: "RT", club: match[6] || "", license: "" };
+}
+
+function famPdfRows(pages) {
+  const rows = [];
+  for (const page of pages || []) {
+    const lines = famPageLines(page); let eventName = "";
+    for (let index = 0; index < lines.length; index += 1) {
+      const heading = famEventHeading(lines[index]); if (heading) eventName = heading;
+      if (!eventName || /^(?:Pto|Puesto|Nombre|Club|Final|ACTA|\d{2}\/\d{2}\/\d{4})\b/i.test(lines[index])) continue;
+      const row = eventName.startsWith("Campo a través") ? famCrossRow(lines[index], eventName)
+        : /^(?:10\s*KM|MEDIA MARAT|MARAT|MILLA)/i.test(eventName) ? famRoadRow(lines[index], eventName)
+          : famTrackRow(lines[index], eventName);
+      if (!row) continue;
+      if (!row.club && lines[index + 1] && !famEventHeading(lines[index + 1])) {
+        const clubLine = lines[index + 1].match(/^(.*?)(?:\s+([A-Z]{0,3}\d+[A-Z0-9]*))$/i);
+        if (clubLine) { row.club = clubLine[1].trim(); row.license = clubLine[2] || ""; }
+      }
+      rows.push(row);
+    }
+  }
+  return rows;
+}
+
+function acceptedFamClub(value, settings) {
+  const club = normal(value), accepted = [...ACCEPTED_CLUBS, ...(settings.accepted_club_names || [])].map(normal);
+  const rejected = [...REJECTED_CLUBS, ...(settings.rejected_club_names || [])].map(normal);
+  return accepted.includes(club) && !rejected.includes(club);
+}
+
+async function importFamPdf(env, settings) {
+  if (settings.fam_enabled === false) return { enabled: false };
+  const sources = await db(env, "federation_import_sources?federation=eq.FAM&results_url=not.is.null&status=eq.waiting_results&order=competition_date.desc&limit=1&select=competition_name,competition_date,results_url", { method: "GET" });
+  const source = sources?.[0]; if (!source) return { enabled: true, pending: 0, stored: 0 };
+  const sourceFilter = `federation=eq.FAM&competition_name=eq.${encodeURIComponent(source.competition_name)}&competition_date=eq.${source.competition_date}`;
+  if (!/\.pdf(?:$|\?)/i.test(source.results_url)) {
+    await db(env, `federation_import_sources?${sourceFilter}`, { method: "PATCH", headers: { Prefer: "return=minimal" },
+      body: JSON.stringify({ status: "needs_review", last_checked_at: new Date().toISOString(), error_message: "El resultado no es un PDF oficial importable." }) });
+    return { enabled: true, competition: source.competition_name, unsupported: true, stored: 0 };
+  }
+  const response = await fetch(source.results_url, { headers: { "user-agent": "Mozilla/5.0", accept: "application/pdf", referer: `${FAM_ORIGIN}/` } });
+  if (!response.ok) throw new Error(`FAM respondió ${response.status} al descargar ${source.competition_name}.`);
+  const buffer = await response.arrayBuffer(); if (buffer.byteLength > MAX_FAM_PDF_BYTES) throw new Error(`PDF FAM demasiado grande (${buffer.byteLength} bytes).`);
+  const pdf = await getDocumentProxy(new Uint8Array(buffer), { maxImageSize: 16_777_216 });
+  if (pdf.numPages > MAX_FAM_PDF_PAGES) throw new Error(`PDF FAM con demasiadas páginas (${pdf.numPages}).`);
+  const extracted = await Promise.race([extractTextItems(pdf), new Promise((_, reject) => setTimeout(() => reject(new Error("Tiempo agotado al leer el PDF FAM.")), 25_000))]);
+  const parsed = famPdfRows(extracted.items), byName = await athletes(env), selected = [];
+  for (const row of parsed) { const matchedAthlete = matchAthlete(byName, row); if (matchedAthlete || acceptedFamClub(row.club, settings)) selected.push({ ...row, matchedAthlete }); }
+  const infos = selected.map((row) => eventInfo(row.event_name, row.style)), ids = await eventIds(env, infos), results = [];
+  for (const row of selected) {
+    const info = eventInfo(row.event_name, row.style), eventId = ids.get(info.code), value = markValue(row.mark, info.result_kind);
+    if (!eventId || value === null) continue;
+    const season = Number(source.competition_date.slice(0, 4)), categoryLabel = categoryForBirth(row.birth, season, row.sex || "");
+    results.push({ athlete_id: row.matchedAthlete?.id || null, external_athlete_name: row.athlete, federation_license: row.matchedAthlete?.federation_license || row.license || null,
+      athletics_event_id: eventId, competition_name: source.competition_name, competition_date: source.competition_date, venue: "Comunidad de Madrid", season: String(season),
+      category_label: categoryLabel.trim(), result_text: row.mark, result_value: value,
+      result_unit: info.result_kind === "time" ? "s" : info.result_kind === "points" ? "pts" : "m", position: row.position || null, wind: null,
+      official: true, source: "fam", source_url: source.results_url,
+      source_external_id: await hash(["fam", source.results_url, info.code, row.athlete, row.birth, row.mark]), source_club_name: row.club || null,
+      verified: true, imported_at: new Date().toISOString() });
+  }
+  if (results.length) await db(env, "athlete_results", { method: "POST", headers: { Prefer: "resolution=ignore-duplicates,return=minimal" }, body: JSON.stringify(results) });
+  await db(env, `federation_import_sources?${sourceFilter}`, { method: "PATCH", headers: { Prefer: "return=minimal" },
+    body: JSON.stringify({ status: "imported", last_checked_at: new Date().toISOString(), imported_at: new Date().toISOString(),
+      error_message: results.length ? null : `PDF leído: ${parsed.length} marcas; sin coincidencias con atletas del club.` }) });
+  return { enabled: true, competition: source.competition_name, parsed: parsed.length, selected: selected.length,
+    matched: selected.filter((row) => row.matchedAthlete).length, stored: results.length };
+}
+
 function categoryForBirth(birth, season, sex) {
-  const parsed = parseDate(birth, season); const year = Number(parsed?.slice(0, 4));
+  const parsed = parseDate(birth, season); const year = /^\d{4}$/.test(String(birth || "")) ? Number(birth) : Number(parsed?.slice(0, 4));
   if (!year) return `Absoluta ${sex}`;
   const age = season - year;
   const category = age <= 7 ? "Sub 8" : age <= 9 ? "Sub 10" : age <= 11 ? "Sub 12" : age <= 13 ? "Sub 14"
@@ -271,9 +411,12 @@ async function run(env, slot) {
   }
   const next = cursor < now ? addMonth(cursor, 1) : from;
   await db(env, "federation_import_settings?id=eq.true", { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ history_cursor_month: next.toISOString().slice(0, 10), fam_last_scan_at: new Date().toISOString() }) });
+  let famResults = null;
+  try { famResults = await importFamPdf(env, config); }
+  catch (error) { const message = String(error?.message || error); warnings.push(message); famResults = { enabled: true, stored: 0, warning: message }; }
   const ranking = await scanRfea(env, config, slot);
   await db(env, "federation_import_settings?id=eq.true", { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ import_job_last_error: warnings.length ? warnings.join(" | ").slice(0, 1500) : null }) });
-  return { calendar, ranking, warnings };
+  return { calendar, fam_results: famResults, ranking, warnings };
 }
 
 export default {
@@ -287,4 +430,5 @@ export default {
   async scheduled(_event, env, ctx) { ctx.waitUntil(run(env).catch(async (error) => { await saveError(env, error); console.error("results collector", error?.message || error); })); }
 };
 
-export const __test = { text, normal, parseDate, famRows, options, rankingRows, eventInfo, markValue, matchAthlete, categoryForBirth };
+export const __test = { text, normal, parseDate, famRows, options, rankingRows, eventInfo, markValue, matchAthlete, categoryForBirth,
+  famPageLines, famEventHeading, famName, famTrackRow, famCrossRow, famRoadRow, famPdfRows };
