@@ -64,6 +64,16 @@ for (const date of months) {
     scanErrors.push(message); console.warn(message);
   }
 }
+if (scanErrors.length === months.length && found.length === 0) {
+  console.log(JSON.stringify({
+    skipped: true,
+    reason: "fam_source_blocked",
+    months: months.map(month),
+    scan_errors: scanErrors
+  }));
+  process.exit(0);
+}
+
 const key = (row) => [row.source_url, normal(row.event_name), normal(row.athlete), row.birth, row.mark].join("|");
 const merged = new Map();
 for (const row of found) merged.set(key(row), row);
