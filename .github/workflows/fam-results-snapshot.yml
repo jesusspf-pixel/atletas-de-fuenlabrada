@@ -32,7 +32,8 @@ jobs:
             exit 1
           fi
           export FAM_INGEST_TOKEN
-          if ! node scripts/fam-results-snapshot.mjs 2>fam-import-error.log; then
+          if ! FAM_IMPORT_RESULT="$(node scripts/fam-results-snapshot.mjs 2>fam-import-error.log)"; then
             while IFS= read -r line; do echo "::error title=Importación FAM::$line"; done < fam-import-error.log
             exit 1
           fi
+          echo "::notice title=Importación FAM::$FAM_IMPORT_RESULT"
