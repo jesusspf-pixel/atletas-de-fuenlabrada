@@ -67,20 +67,23 @@ function jwtJson(value) { return JSON.parse(new TextDecoder().decode(base64UrlBy
 async function verifyGithubOidc(request) {
   try {
     const token = String(request.headers.get("authorization") || "").match(/^Bearer\s+(.+)$/i)?.[1];
-    if (!token) return false;
+    if (!token) return "falta la credencial";
     const [encodedHeader, encodedPayload, encodedSignature] = token.split(".");
-    if (!encodedHeader || !encodedPayload || !encodedSignature) return false;
+    if (!encodedHeader || !encodedPayload || !encodedSignature) return "formato de credencial incorrecto";
     const header = jwtJson(encodedHeader), payload = jwtJson(encodedPayload), now = Math.floor(Date.now() / 1000);
-    if (header.alg !== "RS256" || !header.kid || payload.iss !== "https://token.actions.githubusercontent.com") return false;
-    if (payload.aud !== "club-atletas-results-collector" || payload.repository !== "jesusspf-pixel/atletas-de-fuenlabrada") return false;
-    if (payload.ref !== "refs/heads/main" || Number(payload.exp || 0) < now || Number(payload.nbf || 0) > now + 30) return false;
+    if (header.alg !== "RS256" || !header.kid) return "algoritmo de firma no admitido";
+    if (payload.iss !== "https://token.actions.githubusercontent.com") return "emisor no admitido";
+    if (payload.aud !== "club-atletas-results-collector") return "audiencia no admitida";
+    if (payload.repository !== "jesusspf-pixel/atletas-de-fuenlabrada") return "repositorio no admitido";
+    if (payload.ref !== "refs/heads/main") return "rama no admitida";
+    if (Number(payload.exp || 0) < now || Number(payload.nbf || 0) > now + 30) return "credencial caducada o todavía no válida";
     const response = await fetch("https://token.actions.githubusercontent.com/.well-known/jwks", { cf: { cacheTtl: 3600, cacheEverything: true } });
-    if (!response.ok) return false;
+    if (!response.ok) return `no se pudieron consultar las claves (${response.status})`;
     const jwks = await response.json(), jwk = jwks.keys?.find((candidate) => candidate.kid === header.kid);
-    if (!jwk) return false;
+    if (!jwk) return "clave de firma desconocida";
     const key = await crypto.subtle.importKey("jwk", jwk, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["verify"]);
-    return crypto.subtle.verify("RSASSA-PKCS1-v1_5", key, base64UrlBytes(encodedSignature), new TextEncoder().encode(`${encodedHeader}.${encodedPayload}`));
-  } catch { return false; }
+    return await crypto.subtle.verify("RSASSA-PKCS1-v1_5", key, base64UrlBytes(encodedSignature), new TextEncoder().encode(`${encodedHeader}.${encodedPayload}`)) ? "" : "firma no válida";
+  } catch (error) { return `error al validar: ${String(error?.message || error).slice(0, 160)}`; }
 }
 
 async function db(env, path, init = {}) {
@@ -494,8 +497,10 @@ export default {
     const url = new URL(request.url);
     if (url.pathname === "/health") return json({ ok: true, service: "club-atletas-results-collector", mode: "continuous", schedule: "cada 5 minutos", sources: ["Federación de Atletismo de Madrid", "RFEA"] });
     const famEndpoint = url.pathname === "/fam-cursor" || url.pathname === "/fam-snapshot";
-    if (famEndpoint ? !(await verifyGithubOidc(request)) : (!env.MANUAL_RUN_TOKEN || url.searchParams.get("token") !== env.MANUAL_RUN_TOKEN)) {
-      return json({ ok: false, error: "No autorizado" }, 401);
+    const authError = famEndpoint ? await verifyGithubOidc(request)
+      : (!env.MANUAL_RUN_TOKEN || url.searchParams.get("token") !== env.MANUAL_RUN_TOKEN) ? "credencial manual incorrecta" : "";
+    if (authError) {
+      return json({ ok: false, error: "No autorizado", detail: authError }, 401);
     }
     if (url.pathname === "/fam-cursor") {
       try { const config = await settings(env); return json({ ok: true, cursor_month: config.history_cursor_month || config.history_from || "2024-09-01" }); }

@@ -15,7 +15,7 @@ const headers = { "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537
 async function cursorMonth(token) {
   if (!token) return START;
   const response = await fetch(`${WORKER}/fam-cursor`, { headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(30_000) });
-  if (!response.ok) throw new Error(`No se pudo consultar el cursor FAM (${response.status}).`);
+  if (!response.ok) throw new Error(`No se pudo consultar el cursor FAM (${response.status}): ${(await response.text()).slice(0, 300)}`);
   const payload = await response.json();
   return String(payload.cursor_month || START).slice(0, 7);
 }
