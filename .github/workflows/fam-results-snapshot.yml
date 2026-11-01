@@ -2,6 +2,12 @@ name: Actualizar resultados oficiales FAM
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/fam-results-snapshot.yml"
+      - "scripts/fam-results-snapshot.mjs"
+      - "workers/results-collector/**"
   schedule:
     - cron: "7,22,37,52 * * * *"
 
