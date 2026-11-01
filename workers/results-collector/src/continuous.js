@@ -56,6 +56,33 @@ function normal(value = "") {
 
 function serviceKey(env) { return env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_SERVICE_ROLE_KE || ""; }
 
+function base64UrlBytes(value) {
+  const normalized = String(value).replace(/-/g, "+").replace(/_/g, "/");
+  const binary = atob(normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "="));
+  return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+}
+
+function jwtJson(value) { return JSON.parse(new TextDecoder().decode(base64UrlBytes(value))); }
+
+async function verifyGithubOidc(request) {
+  try {
+    const token = String(request.headers.get("authorization") || "").match(/^Bearer\s+(.+)$/i)?.[1];
+    if (!token) return false;
+    const [encodedHeader, encodedPayload, encodedSignature] = token.split(".");
+    if (!encodedHeader || !encodedPayload || !encodedSignature) return false;
+    const header = jwtJson(encodedHeader), payload = jwtJson(encodedPayload), now = Math.floor(Date.now() / 1000);
+    if (header.alg !== "RS256" || !header.kid || payload.iss !== "https://token.actions.githubusercontent.com") return false;
+    if (payload.aud !== "club-atletas-results-collector" || payload.repository !== "jesusspf-pixel/atletas-de-fuenlabrada") return false;
+    if (payload.ref !== "refs/heads/main" || Number(payload.exp || 0) < now || Number(payload.nbf || 0) > now + 30) return false;
+    const response = await fetch("https://token.actions.githubusercontent.com/.well-known/jwks", { cf: { cacheTtl: 3600, cacheEverything: true } });
+    if (!response.ok) return false;
+    const jwks = await response.json(), jwk = jwks.keys?.find((candidate) => candidate.kid === header.kid);
+    if (!jwk) return false;
+    const key = await crypto.subtle.importKey("jwk", jwk, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["verify"]);
+    return crypto.subtle.verify("RSASSA-PKCS1-v1_5", key, base64UrlBytes(encodedSignature), new TextEncoder().encode(`${encodedHeader}.${encodedPayload}`));
+  } catch { return false; }
+}
+
 async function db(env, path, init = {}) {
   const key = serviceKey(env);
   const base = String(env.SUPABASE_URL || "").replace(/\/$/, "").replace(/\/rest\/v1$/, "");
@@ -467,8 +494,9 @@ export default {
     const url = new URL(request.url);
     if (url.pathname === "/health") return json({ ok: true, service: "club-atletas-results-collector", mode: "continuous", schedule: "cada 5 minutos", sources: ["Federación de Atletismo de Madrid", "RFEA"] });
     const famEndpoint = url.pathname === "/fam-cursor" || url.pathname === "/fam-snapshot";
-    const expectedToken = famEndpoint ? env.FAM_INGEST_TOKEN : env.MANUAL_RUN_TOKEN;
-    if (!expectedToken || url.searchParams.get("token") !== expectedToken) return json({ ok: false, error: "No autorizado" }, 401);
+    if (famEndpoint ? !(await verifyGithubOidc(request)) : (!env.MANUAL_RUN_TOKEN || url.searchParams.get("token") !== env.MANUAL_RUN_TOKEN)) {
+      return json({ ok: false, error: "No autorizado" }, 401);
+    }
     if (url.pathname === "/fam-cursor") {
       try { const config = await settings(env); return json({ ok: true, cursor_month: config.history_cursor_month || config.history_from || "2024-09-01" }); }
       catch (error) { return json({ ok: false, error: error?.message || "Error desconocido" }, 500); }

@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   snapshot:
@@ -18,6 +19,6 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      - name: Obtener credencial temporal para el recolector
+        run: echo "FAM_INGEST_TOKEN=$(curl --fail --silent --show-error -H \"Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN\" \"$ACTIONS_ID_TOKEN_REQUEST_URL&audience=club-atletas-results-collector\" | jq -r .value)" >> "$GITHUB_ENV"
       - run: node scripts/fam-results-snapshot.mjs
-        env:
-          FAM_INGEST_TOKEN: ${{ secrets.FAM_INGEST_TOKEN }}

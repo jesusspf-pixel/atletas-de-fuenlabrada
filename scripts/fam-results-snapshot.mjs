@@ -14,7 +14,7 @@ const headers = { "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537
 
 async function cursorMonth(token) {
   if (!token) return START;
-  const response = await fetch(`${WORKER}/fam-cursor?token=${encodeURIComponent(token)}`, { signal: AbortSignal.timeout(30_000) });
+  const response = await fetch(`${WORKER}/fam-cursor`, { headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(30_000) });
   if (!response.ok) throw new Error(`No se pudo consultar el cursor FAM (${response.status}).`);
   const payload = await response.json();
   return String(payload.cursor_month || START).slice(0, 7);
@@ -64,8 +64,8 @@ const output = { updated_at: new Date().toISOString(), cursor_month: month(next)
 if (!token) {
   console.log(JSON.stringify({ dry_run: true, months: months.map(month), found: found.length, total: output.results.length, next: output.cursor_month }));
 } else {
-  const response = await fetch(`${WORKER}/fam-snapshot?token=${encodeURIComponent(token)}`, {
-    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(output), signal: AbortSignal.timeout(120_000)
+  const response = await fetch(`${WORKER}/fam-snapshot`, {
+    method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body: JSON.stringify(output), signal: AbortSignal.timeout(120_000)
   });
   const body = await response.text();
   if (!response.ok) throw new Error(`La carga FAM falló (${response.status}): ${body.slice(0, 500)}`);
