@@ -67,7 +67,11 @@ for (const date of months) {
 const key = (row) => [row.source_url, normal(row.event_name), normal(row.athlete), row.birth, row.mark].join("|");
 const merged = new Map();
 for (const row of found) merged.set(key(row), row);
-const next = cursor < current ? addMonth(cursor, 1) : monthDate(START);
+// Do not skip a historical month when the federation rejected or failed that
+// month's scan. The current and previous months are still retried on every run.
+const cursorId = month(cursor);
+const cursorFailed = scanErrors.some((message) => String(message).includes(cursorId));
+const next = cursorFailed ? cursor : cursor < current ? addMonth(cursor, 1) : monthDate(START);
 const output = { updated_at: new Date().toISOString(), cursor_month: month(next), results: [...merged.values()].sort((a, b) => `${a.competition_date}|${a.athlete}`.localeCompare(`${b.competition_date}|${b.athlete}`)) };
 if (!token) {
   const clubCounts = {};
