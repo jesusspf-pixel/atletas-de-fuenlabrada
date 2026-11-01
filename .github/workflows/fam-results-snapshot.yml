@@ -25,7 +25,8 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - name: Obtener credencial temporal para el recolector
+      - name: Leer e importar resultados FAM
         run: |
-          echo "FAM_INGEST_TOKEN=$(curl --fail --silent --show-error -H \"Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN\" \"$ACTIONS_ID_TOKEN_REQUEST_URL&audience=club-atletas-results-collector\" | jq -r .value)" >> "$GITHUB_ENV"
-      - run: node scripts/fam-results-snapshot.mjs
+          export FAM_INGEST_TOKEN="$(curl --fail --silent --show-error -H \"Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN\" \"$ACTIONS_ID_TOKEN_REQUEST_URL&audience=club-atletas-results-collector\" | jq -er .value)"
+          test -n "$FAM_INGEST_TOKEN"
+          node scripts/fam-results-snapshot.mjs
