@@ -259,11 +259,19 @@ async function saveError(env, error) { try { await db(env, "federation_import_se
 async function run(env, slot) {
   const config = await settings(env), now = monthStart(new Date()), from = monthStart(config.history_from || "2024-09-01");
   let cursor = monthStart(config.history_cursor_month || from); if (cursor < from || cursor > now) cursor = from;
-  const months = monthId(cursor) === monthId(now) ? [cursor] : [cursor, now], calendar = [];
-  if (config.fam_enabled !== false) for (const month of months) calendar.push(await scanFam(env, month));
+  const months = monthId(cursor) === monthId(now) ? [cursor] : [cursor, now], calendar = [], warnings = [];
+  if (config.fam_enabled !== false) for (const month of months) {
+    try { calendar.push(await scanFam(env, month)); }
+    catch (error) {
+      const message = String(error?.message || error); warnings.push(message);
+      calendar.push({ month: monthId(month), competitions: 0, with_results: 0, warning: message });
+    }
+  }
   const next = cursor < now ? addMonth(cursor, 1) : from;
-  await db(env, "federation_import_settings?id=eq.true", { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ history_cursor_month: next.toISOString().slice(0, 10), fam_last_scan_at: new Date().toISOString(), import_job_last_error: null }) });
-  return { calendar, ranking: await scanRfea(env, config, slot) };
+  await db(env, "federation_import_settings?id=eq.true", { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ history_cursor_month: next.toISOString().slice(0, 10), fam_last_scan_at: new Date().toISOString() }) });
+  const ranking = await scanRfea(env, config, slot);
+  await db(env, "federation_import_settings?id=eq.true", { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ import_job_last_error: warnings.length ? warnings.join(" | ").slice(0, 1500) : null }) });
+  return { calendar, ranking, warnings };
 }
 
 export default {
