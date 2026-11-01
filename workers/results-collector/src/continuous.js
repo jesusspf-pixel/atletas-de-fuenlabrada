@@ -466,7 +466,9 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (url.pathname === "/health") return json({ ok: true, service: "club-atletas-results-collector", mode: "continuous", schedule: "cada 5 minutos", sources: ["Federación de Atletismo de Madrid", "RFEA"] });
-    if (!env.MANUAL_RUN_TOKEN || url.searchParams.get("token") !== env.MANUAL_RUN_TOKEN) return json({ ok: false, error: "No autorizado" }, 401);
+    const famEndpoint = url.pathname === "/fam-cursor" || url.pathname === "/fam-snapshot";
+    const expectedToken = famEndpoint ? env.FAM_INGEST_TOKEN : env.MANUAL_RUN_TOKEN;
+    if (!expectedToken || url.searchParams.get("token") !== expectedToken) return json({ ok: false, error: "No autorizado" }, 401);
     if (url.pathname === "/fam-cursor") {
       try { const config = await settings(env); return json({ ok: true, cursor_month: config.history_cursor_month || config.history_from || "2024-09-01" }); }
       catch (error) { return json({ ok: false, error: error?.message || "Error desconocido" }, 500); }
