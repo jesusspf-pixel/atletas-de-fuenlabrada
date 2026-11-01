@@ -1,5 +1,7 @@
 import { extractTextItems, getDocumentProxy } from "unpdf";
 import dns from "node:dns";
+import { readFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { __test } from "../workers/results-collector/src/continuous.js";
 
 dns.setDefaultResultOrder("ipv4first");
@@ -7,6 +9,7 @@ dns.setDefaultResultOrder("ipv4first");
 const ORIGIN = "https://atletismomadrid.com";
 const START = "2024-09";
 const WORKER = "https://club-atletas-results-collector.eatletismourjc.workers.dev";
+const LOCAL_SNAPSHOT = process.env.FAM_SNAPSHOT_FILE || "data/official-results/fam-live-snapshot.json";
 // La automatización obtiene una credencial OIDC temporal; no guarda secretos ni actas en GitHub.
 
 const normal = (value = "") => String(value).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]+/g, " ").replace(/\s+/g, " ").trim();
@@ -15,6 +18,24 @@ const monthDate = (value) => new Date(`${value}-01T00:00:00Z`);
 const addMonth = (value, count) => new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth() + count, 1));
 const calendarUrl = (date) => `${ORIGIN}/index.php?option=com_content&view=article&id=3292&Itemid=111&cal_year=${date.getUTCFullYear()}&cal_month=${date.getUTCMonth() + 1}&cal_type=Todos`;
 const headers = { "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/140 Safari/537.36", accept: "text/html,application/pdf", "accept-language": "es-ES,es;q=0.9", referer: `${ORIGIN}/` };
+
+async function savedSnapshot() {
+  if (!existsSync(LOCAL_SNAPSHOT)) return null;
+  const snapshot = JSON.parse(await readFile(LOCAL_SNAPSHOT, "utf8"));
+  if (!Array.isArray(snapshot?.results) || !/^\d{4}-\d{2}$/.test(String(snapshot?.cursor_month || ""))) {
+    throw new Error("La instantánea local FAM no tiene un formato válido.");
+  }
+  return snapshot;
+}
+
+async function uploadSnapshot(token, snapshot) {
+  const response = await fetch(`${WORKER}/fam-snapshot`, {
+    method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body: JSON.stringify(snapshot), signal: AbortSignal.timeout(120_000)
+  });
+  const body = await response.text();
+  if (!response.ok) throw new Error(`La carga FAM falló (${response.status}): ${body.slice(0, 500)}`);
+  return JSON.parse(body);
+}
 
 async function cursorMonth(token) {
   if (!token) return START;
@@ -84,7 +105,14 @@ async function scanMonth(date) {
   return results;
 }
 
-const token = process.env.FAM_INGEST_TOKEN || "", now = new Date(), current = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+const token = process.env.FAM_INGEST_TOKEN || "";
+const localSnapshot = await savedSnapshot();
+if (token && localSnapshot) {
+  const imported = await uploadSnapshot(token, localSnapshot);
+  console.log(JSON.stringify({ source: "local_fam_snapshot", total: localSnapshot.results.length, updated_at: localSnapshot.updated_at, imported }));
+  process.exit(0);
+}
+const now = new Date(), current = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
 let cursor = monthDate(process.env.FAM_CURSOR_MONTH || await cursorMonth(token)); if (cursor > current || cursor < monthDate(START)) cursor = monthDate(START);
 const months = [...new Set([month(cursor), month(addMonth(current, -1)), month(current)])].map(monthDate);
 const found = [];
@@ -120,10 +148,6 @@ if (!token) {
   for (const row of output.results) if (/FUENLABRADA|URJC/i.test(row.club || "")) clubCounts[row.club] = (clubCounts[row.club] || 0) + 1;
   console.log(JSON.stringify({ dry_run: true, months: months.map(month), found: found.length, total: output.results.length, next: output.cursor_month, club_counts: clubCounts, scan_errors: scanErrors }));
 } else {
-  const response = await fetch(`${WORKER}/fam-snapshot`, {
-    method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body: JSON.stringify(output), signal: AbortSignal.timeout(120_000)
-  });
-  const body = await response.text();
-  if (!response.ok) throw new Error(`La carga FAM falló (${response.status}): ${body.slice(0, 500)}`);
-  console.log(JSON.stringify({ months: months.map(month), found: found.length, total: output.results.length, next: output.cursor_month, scan_errors: scanErrors, imported: JSON.parse(body) }));
+  const imported = await uploadSnapshot(token, output);
+  console.log(JSON.stringify({ months: months.map(month), found: found.length, total: output.results.length, next: output.cursor_month, scan_errors: scanErrors, imported }));
 }

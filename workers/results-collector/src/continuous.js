@@ -299,10 +299,13 @@ function famTrackRow(line, eventName) {
 }
 
 function famCrossRow(line, eventName) {
-  const match = String(line).match(/^(\d+)\s+\d+\s+(\d+(?::\d{2}){1,2})\s+\S+\s+(.+?)\s+(\d{4})\s+([A-Z0-9]+)\s+\d+\s+([A-Z0-9]+)\s+\d+\s+(.+?)(?:\s+\d+(?:[.,]\d+)?)?$/i);
-  if (!match) return null;
-  return { position: Number(match[1]), athlete: famName(match[3]), birth: match[4], mark: match[2], event_name: eventName,
-    sex: famSex(`${eventName} ${match[6]}`), style: "RT", club: match[7], license: match[5] };
+  const licensed = String(line).match(/^(\d+)\s+\d+\s+(\d+(?::\d{2}){1,2})\s+\S+\s+(.+?)\s+(\d{4})\s+([A-Z0-9]+)\s+\d+\s+([A-Z0-9]+)\s+\d+\s+(.+?)(?:\s+\d+(?:[.,]\d+)?)?$/i);
+  if (licensed) return { position: Number(licensed[1]), athlete: famName(licensed[3]), birth: licensed[4], mark: licensed[2], event_name: eventName,
+    sex: famSex(`${eventName} ${licensed[6]}`), style: "RT", club: licensed[7], license: licensed[5] };
+  const simple = String(line).match(/^(\d+)\s+\d+\s+(\d+(?::\d{2}){1,2})\s+\S+(?:\s+\d+(?::\d{2}){1,2})?\s+(.+?)\s+(\d{4})\s+\d+\s+([A-Z0-9]+)\s+\d+\s+(.+)$/i);
+  if (!simple) return null;
+  return { position: Number(simple[1]), athlete: famName(simple[3]), birth: simple[4], mark: simple[2], event_name: eventName,
+    sex: famSex(`${eventName} ${simple[5]}`), style: "RT", club: simple[6], license: "" };
 }
 
 function famRoadRow(line, eventName) {
