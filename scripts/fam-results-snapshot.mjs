@@ -4,7 +4,7 @@ import { __test } from "../workers/results-collector/src/continuous.js";
 
 dns.setDefaultResultOrder("ipv4first");
 
-const ORIGIN = "https://www.atletismomadrid.com";
+const ORIGIN = "https://atletismomadrid.com";
 const START = "2024-09";
 const WORKER = "https://club-atletas-results-collector.eatletismourjc.workers.dev";
 // La automatización obtiene una credencial OIDC temporal; no guarda secretos ni actas en GitHub.
