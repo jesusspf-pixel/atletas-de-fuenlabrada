@@ -1,3 +1,5 @@
+import continuousWorker from "./continuous.js";
+
 const FAM_SOURCES = [
   "https://raw.githubusercontent.com/jesusspf-pixel/atletas-de-fuenlabrada/main/data/official-results/fam-ranking-2025.json",
   "https://raw.githubusercontent.com/jesusspf-pixel/atletas-de-fuenlabrada/main/data/official-results/fam-event-2025-02-16-jornada-menores-aluche.json",
@@ -190,7 +192,7 @@ async function runCollector(env) {
   };
 }
 
-export default {
+export const legacyWorker = {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (url.pathname === "/health") return response({ ok: true, schedule: "lunes y jueves 05:30 UTC", source: "FAM 2024–2026" });
@@ -204,3 +206,5 @@ export default {
     ctx.waitUntil(runCollector(env).catch((error) => console.error("results collector", error)));
   }
 };
+
+export default continuousWorker;
