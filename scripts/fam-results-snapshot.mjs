@@ -4,6 +4,7 @@ import { __test } from "../workers/results-collector/src/continuous.js";
 const ORIGIN = "https://www.atletismomadrid.com";
 const START = "2024-09";
 const WORKER = "https://club-atletas-results-collector.eatletismourjc.workers.dev";
+// La automatización obtiene una credencial OIDC temporal; no guarda secretos ni actas en GitHub.
 
 const normal = (value = "") => String(value).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]+/g, " ").replace(/\s+/g, " ").trim();
 const month = (value) => value.toISOString().slice(0, 7);
