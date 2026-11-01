@@ -16,13 +16,13 @@ const CATEGORIES = [
   [147, "Sub 10", "F", 2], [148, "Sub 10", "M", 1],
   [161, "Sub 8", "F", 2], [162, "Sub 8", "M", 1]
 ];
-// El ranking absoluto de la RFEA ya contiene las marcas de todas las edades.
-// Consultarlo por sexo y modalidad evita repetir la misma marca en 18 categorías
-// y permite completar un ciclo entero en unos 40 minutos.
-const CONFIGS = ["AL", "PC", "RT", "MA"].flatMap((style) => [
-  { style, category: 145, label: "Absoluta", sex: "F", gender: 2 },
-  { style, category: 146, label: "Absoluta", sex: "M", gender: 1 }
-]);
+// La categoría absoluta incluye resultados de algunos menores, pero no expone
+// todas las pruebas propias de Sub 8 a Sub 14. Recorremos cada categoría para
+// no perder las marcas de los más pequeños y filtramos después por nacimiento
+// para que una misma marca no se duplique entre el ranking absoluto y el suyo.
+const CONFIGS = ["AL", "PC", "RT", "MA"].flatMap((style) =>
+  CATEGORIES.map(([category, label, sex, gender]) => ({ style, category, label, sex, gender }))
+);
 const ACCEPTED_CLUBS = [
   "ATLETISMO URJC FUENLABRADA", "ATLETAS DE FUENLABRADA", "CDB ATLETAS DE FUENLABRADA",
   "CLUB ATLETAS DE FUENLABRADA", "CLUB DEPORTIVO BASICO ATLETAS DE FUENLABRADA"
@@ -229,13 +229,15 @@ async function scanRfea(env, settings, forcedSlot) {
     const url = rankingUrl(season, config, event, club), response = await fetch(url, { headers: { "user-agent": USER_AGENT, accept: "application/json" } });
     if (!response.ok) throw new Error(`RFEA respondió ${response.status} en ${event.name}.`);
     for (const row of rankingRows(rankingHtml(await response.text()))) {
+      const categoryLabel = categoryForBirth(row.birth, season, config.sex);
+      if (!categoryLabel.startsWith(`${config.label} `)) continue;
       found += 1; const info = eventInfo(event.name, config.style), id = ids.get(info.code), date = parseDate(row.date, season), value = markValue(row.mark, info.result_kind);
       if (!id || !date || value === null) continue;
       const athlete = matchAthlete(byName, row); if (athlete) matched += 1;
       const competition = `${info.name} · ${row.venue || "RFEA"}`;
       results.push({ athlete_id: athlete?.id || null, external_athlete_name: row.athlete, federation_license: athlete?.federation_license || null,
         athletics_event_id: id, competition_name: competition, competition_date: date, venue: row.venue || null, season: String(season),
-        category_label: categoryForBirth(row.birth, season, config.sex), result_text: row.mark, result_value: value,
+        category_label: categoryLabel, result_text: row.mark, result_value: value,
         result_unit: info.result_kind === "time" ? "s" : info.result_kind === "points" ? "pts" : "m",
         position: /^\d+$/.test(row.position) ? Number(row.position) : null,
         wind: Number.isFinite(Number(String(row.wind).replace(",", "."))) ? Number(String(row.wind).replace(",", ".")) : null,
