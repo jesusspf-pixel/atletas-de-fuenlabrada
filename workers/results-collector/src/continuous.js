@@ -173,9 +173,10 @@ async function clubIds(settings) {
 }
 
 async function athletes(env) {
-  const rows = await db(env, "athletes?select=id,federation_license,first_name,last_name,birth_date", { method: "GET" });
+  const rows = await db(env, "athletes?select=id,license_number,first_name,last_name,birth_date", { method: "GET" });
   const byName = new Map();
   for (const athlete of rows || []) {
+    athlete.federation_license = athlete.license_number || null;
     const key = normal(`${athlete.first_name || ""} ${athlete.last_name || ""}`);
     if (!byName.has(key)) byName.set(key, []);
     byName.get(key).push(athlete);
