@@ -14,6 +14,19 @@ type Athlete = {
   user_profile_id?: string | null;
 };
 
+type Membership = {
+  id: string;
+  athlete_id: string;
+  plan: "monthly" | "term";
+  stripe_subscription_id?: string | null;
+  billing_status: string;
+  suspension_reason?: string | null;
+  ends_on?: string | null;
+  created_at?: string;
+};
+
+const withdrawalReason = "Baja solicitada por el usuario";
+
 const allowedOrigins = new Set([
   "https://atletasdefuenlabrada.com",
   "https://www.atletasdefuenlabrada.com",
@@ -53,6 +66,23 @@ const madridDate = () =>
     month: "2-digit",
     day: "2-digit",
   }).format(new Date());
+
+const dateAtEndOfMonth = (date: string) => {
+  const [year, month] = date.split("-").map(Number);
+  return new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10);
+};
+
+const inferredCoverageEnd = (
+  scheduledFor: string,
+  plan: "monthly" | "term",
+) => {
+  if (plan === "monthly") return dateAtEndOfMonth(scheduledFor);
+  const [year, month] = scheduledFor.split("-").map(Number);
+  if (month >= 9 && month <= 11) return `${year}-11-30`;
+  if (month === 12) return `${year + 1}-02-${new Date(Date.UTC(year + 1, 2, 0)).getUTCDate()}`;
+  if (month <= 2) return `${year}-02-${new Date(Date.UTC(year, 2, 0)).getUTCDate()}`;
+  return `${year}-06-30`;
+};
 
 const dbHeaders = (env: Env) => ({
   apikey: env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -138,6 +168,60 @@ async function athletesForUser(env: Env, userId: string) {
   return { profile, athletes };
 }
 
+async function finalizeExpiredWithdrawals(env: Env, today: string) {
+  const headers = dbHeaders(env);
+  const response = await fetch(
+    `${env.SUPABASE_URL}/rest/v1/memberships?suspension_reason=eq.${encodeURIComponent(withdrawalReason)}&ends_on=lt.${today}&select=id,athlete_id`,
+    { headers },
+  );
+  const expired = await getJson<{ id: string; athlete_id: string }[]>(
+    response,
+    [],
+  );
+  if (!response.ok || !expired.length) return;
+  const athleteIds = [...new Set(expired.map((item) => item.athlete_id))];
+  const membershipIds = expired.map((item) => item.id);
+  const now = new Date().toISOString();
+  await Promise.all([
+    fetch(
+      `${env.SUPABASE_URL}/rest/v1/athletes?id=in.(${athleteIds.join(",")})&club_status=neq.withdrawn`,
+      {
+        method: "PATCH",
+        headers: { ...headers, Prefer: "return=minimal" },
+        body: JSON.stringify({ club_status: "withdrawn", updated_at: now }),
+      },
+    ),
+    fetch(
+      `${env.SUPABASE_URL}/rest/v1/memberships?id=in.(${membershipIds.join(",")})`,
+      {
+        method: "PATCH",
+        headers: { ...headers, Prefer: "return=minimal" },
+        body: JSON.stringify({
+          billing_status: "cancelled",
+          access_suspended_at: now,
+          billing_updated_at: now,
+        }),
+      },
+    ),
+  ]);
+}
+
+async function withdrawalDates(env: Env, athleteIds: string[]) {
+  if (!athleteIds.length) return new Map<string, string>();
+  const response = await fetch(
+    `${env.SUPABASE_URL}/rest/v1/memberships?athlete_id=in.(${athleteIds.join(",")})&suspension_reason=eq.${encodeURIComponent(withdrawalReason)}&select=athlete_id,ends_on,created_at&order=created_at.desc`,
+    { headers: dbHeaders(env) },
+  );
+  const rows = await getJson<
+    { athlete_id: string; ends_on: string | null; created_at: string }[]
+  >(response, []);
+  const dates = new Map<string, string>();
+  rows.forEach((row) => {
+    if (row.ends_on && !dates.has(row.athlete_id)) dates.set(row.athlete_id, row.ends_on);
+  });
+  return dates;
+}
+
 export async function onRequestOptions(context: any) {
   return new Response(null, {
     status: 204,
@@ -153,13 +237,17 @@ export async function onRequestGet(context: any) {
   }
   const user = await currentUser(request, env);
   if (!user) return reply(request, { error: "Inicia sesión de nuevo." }, 401);
+  const today = madridDate();
+  await finalizeExpiredWithdrawals(env, today);
   const { athletes } = await athletesForUser(env, user.id!);
+  const dates = await withdrawalDates(env, athletes.map((athlete) => athlete.id));
   return reply(request, {
     athletes: athletes.map(({ id, first_name, last_name, club_status }) => ({
       id,
       first_name,
       last_name,
       club_status,
+      withdrawal_effective_on: dates.get(id) || null,
     })),
   });
 }
@@ -203,12 +291,20 @@ export async function onRequestPost(context: any) {
 
   const headers = dbHeaders(env);
   const membershipResponse = await fetch(
-    `${env.SUPABASE_URL}/rest/v1/memberships?athlete_id=eq.${encodeURIComponent(athlete.id)}&select=id,stripe_subscription_id,billing_status&order=created_at.desc&limit=1`,
+    `${env.SUPABASE_URL}/rest/v1/memberships?athlete_id=eq.${encodeURIComponent(athlete.id)}&select=id,athlete_id,plan,stripe_subscription_id,billing_status,suspension_reason,ends_on,created_at&order=created_at.desc&limit=1`,
     { headers },
   );
-  const [membership] = await getJson<
-    { id: string; stripe_subscription_id?: string | null; billing_status: string }[]
-  >(membershipResponse, []);
+  const [membership] = await getJson<Membership[]>(membershipResponse, []);
+  if (
+    membership?.suspension_reason === withdrawalReason &&
+    membership.ends_on
+  ) {
+    return reply(request, {
+      ok: true,
+      accessThrough: membership.ends_on,
+      message: `La baja ya está programada. El acceso seguirá activo hasta el ${membership.ends_on}.`,
+    });
+  }
   if (membership?.stripe_subscription_id) {
     if (!env.STRIPE_SECRET_KEY) {
       return reply(
@@ -235,7 +331,20 @@ export async function onRequestPost(context: any) {
 
   const now = new Date().toISOString();
   const today = madridDate();
+  let accessThrough = today;
   if (membership) {
+    const paidResponse = await fetch(
+      `${env.SUPABASE_URL}/rest/v1/billing_charge_drafts?membership_id=eq.${encodeURIComponent(membership.id)}&charge_kind=eq.recurring&status=eq.paid&select=period_ends_on,scheduled_for`,
+      { headers },
+    );
+    const paidDrafts = await getJson<
+      { period_ends_on: string | null; scheduled_for: string }[]
+    >(paidResponse, []);
+    for (const draft of paidDrafts) {
+      const coveredUntil =
+        draft.period_ends_on || inferredCoverageEnd(draft.scheduled_for, membership.plan);
+      if (coveredUntil > accessThrough) accessThrough = coveredUntil;
+    }
     const cancelDrafts = await fetch(
       `${env.SUPABASE_URL}/rest/v1/billing_charge_drafts?membership_id=eq.${encodeURIComponent(membership.id)}&scheduled_for=gte.${today}&status=in.(awaiting_admin,approved,checkout_pending,failed)`,
       {
@@ -260,10 +369,10 @@ export async function onRequestPost(context: any) {
         method: "PATCH",
         headers: { ...headers, Prefer: "return=minimal" },
         body: JSON.stringify({
-          billing_status: "cancelled",
-          suspension_reason: "Baja solicitada por el usuario",
-          access_suspended_at: now,
-          ends_on: today,
+          billing_status: "paused",
+          suspension_reason: withdrawalReason,
+          access_suspended_at: null,
+          ends_on: accessThrough,
           billing_updated_at: now,
         }),
       },
@@ -275,19 +384,19 @@ export async function onRequestPost(context: any) {
         502,
       );
     }
+  } else {
+    const updateAthlete = await fetch(
+      `${env.SUPABASE_URL}/rest/v1/athletes?id=eq.${encodeURIComponent(athlete.id)}`,
+      {
+        method: "PATCH",
+        headers: { ...headers, Prefer: "return=minimal" },
+        body: JSON.stringify({ club_status: "withdrawn", updated_at: now }),
+      },
+    );
+    if (!updateAthlete.ok) {
+      return reply(request, { error: "No se pudo registrar la baja." }, 502);
+    }
   }
-  const updateAthlete = await fetch(
-    `${env.SUPABASE_URL}/rest/v1/athletes?id=eq.${encodeURIComponent(athlete.id)}`,
-    {
-      method: "PATCH",
-      headers: { ...headers, Prefer: "return=minimal" },
-      body: JSON.stringify({ club_status: "withdrawn", updated_at: now }),
-    },
-  );
-  if (!updateAthlete.ok) {
-    return reply(request, { error: "No se pudo registrar la baja." }, 502);
-  }
-
   await fetch(`${env.SUPABASE_URL}/rest/v1/audit_log`, {
     method: "POST",
     headers: { ...headers, Prefer: "return=minimal" },
@@ -296,7 +405,11 @@ export async function onRequestPost(context: any) {
       entity_type: "athlete",
       entity_id: athlete.id,
       action: "self_service_withdrawal",
-      metadata: { reason: reason || null, effective_on: today },
+      metadata: {
+        reason: reason || null,
+        requested_on: today,
+        access_through: accessThrough,
+      },
     }),
   });
 
@@ -316,7 +429,7 @@ export async function onRequestPost(context: any) {
       headers: { ...headers, Prefer: "return=representation" },
       body: JSON.stringify({
         title: `Baja solicitada · ${name}`,
-        body: `${profile?.full_name || user.email} ha tramitado la baja de ${name} desde la aplicación.${reason ? ` Motivo: ${reason}` : ""}`,
+        body: `${profile?.full_name || user.email} ha solicitado la baja de ${name} desde la aplicación. Mantendrá el acceso hasta el ${accessThrough}, último día cubierto por su cuota.${reason ? ` Motivo: ${reason}` : ""}`,
         audience: "individual",
         published_at: now,
         created_by: user.id,
@@ -342,9 +455,9 @@ export async function onRequestPost(context: any) {
     });
   }
 
-  const subject = `Baja tramitada · ${name}`;
-  const clubHtml = `<p>Se ha tramitado una baja desde la aplicación.</p><p><strong>Atleta:</strong> ${safe(name)}<br><strong>Solicitante:</strong> ${safe(profile?.full_name || user.email)}<br><strong>Correo:</strong> ${safe(user.email)}<br><strong>Fecha efectiva:</strong> ${safe(today)}</p>${reason ? `<p><strong>Motivo:</strong> ${safe(reason)}</p>` : ""}<p>La afiliación y los cobros futuros han quedado cancelados. El historial permanece conservado.</p>`;
-  const userHtml = `<p>Hola${profile?.full_name ? ` ${safe(profile.full_name)}` : ""}:</p><p>Hemos registrado la baja de <strong>${safe(name)}</strong> con fecha ${safe(today)}.</p><p>La afiliación y los cobros futuros han quedado cancelados. Los pagos ya realizados y cualquier importe anterior pendiente permanecen en el historial.</p><p>Si no has solicitado esta baja, responde inmediatamente a este correo.</p><p>Club Atletas de Fuenlabrada</p>`;
+  const subject = `Baja programada · ${name}`;
+  const clubHtml = `<p>Se ha solicitado una baja desde la aplicación.</p><p><strong>Atleta:</strong> ${safe(name)}<br><strong>Solicitante:</strong> ${safe(profile?.full_name || user.email)}<br><strong>Correo:</strong> ${safe(user.email)}<br><strong>Solicitada el:</strong> ${safe(today)}<br><strong>Acceso activo hasta:</strong> ${safe(accessThrough)}</p>${reason ? `<p><strong>Motivo:</strong> ${safe(reason)}</p>` : ""}<p>Los cobros futuros han quedado cancelados. Al terminar el periodo ya pagado se desactivará el acceso. El historial permanece conservado.</p>`;
+  const userHtml = `<p>Hola${profile?.full_name ? ` ${safe(profile.full_name)}` : ""}:</p><p>Hemos registrado la solicitud de baja de <strong>${safe(name)}</strong>.</p><p>Podrá seguir accediendo y utilizando su cuenta hasta el <strong>${safe(accessThrough)}</strong>, último día cubierto por la cuota ya abonada. Después se desactivará automáticamente.</p><p>No se realizarán nuevos cobros. Los pagos ya realizados y cualquier importe anterior pendiente permanecen en el historial.</p><p>Si no has solicitado esta baja, responde inmediatamente a este correo.</p><p>Club Atletas de Fuenlabrada</p>`;
   const emailResponse = await fetch("https://api.resend.com/emails/batch", {
     method: "POST",
     headers: {
@@ -371,8 +484,9 @@ export async function onRequestPost(context: any) {
 
   return reply(request, {
     ok: true,
+    accessThrough,
     message: emailResponse.ok
-      ? `La baja de ${name} se ha tramitado y te hemos enviado una confirmación.`
-      : `La baja de ${name} se ha tramitado. El club revisará el aviso interno.`,
+      ? `La baja de ${name} queda programada. Mantendrá el acceso hasta el ${accessThrough}. Te hemos enviado una confirmación.`
+      : `La baja de ${name} queda programada con acceso hasta el ${accessThrough}. El club revisará el aviso interno.`,
   });
 }

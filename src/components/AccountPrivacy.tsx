@@ -7,7 +7,15 @@ type WithdrawalAthlete = {
   first_name: string;
   last_name: string;
   club_status: string;
+  withdrawal_effective_on?: string | null;
 };
+
+const date = (value: string) =>
+  new Date(`${value}T12:00:00`).toLocaleDateString("es-ES", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
 
 const endpointFor = (path: string) =>
   Capacitor.isNativePlatform() ? `https://atletasdefuenlabrada.com${path}` : path;
@@ -80,10 +88,10 @@ export default function AccountPrivacy({ email, role }: { email: string; role: s
         reason: withdrawalReason,
       }),
     });
-    const body = (await response.json().catch(() => ({}))) as { error?: string; message?: string };
+    const body = (await response.json().catch(() => ({}))) as { error?: string; message?: string; accessThrough?: string };
     setWithdrawalBusy(false);
     if (!response.ok) return setWithdrawalNotice(body.error || "No se pudo tramitar la baja.");
-    setAthletes(current => current.map(athlete => athlete.id === selectedAthleteId ? { ...athlete, club_status: "withdrawn" } : athlete));
+    setAthletes(current => current.map(athlete => athlete.id === selectedAthleteId ? { ...athlete, withdrawal_effective_on: body.accessThrough || null } : athlete));
     setSelectedAthleteId("");
     setWithdrawalConfirm("");
     setWithdrawalReason("");
@@ -117,17 +125,17 @@ export default function AccountPrivacy({ email, role }: { email: string; role: s
     </section>
     {canManageWithdrawals && <article className="panel account-withdrawal-card">
       <small>BAJA DEL CLUB</small><h2>Gestionar mi baja</h2>
-      <p>Desde aquí puedes dar de baja únicamente al atleta que elijas. La baja es inmediata: detiene su vinculación con el club, cancela su suscripción y los cobros futuros que aún no se hayan realizado.</p>
-      <p>Los pagos ya efectuados, los importes anteriores pendientes y el historial deportivo se conservan. Si hay varios hermanos, la baja de uno no afecta a los demás.</p>
+      <p>Desde aquí puedes solicitar la baja únicamente del atleta que elijas. Los nuevos cobros se detendrán desde ese momento, pero podrá seguir utilizando la cuenta hasta el último día cubierto por la cuota que ya haya pagado.</p>
+      <p>En la cuota mensual será hasta el final del mes abonado; en la trimestral, hasta el último día del trimestre abonado. Los pagos anteriores y el historial deportivo se conservan. Si hay varios hermanos, la baja de uno no afecta a los demás.</p>
       {role === "minor_athlete" ? <p className="info-note">Por seguridad, la baja de un menor debe tramitarla su padre, madre o tutor desde la cuenta familiar.</p> : loadingAthletes ? <p>Cargando atletas…</p> : activeAthletes.length ? <div className="withdrawal-athlete-list">
         {activeAthletes.map(athlete => {
           const name = `${athlete.first_name} ${athlete.last_name}`.trim();
           const selected = selectedAthleteId === athlete.id;
           return <div className={`withdrawal-athlete ${selected ? "selected" : ""}`} key={athlete.id}>
-            <div><b>{name}</b><small>{athlete.club_status === "active" ? "Alta activa" : "Inscripción en curso"}</small></div>
-            {!selected && <button className="danger outline" type="button" onClick={() => openWithdrawal(athlete.id)}>{role === "adult_athlete" ? "Darme de baja" : "Dar de baja"}</button>}
+            <div><b>{name}</b><small>{athlete.withdrawal_effective_on ? `Baja solicitada · Acceso hasta el ${date(athlete.withdrawal_effective_on)}` : athlete.club_status === "active" ? "Alta activa" : "Inscripción en curso"}</small></div>
+            {!selected && !athlete.withdrawal_effective_on && <button className="danger outline" type="button" onClick={() => openWithdrawal(athlete.id)}>{role === "adult_athlete" ? "Darme de baja" : "Dar de baja"}</button>}
             {selected && <div className="stacked-form withdrawal-confirm">
-              <p><b>Vas a dar de baja a {name}.</b> Esta acción detendrá los próximos cobros.</p>
+              <p><b>Vas a solicitar la baja de {name}.</b> Se detendrán los próximos cobros, pero conservará el acceso durante todo el periodo que ya esté pagado.</p>
               <label>Motivo (opcional)<textarea value={withdrawalReason} onChange={event => setWithdrawalReason(event.target.value)} maxLength={500} rows={3} /></label>
               <label>Escribe BAJA para confirmar<input value={withdrawalConfirm} onChange={event => setWithdrawalConfirm(event.target.value)} autoComplete="off" /></label>
               <div className="withdrawal-actions"><button className="danger" type="button" disabled={withdrawalBusy || withdrawalConfirm.trim().toUpperCase() !== "BAJA"} onClick={() => void requestWithdrawal()}>{withdrawalBusy ? "Tramitando…" : "Confirmar baja"}</button><button className="outline" type="button" disabled={withdrawalBusy} onClick={() => setSelectedAthleteId("")}>Cancelar</button></div>

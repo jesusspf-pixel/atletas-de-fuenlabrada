@@ -138,6 +138,13 @@ const roleName: Record<Role, string> = {
   minor_athlete: "Atleta menor",
 };
 
+async function syncScheduledWithdrawals(accessToken: string) {
+  if (!accessToken) return;
+  await apiFetch("/api/request-club-withdrawal", {
+    headers: { authorization: `Bearer ${accessToken}` },
+  }).catch(() => undefined);
+}
+
 function PasswordRecovery() {
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
@@ -259,7 +266,7 @@ export default function App() {
   const [checking, setChecking] = useState(true);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [registrationAccess, setRegistrationAccess] = useState<
-    "allowed" | "pending" | "incomplete"
+    "allowed" | "pending" | "incomplete" | "withdrawn"
   >("allowed");
   const [register, setRegister] = useState<"family" | "adult" | null>(null);
   const invitation = new URLSearchParams(window.location.search).get(
@@ -285,6 +292,7 @@ export default function App() {
       const load = async (next: Session | null) => {
         setSession(next);
         if (next) {
+          await syncScheduledWithdrawals(next.access_token);
           let { data } = await client
             .from("profiles")
             .select("*")
@@ -336,13 +344,11 @@ export default function App() {
               setRegistrationAccess(
                 athletes.length === 0
                   ? "incomplete"
-                  : !athletes.some(
-                        (item) =>
-                          item.club_status === "active" ||
-                          item.access_via_additional_guardian,
-                      )
-                    ? "pending"
-                    : "allowed",
+                  : athletes.some((item) => item.club_status === "active")
+                    ? "allowed"
+                    : athletes.every((item) => item.club_status === "withdrawn")
+                      ? "withdrawn"
+                      : "pending",
               );
             }
           }
@@ -395,6 +401,7 @@ export default function App() {
     const refreshAccess = async () => {
       const client = await ensureSupabase();
       if (!client || cancelled) return;
+      await syncScheduledWithdrawals(session.access_token);
       let athletes: AthleteAccessRow[] = [];
       if (profile.role === "parent") {
         athletes = await loadParentAthleteStatuses(client, session.user.id);
@@ -409,13 +416,11 @@ export default function App() {
       setRegistrationAccess(
         athletes.length === 0
           ? "incomplete"
-          : athletes.some(
-                (item) =>
-                  item.club_status === "active" ||
-                  item.access_via_additional_guardian,
-              )
+          : athletes.some((item) => item.club_status === "active")
             ? "allowed"
-            : "pending",
+            : athletes.every((item) => item.club_status === "withdrawn")
+              ? "withdrawn"
+              : "pending",
       );
     };
     const onVisible = () => {
@@ -567,8 +572,33 @@ export default function App() {
     return (
       <RegistrationPending onSignOut={() => void supabase?.auth.signOut()} />
     );
+  if (profile && registrationAccess === "withdrawn")
+    return (
+      <MembershipEnded onSignOut={() => void supabase?.auth.signOut()} />
+    );
   return (
     <Portal profile={profile} signOut={() => void supabase?.auth.signOut()} />
+  );
+}
+
+function MembershipEnded({ onSignOut }: { onSignOut: () => void }) {
+  return (
+    <main className="secure-screen">
+      <section className="access-box">
+        <Brand />
+        <small>BAJA FINALIZADA</small>
+        <h1>Tu periodo de acceso ha finalizado.</h1>
+        <p>
+          La baja del club ya es efectiva porque ha terminado el último periodo
+          abonado. No se realizarán nuevos cobros.
+        </p>
+        <p className="muted">
+          Si necesitas consultar algún justificante anterior, contacta con el
+          club en info@atletasdefuenlabrada.com.
+        </p>
+        <button className="outline" onClick={onSignOut}>Cerrar sesión</button>
+      </section>
+    </main>
   );
 }
 
