@@ -99,6 +99,28 @@ async function db(env, path, init = {}) {
   return body ? JSON.parse(body) : null;
 }
 
+async function insertNewResults(env, rows) {
+  const unique = [...new Map((rows || []).filter((row) => row?.source && row?.source_external_id)
+    .map((row) => [`${row.source}|${row.source_external_id}`, row])).values()];
+  let stored = 0;
+  for (const source of [...new Set(unique.map((row) => row.source))]) {
+    const sourceRows = unique.filter((row) => row.source === source);
+    for (let index = 0; index < sourceRows.length; index += 100) {
+      const batch = sourceRows.slice(index, index + 100);
+      const quoted = batch.map((row) => `"${String(row.source_external_id).replace(/["\\]/g, "")}"`).join(",");
+      const existing = await db(env,
+        `athlete_results?source=eq.${encodeURIComponent(source)}&source_external_id=in.(${encodeURIComponent(quoted)})&select=source_external_id`,
+        { method: "GET" });
+      const known = new Set((existing || []).map((row) => row.source_external_id));
+      const pending = batch.filter((row) => !known.has(row.source_external_id));
+      if (!pending.length) continue;
+      await db(env, "athlete_results", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify(pending) });
+      stored += pending.length;
+    }
+  }
+  return stored;
+}
+
 function monthStart(value) {
   const date = value instanceof Date ? value : new Date(value);
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
@@ -374,12 +396,12 @@ async function importFamPdf(env, settings) {
       source_external_id: await hash(["fam", source.results_url, info.code, row.athlete, row.birth, row.mark]), source_club_name: row.club || null,
       verified: true, imported_at: new Date().toISOString() });
   }
-  if (results.length) await db(env, "athlete_results?on_conflict=source,source_external_id", { method: "POST", headers: { Prefer: "resolution=ignore-duplicates,return=minimal" }, body: JSON.stringify(results) });
+  const stored = await insertNewResults(env, results);
   await db(env, `federation_import_sources?${sourceFilter}`, { method: "PATCH", headers: { Prefer: "return=minimal" },
     body: JSON.stringify({ status: "imported", last_checked_at: new Date().toISOString(), imported_at: new Date().toISOString(),
       error_message: results.length ? null : `PDF leído: ${parsed.length} marcas; sin coincidencias con atletas del club.` }) });
   return { enabled: true, competition: source.competition_name, parsed: parsed.length, selected: selected.length,
-    matched: selected.filter((row) => row.matchedAthlete).length, stored: results.length };
+    matched: selected.filter((row) => row.matchedAthlete).length, stored };
 }
 
 async function importFamSnapshot(env, settings, snapshot) {
@@ -412,15 +434,12 @@ async function importFamSnapshot(env, settings, snapshot) {
       results_url: row.source_url, status: "imported", last_checked_at: importedAt, imported_at: importedAt,
       error_message: null });
   }
-  for (let index = 0; index < results.length; index += 250) {
-    await db(env, "athlete_results?on_conflict=source,source_external_id", { method: "POST", headers: { Prefer: "resolution=ignore-duplicates,return=minimal" },
-      body: JSON.stringify(results.slice(index, index + 250)) });
-  }
+  const stored = await insertNewResults(env, results);
   if (sources.size) await db(env, "federation_import_sources?on_conflict=federation,competition_name,competition_date", {
     method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify([...sources.values()])
   });
   return { enabled: true, snapshot_updated_at: snapshot?.updated_at || null, available: rows.length,
-    selected: selected.length, matched: selected.filter((row) => row.matchedAthlete).length, stored: results.length };
+    selected: selected.length, matched: selected.filter((row) => row.matchedAthlete).length, stored };
 }
 
 function categoryForBirth(birth, season, sex) {
@@ -468,9 +487,9 @@ async function scanRfea(env, settings, forcedSlot) {
     }
   }
   if (sources.size) await db(env, "federation_import_sources?on_conflict=federation,competition_name,competition_date", { method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify([...sources.values()]) });
-  if (results.length) await db(env, "athlete_results?on_conflict=source,source_external_id", { method: "POST", headers: { Prefer: "resolution=ignore-duplicates,return=minimal" }, body: JSON.stringify(results) });
+  const stored = await insertNewResults(env, results);
   await db(env, "federation_import_settings?id=eq.true", { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ rfea_last_scan_at: new Date().toISOString(), import_job_last_error: null }) });
-  return { enabled: true, config: { style: config.style, category: config.label, sex: config.sex, chunk: chunk + 1, chunks }, clubs: clubList.map((club) => club.label), events: selected.length, found, matched, stored: results.length };
+  return { enabled: true, config: { style: config.style, category: config.label, sex: config.sex, chunk: chunk + 1, chunks }, clubs: clubList.map((club) => club.label), events: selected.length, found, matched, stored };
 }
 
 async function settings(env) { const rows = await db(env, "federation_import_settings?id=eq.true&select=*", { method: "GET" }); if (!rows?.[0]) throw new Error("Falta la configuración federativa."); return rows[0]; }
