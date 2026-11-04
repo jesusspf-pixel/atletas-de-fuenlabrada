@@ -374,7 +374,7 @@ async function importFamPdf(env, settings) {
       source_external_id: await hash(["fam", source.results_url, info.code, row.athlete, row.birth, row.mark]), source_club_name: row.club || null,
       verified: true, imported_at: new Date().toISOString() });
   }
-  if (results.length) await db(env, "athlete_results", { method: "POST", headers: { Prefer: "resolution=ignore-duplicates,return=minimal" }, body: JSON.stringify(results) });
+  if (results.length) await db(env, "athlete_results?on_conflict=source,source_external_id", { method: "POST", headers: { Prefer: "resolution=ignore-duplicates,return=minimal" }, body: JSON.stringify(results) });
   await db(env, `federation_import_sources?${sourceFilter}`, { method: "PATCH", headers: { Prefer: "return=minimal" },
     body: JSON.stringify({ status: "imported", last_checked_at: new Date().toISOString(), imported_at: new Date().toISOString(),
       error_message: results.length ? null : `PDF leído: ${parsed.length} marcas; sin coincidencias con atletas del club.` }) });
@@ -413,7 +413,7 @@ async function importFamSnapshot(env, settings, snapshot) {
       error_message: null });
   }
   for (let index = 0; index < results.length; index += 250) {
-    await db(env, "athlete_results", { method: "POST", headers: { Prefer: "resolution=ignore-duplicates,return=minimal" },
+    await db(env, "athlete_results?on_conflict=source,source_external_id", { method: "POST", headers: { Prefer: "resolution=ignore-duplicates,return=minimal" },
       body: JSON.stringify(results.slice(index, index + 250)) });
   }
   if (sources.size) await db(env, "federation_import_sources?on_conflict=federation,competition_name,competition_date", {
@@ -468,7 +468,7 @@ async function scanRfea(env, settings, forcedSlot) {
     }
   }
   if (sources.size) await db(env, "federation_import_sources?on_conflict=federation,competition_name,competition_date", { method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify([...sources.values()]) });
-  if (results.length) await db(env, "athlete_results", { method: "POST", headers: { Prefer: "resolution=ignore-duplicates,return=minimal" }, body: JSON.stringify(results) });
+  if (results.length) await db(env, "athlete_results?on_conflict=source,source_external_id", { method: "POST", headers: { Prefer: "resolution=ignore-duplicates,return=minimal" }, body: JSON.stringify(results) });
   await db(env, "federation_import_settings?id=eq.true", { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ rfea_last_scan_at: new Date().toISOString(), import_job_last_error: null }) });
   return { enabled: true, config: { style: config.style, category: config.label, sex: config.sex, chunk: chunk + 1, chunks }, clubs: clubList.map((club) => club.label), events: selected.length, found, matched, stored: results.length };
 }
