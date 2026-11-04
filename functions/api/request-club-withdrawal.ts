@@ -281,7 +281,15 @@ export async function onRequestPost(context: any) {
       403,
     );
   }
-  const athlete = athletes.find((item) => item.id === body.athleteId);
+  let athlete = athletes.find((item) => item.id === body.athleteId);
+  const isClubAdmin = ["owner", "admin"].includes(profile?.role || "");
+  if (!athlete && isClubAdmin) {
+    const response = await fetch(
+      `${env.SUPABASE_URL}/rest/v1/athletes?id=eq.${encodeURIComponent(body.athleteId)}&select=id,first_name,last_name,club_status,family_id,user_profile_id&limit=1`,
+      { headers: dbHeaders(env) },
+    );
+    [athlete] = await getJson<Athlete[]>(response, []);
+  }
   if (!athlete) {
     return reply(request, { error: "No puedes gestionar la baja de este atleta." }, 403);
   }
@@ -422,6 +430,35 @@ export async function onRequestPost(context: any) {
     [],
   );
   const name = `${athlete.first_name} ${athlete.last_name}`.trim();
+  let confirmationEmail = user.email;
+  let confirmationName = profile?.full_name || "";
+  if (isClubAdmin) {
+    let payerProfileId = athlete.user_profile_id || null;
+    if (!payerProfileId && athlete.family_id) {
+      const familyResponse = await fetch(
+        `${env.SUPABASE_URL}/rest/v1/families?id=eq.${encodeURIComponent(athlete.family_id)}&select=primary_profile_id&limit=1`,
+        { headers },
+      );
+      const [family] = await getJson<{ primary_profile_id: string | null }[]>(
+        familyResponse,
+        [],
+      );
+      payerProfileId = family?.primary_profile_id || null;
+    }
+    if (payerProfileId) {
+      const payerResponse = await fetch(
+        `${env.SUPABASE_URL}/rest/v1/profiles?id=eq.${encodeURIComponent(payerProfileId)}&select=full_name,email&limit=1`,
+        { headers },
+      );
+      const [payer] = await getJson<
+        { full_name: string | null; email: string }[]
+      >(payerResponse, []);
+      if (payer?.email) {
+        confirmationEmail = payer.email;
+        confirmationName = payer.full_name || "";
+      }
+    }
+  }
   const announcementResponse = await fetch(
     `${env.SUPABASE_URL}/rest/v1/announcements`,
     {
@@ -457,7 +494,7 @@ export async function onRequestPost(context: any) {
 
   const subject = `Baja programada · ${name}`;
   const clubHtml = `<p>Se ha solicitado una baja desde la aplicación.</p><p><strong>Atleta:</strong> ${safe(name)}<br><strong>Solicitante:</strong> ${safe(profile?.full_name || user.email)}<br><strong>Correo:</strong> ${safe(user.email)}<br><strong>Solicitada el:</strong> ${safe(today)}<br><strong>Acceso activo hasta:</strong> ${safe(accessThrough)}</p>${reason ? `<p><strong>Motivo:</strong> ${safe(reason)}</p>` : ""}<p>Los cobros futuros han quedado cancelados. Al terminar el periodo ya pagado se desactivará el acceso. El historial permanece conservado.</p>`;
-  const userHtml = `<p>Hola${profile?.full_name ? ` ${safe(profile.full_name)}` : ""}:</p><p>Hemos registrado la solicitud de baja de <strong>${safe(name)}</strong>.</p><p>Podrá seguir accediendo y utilizando su cuenta hasta el <strong>${safe(accessThrough)}</strong>, último día cubierto por la cuota ya abonada. Después se desactivará automáticamente.</p><p>No se realizarán nuevos cobros. Los pagos ya realizados y cualquier importe anterior pendiente permanecen en el historial.</p><p>Si no has solicitado esta baja, responde inmediatamente a este correo.</p><p>Club Atletas de Fuenlabrada</p>`;
+  const userHtml = `<p>Hola${confirmationName ? ` ${safe(confirmationName)}` : ""}:</p><p>Hemos registrado la solicitud de baja de <strong>${safe(name)}</strong>.</p><p>Podrá seguir accediendo y utilizando su cuenta hasta el <strong>${safe(accessThrough)}</strong>, último día cubierto por la cuota ya abonada. Después se desactivará automáticamente.</p><p>No se realizarán nuevos cobros. Los pagos ya realizados y cualquier importe anterior pendiente permanecen en el historial.</p><p>Si no has solicitado esta baja, responde inmediatamente a este correo.</p><p>Club Atletas de Fuenlabrada</p>`;
   const emailResponse = await fetch("https://api.resend.com/emails/batch", {
     method: "POST",
     headers: {
@@ -475,7 +512,7 @@ export async function onRequestPost(context: any) {
       {
         from: "Club Atletas de Fuenlabrada <info@atletasdefuenlabrada.com>",
         reply_to: "info@atletasdefuenlabrada.com",
-        to: [user.email],
+        to: [confirmationEmail],
         subject: `Confirmación de baja · ${name}`,
         html: userHtml,
       },

@@ -131,6 +131,7 @@ export default function AdminAthleteDossier({
   const [specialRecurringReason, setSpecialRecurringReason] = useState("");
   const [saving, setSaving] = useState(false);
   const [refundingId, setRefundingId] = useState("");
+  const [withdrawing, setWithdrawing] = useState(false);
   const [guardians, setGuardians] = useState<Guardian[]>([]);
   const [guardianEmail, setGuardianEmail] = useState("");
   const [guardianRelationship, setGuardianRelationship] = useState("madre");
@@ -568,6 +569,35 @@ export default function AdminAthleteDossier({
     setRefundingId("");
     if (!response.ok) return setNotice(result.error || "No se pudo completar el reembolso.");
     setNotice("Reembolso completado y registrado.");
+    await load();
+  };
+
+  const scheduleWithdrawal = async () => {
+    if (!supabase || !athlete || withdrawing) return;
+    const name = `${athlete.first_name} ${athlete.last_name}`.trim();
+    if (!window.confirm(`Se cancelarán los cobros futuros de ${name}. Mantendrá el acceso hasta el último día cubierto por la cuota ya pagada. ¿Programar la baja?`)) return;
+    setWithdrawing(true);
+    setNotice("");
+    const { data: { session } } = await supabase.auth.getSession();
+    const response = await apiFetch("/api/request-club-withdrawal", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${session?.access_token || ""}`,
+      },
+      body: JSON.stringify({
+        athleteId: athlete.id,
+        confirmation: "BAJA",
+        reason: "Baja comunicada directamente a la administración del club",
+      }),
+    });
+    const result = (await response.json().catch(() => ({}))) as {
+      error?: string;
+      accessThrough?: string;
+    };
+    setWithdrawing(false);
+    if (!response.ok) return setNotice(result.error || "No se pudo programar la baja.");
+    setNotice(`Baja programada. Acceso activo hasta el ${date(result.accessThrough || null)}.`);
     await load();
   };
 
@@ -1075,12 +1105,23 @@ export default function AdminAthleteDossier({
               ? "Validar alta, cobrar matrícula y programar cuotas"
               : "Guardar ficha y cuotas"}
         </button>
+        {athlete.club_status === "active" && (
+          <button
+            className="danger outline"
+            type="button"
+            disabled={saving || withdrawing}
+            onClick={() => void scheduleWithdrawal()}
+          >
+            {withdrawing ? "Programando baja…" : "Programar baja al final del periodo pagado"}
+          </button>
+        )}
         {notice && (
           <p
             className={
               notice.includes("validada") ||
               notice.includes("guardadas") ||
-              notice.includes("cambiado")
+              notice.includes("cambiado") ||
+              notice.includes("Baja programada")
                 ? "success-note"
                 : "error-note"
             }
