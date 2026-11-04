@@ -1178,7 +1178,7 @@ function Portal({
         ? "member-next-shell"
         : "admin-next-shell";
   const portalContent = section === "Mi cuenta" ? (
-      <AccountPrivacy email={profile.email} />
+      <AccountPrivacy email={profile.email} role={profile.role} />
     ) : profile.role === "minor_athlete" && section === "Challenge" ? (
       <><Header title="Acceso deportivo" text="El Challenge se gestiona desde la cuenta familiar." /><article className="panel"><h2>Sección reservada a la familia</h2><p>El padre, madre o tutor puede decidir la participación en el Challenge desde su cuenta.</p></article></>
     ) : section === "Challenge" ? (
