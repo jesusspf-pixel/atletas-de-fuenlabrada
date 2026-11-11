@@ -84,7 +84,17 @@ async function syncFederationLicenses(request, env) {
     const license = String(row?.license || "").trim();
     if (!firstName || !lastName || !license) { unmatched.push({ first_name: firstName, last_name: lastName, license, reason: "datos incompletos" }); continue; }
     const candidates = byName.get(normal(`${firstName} ${lastName}`)) || [];
-    if (!candidates.length) { unmatched.push({ first_name: firstName, last_name: lastName, license, reason: "sin coincidencia exacta" }); continue; }
+    if (!candidates.length) {
+      const wantedFirst = normal(firstName), wantedLast = normal(lastName), wantedSurname = wantedLast.split(" ")[0] || "";
+      const suggestions = (current || []).filter((candidate) => {
+        const candidateFirst = normal(candidate.first_name), candidateLast = normal(candidate.last_name);
+        return candidateFirst === wantedFirst || (wantedSurname && candidateLast.split(" ")[0] === wantedSurname);
+      }).slice(0, 8).map((candidate) => ({ first_name: candidate.first_name, last_name: candidate.last_name,
+        license_number: candidate.license_number, federation_license: candidate.federation_license,
+        license_status: candidate.license_status, club_status: candidate.club_status }));
+      unmatched.push({ first_name: firstName, last_name: lastName, license, reason: "sin coincidencia exacta", suggestions });
+      continue;
+    }
     if (candidates.length !== 1) { ambiguous.push({ first_name: firstName, last_name: lastName, license, matches: candidates.length }); continue; }
     const athlete = candidates[0];
     const different = [athlete.license_number, athlete.federation_license].filter(Boolean)
