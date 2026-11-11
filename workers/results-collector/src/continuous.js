@@ -10,7 +10,6 @@ const MAX_FAM_PDF_BYTES = 20 * 1024 * 1024;
 const MAX_FAM_PDF_PAGES = 100;
 const FAM_SNAPSHOT_MAX_ROWS = 50_000;
 const FAM_SNAPSHOT_MAX_BYTES = 20 * 1024 * 1024;
-const LICENSE_AUDIT_TOKEN_SHA256 = "0e22f23885278ad3bafb4c0e3f20a663cb8897c61e30eca578ba296d4c08969c";
 
 const CATEGORIES = [
   [145, "Absoluta", "F", 2], [146, "Absoluta", "M", 1],
@@ -58,46 +57,6 @@ function normal(value = "") {
 
 function serviceKey(env) { return env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_SERVICE_ROLE_KE || ""; }
 
-async function sha256(value) {
-  const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(String(value || "")));
-  return [...new Uint8Array(bytes)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
-function normalLicense(value = "") { return String(value).toUpperCase().replace(/[^A-Z0-9]+/g, ""); }
-
-async function auditWithdrawnLicenses(request, env) {
-  const token = String(request.headers.get("authorization") || "").match(/^Bearer\s+(.+)$/i)?.[1] || "";
-  if (!token || await sha256(token) !== LICENSE_AUDIT_TOKEN_SHA256) return json({ ok: false, error: "No autorizado" }, 401);
-  const input = await request.json();
-  const requested = new Set((Array.isArray(input?.licenses) ? input.licenses : []).map(normalLicense).filter(Boolean));
-  if (!requested.size) return json({ ok: false, error: "No se recibieron licencias" }, 400);
-  const [athletes, withdrawals] = await Promise.all([
-    db(env, "athletes?select=id,first_name,last_name,license_number,federation_license,license_status,club_status", { method: "GET" }),
-    db(env, `memberships?suspension_reason=eq.${encodeURIComponent("Baja solicitada por el usuario")}&select=athlete_id,ends_on,created_at`, { method: "GET" })
-  ]);
-  const withdrawalByAthlete = new Map();
-  for (const row of withdrawals || []) if (!withdrawalByAthlete.has(row.athlete_id)) withdrawalByAthlete.set(row.athlete_id, row);
-  const candidates = (athletes || []).filter((athlete) => requested.has(normalLicense(athlete.license_number || athlete.federation_license)));
-  const duplicateLicenses = [...new Set(candidates.map((athlete) => normalLicense(athlete.license_number || athlete.federation_license))
-    .filter((license, index, list) => list.indexOf(license) !== index))];
-  const excluded = candidates.filter((athlete) => athlete.club_status !== "active" || withdrawalByAthlete.has(athlete.id));
-  const removed = [];
-  if (input?.apply === true && !duplicateLicenses.length) for (const athlete of excluded) {
-    await db(env, `athletes?id=eq.${encodeURIComponent(athlete.id)}`, {
-      method: "PATCH", headers: { Prefer: "return=minimal" },
-      body: JSON.stringify({ license_number: null, federation_license: null, license_status: "expired" })
-    });
-    removed.push({ first_name: athlete.first_name, last_name: athlete.last_name,
-      previous_license: athlete.license_number || athlete.federation_license,
-      club_status: athlete.club_status, withdrawal: withdrawalByAthlete.get(athlete.id) || null });
-  }
-  return json({ ok: true, apply: input?.apply === true, requested: requested.size, candidates: candidates.length,
-    duplicate_licenses: duplicateLicenses,
-    excluded: excluded.map((athlete) => ({ first_name: athlete.first_name, last_name: athlete.last_name,
-      license: athlete.license_number || athlete.federation_license, club_status: athlete.club_status,
-      withdrawal: withdrawalByAthlete.get(athlete.id) || null })),
-    eligible: candidates.filter((athlete) => !excluded.includes(athlete)).length, removed });
-}
 
 function base64UrlBytes(value) {
   const normalized = String(value).replace(/-/g, "+").replace(/_/g, "/");
@@ -562,10 +521,6 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (url.pathname === "/health") return json({ ok: true, service: "club-atletas-results-collector", mode: "continuous", schedule: "cada 5 minutos", sources: ["Federación de Atletismo de Madrid", "RFEA"] });
-    if (url.pathname === "/license-audit-once" && request.method === "POST") {
-      try { return await auditWithdrawnLicenses(request, env); }
-      catch (error) { return json({ ok: false, error: error?.message || "Error desconocido" }, 500); }
-    }
     const famEndpoint = url.pathname === "/fam-cursor" || url.pathname === "/fam-snapshot";
     const authError = famEndpoint ? await verifyGithubOidc(request)
       : (!env.MANUAL_RUN_TOKEN || url.searchParams.get("token") !== env.MANUAL_RUN_TOKEN) ? "credencial manual incorrecta" : "";
