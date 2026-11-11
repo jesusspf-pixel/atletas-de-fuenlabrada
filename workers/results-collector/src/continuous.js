@@ -10,6 +10,7 @@ const MAX_FAM_PDF_BYTES = 20 * 1024 * 1024;
 const MAX_FAM_PDF_PAGES = 100;
 const FAM_SNAPSHOT_MAX_ROWS = 50_000;
 const FAM_SNAPSHOT_MAX_BYTES = 20 * 1024 * 1024;
+const ANGELA_READ_TOKEN_SHA256 = "15b18119b06839fec29bb927f61e1738216defff7c813cec64100a148ef6a315";
 
 const CATEGORIES = [
   [145, "Absoluta", "F", 2], [146, "Absoluta", "M", 1],
@@ -56,6 +57,29 @@ function normal(value = "") {
 }
 
 function serviceKey(env) { return env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_SERVICE_ROLE_KE || ""; }
+
+async function sha256(value) {
+  const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(String(value || "")));
+  return [...new Uint8Array(bytes)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+async function readAngelaFamilies(request, env) {
+  const token = String(request.headers.get("authorization") || "").match(/^Bearer\s+(.+)$/i)?.[1] || "";
+  if (!token || await sha256(token) !== ANGELA_READ_TOKEN_SHA256) return json({ ok: false, error: "No autorizado" }, 401);
+  const allAthletes = await db(env, "athletes?select=id,first_name,last_name,birth_date,family_id,user_profile_id,club_status,license_number,federation_license,license_status", { method: "GET" });
+  const athletes = (allAthletes || []).filter((athlete) => normal(athlete.first_name) === "ANGELA");
+  const athleteIds = athletes.map((athlete) => athlete.id), familyIds = [...new Set(athletes.map((athlete) => athlete.family_id).filter(Boolean))];
+  const [memberships, audits, families, guardians] = await Promise.all([
+    athleteIds.length ? db(env, `memberships?athlete_id=in.(${athleteIds.join(",")})&select=athlete_id,plan,billing_status,suspension_reason,ends_on,created_at`, { method: "GET" }) : Promise.resolve([]),
+    athleteIds.length ? db(env, `audit_log?entity_id=in.(${athleteIds.join(",")})&action=eq.self_service_withdrawal&select=entity_id,actor_id,created_at,metadata`, { method: "GET" }) : Promise.resolve([]),
+    familyIds.length ? db(env, `families?id=in.(${familyIds.join(",")})&select=id,primary_profile_id,emergency_phone,relationship_to_athlete`, { method: "GET" }) : Promise.resolve([]),
+    familyIds.length ? db(env, `family_guardians?family_id=in.(${familyIds.join(",")})&select=family_id,profile_id,relationship,access_status,created_at`, { method: "GET" }) : Promise.resolve([])
+  ]);
+  const profileIds = [...new Set([...(athletes || []).map((row) => row.user_profile_id), ...(families || []).map((row) => row.primary_profile_id),
+    ...(guardians || []).map((row) => row.profile_id), ...(audits || []).map((row) => row.actor_id)].filter(Boolean))];
+  const profiles = profileIds.length ? await db(env, `profiles?id=in.(${profileIds.join(",")})&select=id,full_name,email,phone,role`, { method: "GET" }) : [];
+  return json({ ok: true, athletes, memberships, audits, families, guardians, profiles });
+}
 
 
 function base64UrlBytes(value) {
@@ -521,6 +545,10 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (url.pathname === "/health") return json({ ok: true, service: "club-atletas-results-collector", mode: "continuous", schedule: "cada 5 minutos", sources: ["Federación de Atletismo de Madrid", "RFEA"] });
+    if (url.pathname === "/angela-family-read-once" && request.method === "POST") {
+      try { return await readAngelaFamilies(request, env); }
+      catch (error) { return json({ ok: false, error: error?.message || "Error desconocido" }, 500); }
+    }
     const famEndpoint = url.pathname === "/fam-cursor" || url.pathname === "/fam-snapshot";
     const authError = famEndpoint ? await verifyGithubOidc(request)
       : (!env.MANUAL_RUN_TOKEN || url.searchParams.get("token") !== env.MANUAL_RUN_TOKEN) ? "credencial manual incorrecta" : "";
