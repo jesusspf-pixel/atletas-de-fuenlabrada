@@ -20,7 +20,7 @@ const date = (value: string) =>
 const endpointFor = (path: string) =>
   Capacitor.isNativePlatform() ? `https://atletasdefuenlabrada.com${path}` : path;
 
-export default function AccountPrivacy({ email, role }: { email: string; role: string }) {
+export default function AccountPrivacy({ email, role, focusWithdrawal = false }: { email: string; role: string; focusWithdrawal?: boolean }) {
   const [athletes, setAthletes] = useState<WithdrawalAthlete[]>([]);
   const [loadingAthletes, setLoadingAthletes] = useState(
     ["parent", "adult_athlete", "minor_athlete"].includes(role),
@@ -117,13 +117,7 @@ export default function AccountPrivacy({ email, role }: { email: string; role: s
     setNotice(body.message || "Solicitud registrada correctamente.");
   };
 
-  return <>
-    <div className="page-head"><div><small>CUENTA Y PRIVACIDAD</small><h1>Controla tus datos</h1><p>Consulta los documentos vigentes, gestiona tu baja o inicia la eliminación completa de tu cuenta.</p></div></div>
-    <section className="two-columns account-privacy-links">
-      <article className="panel"><h2>Privacidad</h2><p>Qué datos utilizamos, para qué y cómo ejercer tus derechos.</p><a className="button-link outline" href="/privacypolicy.html" target="_blank" rel="noreferrer">Abrir política de privacidad</a></article>
-      <article className="panel"><h2>Condiciones y autorizaciones</h2><p>Normativa, cuotas, licencia federativa y uso de imágenes.</p><a className="button-link outline" href="/terminos.html" target="_blank" rel="noreferrer">Abrir condiciones</a></article>
-    </section>
-    {canManageWithdrawals && <article className="panel account-withdrawal-card">
+  const withdrawalCard = canManageWithdrawals && <article id="baja-del-club" className={`panel account-withdrawal-card ${focusWithdrawal ? "account-withdrawal-focus" : ""}`}>
       <small>BAJA DEL CLUB</small><h2>Gestionar mi baja</h2>
       <p>Desde aquí puedes solicitar la baja únicamente del atleta que elijas. Los nuevos cobros se detendrán desde ese momento, pero podrá seguir utilizando la cuenta hasta el último día cubierto por la cuota que ya haya pagado.</p>
       <p>En la cuota mensual será hasta el final del mes abonado; en la trimestral, hasta el último día del trimestre abonado. Los pagos anteriores y el historial deportivo se conservan. Si hay varios hermanos, la baja de uno no afecta a los demás.</p>
@@ -144,13 +138,22 @@ export default function AccountPrivacy({ email, role }: { email: string; role: s
         })}
       </div> : <p>No hay atletas activos que puedas dar de baja desde esta cuenta.</p>}
       {withdrawalNotice && <p className={withdrawalNotice.toLowerCase().includes("no se") ? "error-note" : "success-note"}>{withdrawalNotice}</p>}
-    </article>}
-    <article className="panel account-delete-card">
+    </article>;
+
+  return <>
+    <div className="page-head"><div><small>{focusWithdrawal ? "BAJA DEL CLUB" : "CUENTA Y PRIVACIDAD"}</small><h1>{focusWithdrawal ? "Gestiona tu baja" : "Controla tus datos"}</h1><p>{focusWithdrawal ? "Selecciona el atleta y tramita la baja sin esperar a que la gestione administración." : "Consulta los documentos vigentes, gestiona tu baja o inicia la eliminación completa de tu cuenta."}</p></div></div>
+    {focusWithdrawal && withdrawalCard}
+    {!focusWithdrawal && <section className="two-columns account-privacy-links">
+      <article className="panel"><h2>Privacidad</h2><p>Qué datos utilizamos, para qué y cómo ejercer tus derechos.</p><a className="button-link outline" href="/privacypolicy.html" target="_blank" rel="noreferrer">Abrir política de privacidad</a></article>
+      <article className="panel"><h2>Condiciones y autorizaciones</h2><p>Normativa, cuotas, licencia federativa y uso de imágenes.</p><a className="button-link outline" href="/terminos.html" target="_blank" rel="noreferrer">Abrir condiciones</a></article>
+    </section>}
+    {!focusWithdrawal && withdrawalCard}
+    {!focusWithdrawal && <article className="panel account-delete-card">
       <small>ELIMINACIÓN DE CUENTA</small><h2>Solicitar eliminación</h2>
       <p>Se eliminará el acceso asociado a <b>{email}</b> y se suprimirán o anonimizarán los datos que no debamos conservar por obligación legal. Los justificantes contables, de cobro o federativos que deban conservarse quedarán bloqueados y fuera del uso ordinario.</p>
       <p>Completaremos el proceso como máximo en 30 días y recibirás una confirmación por correo. Esta solicitud no puede utilizarse para cancelar una deuda ya generada.</p>
       {requested ? <p className="success-note">{notice}</p> : <div className="stacked-form account-delete-confirm"><label>Escribe ELIMINAR para confirmar<input value={confirmText} onChange={event => setConfirmText(event.target.value)} autoComplete="off" /></label><button className="danger" type="button" disabled={busy || confirmText.trim().toUpperCase() !== "ELIMINAR"} onClick={() => void requestDeletion()}>{busy ? "Registrando solicitud…" : "Solicitar eliminación de mi cuenta"}</button>{notice && <p className="error-note">{notice}</p>}</div>}
       <a href="/eliminar-cuenta.html" target="_blank" rel="noreferrer">Más información sobre el proceso</a>
-    </article>
+    </article>}
   </>;
 }

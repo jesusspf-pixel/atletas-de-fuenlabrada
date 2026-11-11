@@ -783,6 +783,7 @@ export function FamilyHome({
           <h1>Hola, {profile.full_name?.split(" ")[0] || "familia"}</h1>
           <p>Resumen de tus atletas, asistencias y próximos pagos.</p>
         </div>
+        <button className="outline withdrawal-home-link" type="button" onClick={() => go("Baja del club")}>Gestionar baja</button>
       </div>
       <article
         className={`panel ${todaySessions.length ? "success-note" : ""}`}

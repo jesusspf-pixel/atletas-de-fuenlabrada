@@ -1102,6 +1102,7 @@ function Portal({
               "Cuotas",
               "Avisos",
               "Tienda",
+              "Baja del club",
               "Mi cuenta",
             ];
   useEffect(() => {
@@ -1207,8 +1208,8 @@ function Portal({
       : ["parent", "adult_athlete", "minor_athlete"].includes(profile.role)
         ? "member-next-shell"
         : "admin-next-shell";
-  const portalContent = section === "Mi cuenta" ? (
-      <AccountPrivacy email={profile.email} role={profile.role} />
+  const portalContent = section === "Mi cuenta" || section === "Baja del club" ? (
+      <AccountPrivacy email={profile.email} role={profile.role} focusWithdrawal={section === "Baja del club"} />
     ) : profile.role === "minor_athlete" && section === "Challenge" ? (
       <><Header title="Acceso deportivo" text="El Challenge se gestiona desde la cuenta familiar." /><article className="panel"><h2>Sección reservada a la familia</h2><p>El padre, madre o tutor puede decidir la participación en el Challenge desde su cuenta.</p></article></>
     ) : section === "Challenge" ? (

@@ -10,6 +10,7 @@ import PublicClubSite from "./components/PublicClubSite";
 import PublicGroupsPage from "./components/PublicGroupsPage";
 import CoachDesignPreview from "./components/CoachDesignPreview";
 import { supabase } from "./lib/supabase";
+import { installNativeStripeReturn } from "./lib/nativeStripeReturn";
 import "./styles.css";
 import "./access.css";
 import "./components/family-registration.css";
@@ -23,6 +24,8 @@ import "./responsive-guardrails.css";
 // El acceso de ranking abre siempre la vista de resultados del área deportiva.
 
 type Role = "owner" | "admin" | "administrative_viewer" | "coach" | "parent" | "adult_athlete" | "minor_athlete";
+
+installNativeStripeReturn();
 
 function Root() {
   const params = new URLSearchParams(window.location.search);
