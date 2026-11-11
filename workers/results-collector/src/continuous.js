@@ -10,7 +10,6 @@ const MAX_FAM_PDF_BYTES = 20 * 1024 * 1024;
 const MAX_FAM_PDF_PAGES = 100;
 const FAM_SNAPSHOT_MAX_ROWS = 50_000;
 const FAM_SNAPSHOT_MAX_BYTES = 20 * 1024 * 1024;
-const LICENSE_SYNC_TOKEN_SHA256 = "c451da166a095b23795bf311e15d5d26ce6da0fdefe642512bb424d4ee01a7e0";
 
 const CATEGORIES = [
   [145, "Absoluta", "F", 2], [146, "Absoluta", "M", 1],
@@ -57,66 +56,6 @@ function normal(value = "") {
 }
 
 function serviceKey(env) { return env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_SERVICE_ROLE_KE || ""; }
-
-async function sha256(value) {
-  const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(String(value || "")));
-  return [...new Uint8Array(bytes)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
-function normalLicense(value = "") { return String(value).toUpperCase().replace(/[^A-Z0-9]+/g, ""); }
-
-async function syncFederationLicenses(request, env) {
-  const token = String(request.headers.get("authorization") || "").match(/^Bearer\s+(.+)$/i)?.[1] || "";
-  if (!token || await sha256(token) !== LICENSE_SYNC_TOKEN_SHA256) return json({ ok: false, error: "No autorizado" }, 401);
-  const input = await request.json();
-  const requested = Array.isArray(input?.rows) ? input.rows.slice(0, 200) : [];
-  if (!requested.length) return json({ ok: false, error: "No se recibieron licencias" }, 400);
-  const current = await db(env, "athletes?select=id,first_name,last_name,license_number,federation_license,license_status,club_status", { method: "GET" });
-  const byName = new Map();
-  for (const athlete of current || []) {
-    const key = normal(`${athlete.first_name || ""} ${athlete.last_name || ""}`);
-    if (!byName.has(key)) byName.set(key, []);
-    byName.get(key).push(athlete);
-  }
-  const matched = [], unmatched = [], ambiguous = [], conflicts = [];
-  for (const row of requested) {
-    const firstName = String(row?.first_name || "").trim(), lastName = String(row?.last_name || "").trim();
-    const license = String(row?.license || "").trim();
-    if (!firstName || !lastName || !license) { unmatched.push({ first_name: firstName, last_name: lastName, license, reason: "datos incompletos" }); continue; }
-    const candidates = byName.get(normal(`${firstName} ${lastName}`)) || [];
-    if (!candidates.length) {
-      const wantedFirst = normal(firstName), wantedLast = normal(lastName), wantedSurname = wantedLast.split(" ")[0] || "";
-      const suggestions = (current || []).filter((candidate) => {
-        const candidateFirst = normal(candidate.first_name), candidateLast = normal(candidate.last_name);
-        return candidateFirst === wantedFirst || (wantedSurname && candidateLast.split(" ")[0] === wantedSurname);
-      }).slice(0, 8).map((candidate) => ({ first_name: candidate.first_name, last_name: candidate.last_name,
-        license_number: candidate.license_number, federation_license: candidate.federation_license,
-        license_status: candidate.license_status, club_status: candidate.club_status }));
-      unmatched.push({ first_name: firstName, last_name: lastName, license, reason: "sin coincidencia exacta", suggestions });
-      continue;
-    }
-    if (candidates.length !== 1) { ambiguous.push({ first_name: firstName, last_name: lastName, license, matches: candidates.length }); continue; }
-    const athlete = candidates[0];
-    const different = [athlete.license_number, athlete.federation_license].filter(Boolean)
-      .some((existing) => normalLicense(existing) !== normalLicense(license));
-    if (different) {
-      conflicts.push({ first_name: athlete.first_name, last_name: athlete.last_name, license, current_license_number: athlete.license_number, current_federation_license: athlete.federation_license });
-      continue;
-    }
-    matched.push({ athlete, license });
-  }
-  const updated = [];
-  if (input?.apply === true) for (const item of matched) {
-    await db(env, `athletes?id=eq.${encodeURIComponent(item.athlete.id)}`, {
-      method: "PATCH", headers: { Prefer: "return=minimal" },
-      body: JSON.stringify({ license_number: item.license, federation_license: item.license, license_status: "active" })
-    });
-    updated.push({ first_name: item.athlete.first_name, last_name: item.athlete.last_name, license: item.license, club_status: item.athlete.club_status });
-  }
-  return json({ ok: true, version: "license-sync-2026-11-11", apply: input?.apply === true,
-    requested: requested.length, matched: matched.map((item) => ({ first_name: item.athlete.first_name, last_name: item.athlete.last_name, license: item.license, current_license_number: item.athlete.license_number, current_federation_license: item.athlete.federation_license, license_status: item.athlete.license_status, club_status: item.athlete.club_status })),
-    unmatched, ambiguous, conflicts, updated });
-}
 
 function base64UrlBytes(value) {
   const normalized = String(value).replace(/-/g, "+").replace(/_/g, "/");
@@ -581,10 +520,6 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (url.pathname === "/health") return json({ ok: true, service: "club-atletas-results-collector", mode: "continuous", schedule: "cada 5 minutos", sources: ["Federación de Atletismo de Madrid", "RFEA"] });
-    if (url.pathname === "/license-sync-once" && request.method === "POST") {
-      try { return await syncFederationLicenses(request, env); }
-      catch (error) { return json({ ok: false, error: error?.message || "Error desconocido" }, 500); }
-    }
     const famEndpoint = url.pathname === "/fam-cursor" || url.pathname === "/fam-snapshot";
     const authError = famEndpoint ? await verifyGithubOidc(request)
       : (!env.MANUAL_RUN_TOKEN || url.searchParams.get("token") !== env.MANUAL_RUN_TOKEN) ? "credencial manual incorrecta" : "";
