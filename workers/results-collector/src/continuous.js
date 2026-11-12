@@ -66,6 +66,7 @@ async function sha256(value) {
 async function readLicenseDeltaCandidate(request, env) {
   const token = String(request.headers.get("authorization") || "").match(/^Bearer\s+(.+)$/i)?.[1] || "";
   if (!token || await sha256(token) !== LICENSE_DELTA_READ_TOKEN_SHA256) return json({ ok: false, error: "No autorizado" }, 401);
+  const input = await request.json().catch(() => ({}));
   const rows = await db(env, "athletes?select=id,first_name,last_name,birth_date,club_status,license_number,federation_license,license_status,family_id,user_profile_id", { method: "GET" });
   const athletes = (rows || []).filter((athlete) => normal(`${athlete.first_name} ${athlete.last_name}`) === "ALBERTO PEREZ RODRIGO");
   const athleteIds = athletes.map((athlete) => athlete.id);
@@ -75,7 +76,24 @@ async function readLicenseDeltaCandidate(request, env) {
   const withdrawals = athleteIds.length
     ? await db(env, `audit_log?entity_id=in.(${athleteIds.join(",")})&action=eq.self_service_withdrawal&select=entity_id,created_at,metadata`, { method: "GET" })
     : [];
-  return json({ ok: true, athletes, memberships, withdrawals });
+  const updated = [];
+  if (input?.apply === true) {
+    const athlete = athletes[0];
+    const membership = memberships.find((item) => item.athlete_id === athlete?.id);
+    const hasWithdrawal = withdrawals.some((item) => item.entity_id === athlete?.id);
+    const existingLicenses = [athlete?.license_number, athlete?.federation_license].filter(Boolean);
+    const desiredLicense = "M-3988477-A-T-s";
+    const conflict = existingLicenses.some((value) => String(value).toUpperCase().replace(/[^A-Z0-9]+/g, "") !== desiredLicense.toUpperCase().replace(/[^A-Z0-9]+/g, ""));
+    if (athletes.length !== 1 || !athlete || athlete.birth_date !== "1989-09-22" || athlete.club_status !== "active" || membership?.billing_status !== "active" || membership?.ends_on || hasWithdrawal || conflict) {
+      return json({ ok: false, error: "La ficha ya no cumple las condiciones seguras para actualizarse", athletes, memberships, withdrawals }, 409);
+    }
+    await db(env, `athletes?id=eq.${encodeURIComponent(athlete.id)}`, {
+      method: "PATCH", headers: { Prefer: "return=minimal" },
+      body: JSON.stringify({ license_number: desiredLicense, federation_license: desiredLicense, license_status: "active" })
+    });
+    updated.push({ id: athlete.id, first_name: athlete.first_name, last_name: athlete.last_name, license: desiredLicense });
+  }
+  return json({ ok: true, apply: input?.apply === true, athletes, memberships, withdrawals, updated });
 }
 
 function base64UrlBytes(value) {
